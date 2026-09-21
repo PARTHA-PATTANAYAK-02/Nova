@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Heart,
   Home,
@@ -7,6 +7,8 @@ import {
   LogOut,
   Search,
   X,
+  User,
+  Trash2,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
@@ -17,22 +19,44 @@ import { toast } from "sonner";
 import axios from "axios";
 import { setAuthUser } from "@/redux/authSlice";
 import { setPosts, setSelectedPost } from "@/redux/postSlice";
-import { markNotificationsRead, removeNotification } from "@/redux/rtnSlice";
+import {
+  markNotificationsRead,
+  removeNotification,
+  clearNotifications,
+} from "@/redux/rtnSlice";
 import { getErrorMessage } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
 
 const MobileBottomNav = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+
   const { user } = useSelector((store) => store.auth);
   const { likeNotification, unreadCount } = useSelector(
     (store) => store.realTimeNotification,
   );
-  const location = useLocation();
-  const [open, setOpen] = React.useState(false);
-  const [showProfileMenu, setShowProfileMenu] = React.useState(false);
 
-  /* ---------- LOGIC (UNCHANGED) ---------- */
+  const location = useLocation();
+
+  const [open, setOpen] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  const [profileMenuMounted, setProfileMenuMounted] = useState(false);
+
+  /* ---------- PROFILE MENU ANIMATION ---------- */
+
+  useEffect(() => {
+    if (showProfileMenu) {
+      requestAnimationFrame(() => {
+        setProfileMenuMounted(true);
+      });
+    } else {
+      setProfileMenuMounted(false);
+    }
+  }, [showProfileMenu]);
+
+  /* ---------- NOTIFICATION TEXT ---------- */
+
   const getNotificationText = (notification) =>
     notification.type === "comment"
       ? "commented on your post"
@@ -42,9 +66,13 @@ const MobileBottomNav = () => {
           ? "started following you"
           : "liked your post";
 
+  /* ---------- NOTIFICATION CLICK ---------- */
+
   const handleNotificationClick = (notification) => {
     if (notification.type === "message") {
-      navigate("/chat", { state: { user: notification.userDetails } });
+      navigate("/chat", {
+        state: { user: notification.userDetails },
+      });
     } else if (notification.type === "comment") {
       navigate("/", {
         state: { notificationPostId: notification.postId },
@@ -54,11 +82,56 @@ const MobileBottomNav = () => {
     }
   };
 
+  /* ---------- REMOVE ONE NOTIFICATION ---------- */
+
+  const handleRemoveNotification = (notificationId) => {
+    dispatch(removeNotification(notificationId));
+
+    axios
+      .delete(apiUrl(`/api/v1/user/notifications/${notificationId}`), {
+        withCredentials: true,
+      })
+      .catch(() => undefined);
+  };
+
+  /* ---------- CLEAR ALL NOTIFICATIONS ---------- */
+
+  const handleClearAllNotifications = () => {
+    if (likeNotification.length === 0) return;
+
+    dispatch(clearNotifications());
+
+    axios
+      .delete(apiUrl("/api/v1/user/notifications/clear"), {
+        withCredentials: true,
+      })
+      .catch(() => undefined);
+  };
+
+  /* ---------- NOTIFICATION OPEN ---------- */
+
+  const handleNotificationsOpen = (isOpen) => {
+    if (isOpen) {
+      dispatch(markNotificationsRead());
+
+      axios
+        .patch(
+          apiUrl("/api/v1/user/notifications/read"),
+          {},
+          { withCredentials: true },
+        )
+        .catch(() => undefined);
+    }
+  };
+
+  /* ---------- LOGOUT ---------- */
+
   const handleLogout = async () => {
     try {
       const res = await axios.get(apiUrl("/api/v1/user/logout"), {
         withCredentials: true,
       });
+
       if (res.data.success) {
         dispatch(setAuthUser(null));
         dispatch(setSelectedPost(null));
@@ -73,65 +146,221 @@ const MobileBottomNav = () => {
     }
   };
 
+  /* ---------- ACTIVE ---------- */
+
   const isActive = (path) => location.pathname === path;
 
+  /* ---------- NAV ITEM ---------- */
+
   const itemCls = (active) =>
-    `flex-1 flex items-center justify-center py-2 rounded-2xl transition-all duration-300 ${
-      active ? "bg-white/10 text-white" : "text-white/50 hover:text-white/80"
-    }`;
+    `
+      relative flex-1 flex items-center justify-center
+      py-2.5 rounded-xl
+      transition-all duration-300 ease-out
+      active:scale-90
+      ${active ? "text-[var(--primary)]" : "text-[var(--muted-foreground)]"}
+    `;
 
   return (
     <>
-      {/* ---------- FLOATING DOCK ---------- */}
-      <nav className="md:hidden fixed bottom-3 left-3 right-3 z-50 glass-strong rounded-[26px] shadow-[0_8px_40px_rgba(0,0,0,0.55)]">
-        <div className="flex items-center justify-between px-2.5 py-2 gap-1">
+      {/* =========================================================
+          MOBILE BOTTOM NAV
+      ========================================================= */}
+
+      <nav
+        className="
+          md:hidden fixed bottom-3 left-3 right-3 z-50
+          bg-[var(--surface)]/95 backdrop-blur-xl
+          border border-[var(--border)]
+          rounded-[22px]
+          shadow-[0_12px_40px_rgba(0,0,0,0.16)]
+          px-2 py-1.5
+          transition-all duration-300
+        "
+      >
+        <div className="flex items-center justify-between gap-1">
+          {/* HOME */}
+
           <Link
             to="/"
             onClick={() => dispatch(setSelectedPost(null))}
             className={itemCls(isActive("/"))}
           >
-            <Home className="h-5 w-5" />
+            {isActive("/") && (
+              <span
+                className="
+                  absolute inset-x-2 inset-y-1
+                  rounded-xl
+                  bg-[var(--primary)]/10
+                  scale-100
+                  transition-transform duration-300
+                "
+              />
+            )}
+
+            <Home
+              className={`
+                relative z-10 h-5 w-5
+                transition-all duration-300
+                ${isActive("/") ? "scale-110 -translate-y-0.5" : ""}
+              `}
+              strokeWidth={isActive("/") ? 2.2 : 1.8}
+            />
           </Link>
+
+          {/* SEARCH */}
 
           <Link to="/search" className={itemCls(isActive("/search"))}>
-            <Search className="h-5 w-5" />
+            {isActive("/search") && (
+              <span
+                className="
+                  absolute inset-x-2 inset-y-1
+                  rounded-xl
+                  bg-[var(--primary)]/10
+                "
+              />
+            )}
+
+            <Search
+              className={`
+                relative z-10 h-5 w-5
+                transition-all duration-300
+                ${isActive("/search") ? "scale-110 -translate-y-0.5" : ""}
+              `}
+              strokeWidth={isActive("/search") ? 2.2 : 1.8}
+            />
           </Link>
 
-          {/* Center create button */}
+          {/* CREATE */}
+
           <button
             onClick={() => setOpen(true)}
-            className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 flex items-center justify-center glow-primary shrink-0 hover:scale-105 active:scale-95 transition-transform"
-          >
-            <PlusSquare className="h-5 w-5 text-white" />
-          </button>
-
-          <Link to="/chat" className={itemCls(isActive("/chat"))}>
-            <MessageCircle className="h-5 w-5" />
-          </Link>
-
-          {/* Notifications */}
-          <Popover
-            onOpenChange={(isOpen) => {
-              if (isOpen) {
-                dispatch(markNotificationsRead());
-                axios
-                  .patch(
-                    apiUrl("/api/v1/user/notifications/read"),
-                    {},
-                    { withCredentials: true },
-                  )
-                  .catch(() => undefined);
-              }
+            aria-label="Create post"
+            className="
+              relative
+              w-11 h-11
+              rounded-full
+              flex items-center justify-center
+              shrink-0
+              text-[var(--primary-foreground)]
+              active:scale-90
+              transition-all duration-300
+              hover:scale-105
+            "
+            style={{
+              background: "var(--primary)",
+              boxShadow:
+                "0 6px 18px color-mix(in srgb, var(--primary) 35%, transparent)",
             }}
           >
+            {/* outer glow */}
+
+            <span
+              className="
+                absolute inset-0
+                rounded-full
+                bg-[var(--primary)]
+                opacity-20
+                blur-md
+                scale-110
+              "
+            />
+
+            <PlusSquare
+              className="
+                relative z-10
+                h-5 w-5
+                transition-transform duration-300
+                hover:rotate-90
+              "
+              strokeWidth={2}
+            />
+          </button>
+
+          {/* CHAT */}
+
+          <Link to="/chat" className={itemCls(isActive("/chat"))}>
+            {isActive("/chat") && (
+              <span
+                className="
+                  absolute inset-x-2 inset-y-1
+                  rounded-xl
+                  bg-[var(--primary)]/10
+                "
+              />
+            )}
+
+            <MessageCircle
+              className={`
+                relative z-10 h-5 w-5
+                transition-all duration-300
+                ${isActive("/chat") ? "scale-110 -translate-y-0.5" : ""}
+              `}
+              strokeWidth={isActive("/chat") ? 2.2 : 1.8}
+            />
+          </Link>
+
+          {/* =====================================================
+              NOTIFICATIONS
+          ===================================================== */}
+
+          <Popover onOpenChange={handleNotificationsOpen}>
             <PopoverTrigger asChild>
-              <button className="flex-1 flex items-center justify-center py-2 rounded-2xl text-white/50 hover:text-white/80 transition-colors relative">
+              <button
+                aria-label="Notifications"
+                className="
+                  relative
+                  flex-1 flex items-center justify-center
+                  py-2.5 rounded-xl
+                  text-[var(--muted-foreground)]
+                  hover:text-[var(--foreground)]
+                  active:scale-90
+                  transition-all duration-300
+                "
+              >
                 <div className="relative">
-                  <Heart className="h-5 w-5" />
+                  <Heart
+                    className={`
+                      h-5 w-5
+                      transition-all duration-300
+                      ${unreadCount > 0 ? "scale-105" : ""}
+                    `}
+                    strokeWidth={1.8}
+                  />
+
+                  {/* notification pulse */}
+
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-gradient-to-br from-rose-500 to-fuchsia-500 px-1 text-[9px] font-bold text-white shadow-lg shadow-rose-500/50">
-                      {unreadCount > 9 ? "9+" : unreadCount}
-                    </span>
+                    <>
+                      <span
+                        className="
+                          absolute -top-1 -right-1
+                          h-3.5 w-3.5
+                          rounded-full
+                          bg-[var(--accent)]
+                          opacity-30
+                          animate-ping
+                        "
+                      />
+
+                      <span
+                        className="
+                          absolute -top-1 -right-1
+                          flex h-3.5 min-w-3.5
+                          items-center justify-center
+                          rounded-full
+                          px-1
+                          text-[8px]
+                          font-bold
+                          bg-[var(--accent)]
+                          text-[var(--accent-foreground)]
+                          border-2 border-[var(--surface)]
+                          animate-[bounce_1.8s_ease-in-out_infinite]
+                        "
+                      >
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    </>
                   )}
                 </div>
               </button>
@@ -140,50 +369,204 @@ const MobileBottomNav = () => {
             <PopoverContent
               side="top"
               align="center"
-              sideOffset={14}
-              className="w-72 p-0 glass-strong !rounded-3xl !border-white/10 overflow-hidden mb-1"
+              sideOffset={12}
+              className="
+                w-[calc(100vw-24px)]
+                max-w-[380px]
+                p-0
+                mb-1
+                overflow-hidden
+                rounded-2xl
+                border-[var(--border)]
+                bg-[var(--surface)]/95
+                backdrop-blur-xl
+                shadow-[0_20px_60px_rgba(0,0,0,0.18)]
+                animate-in
+                fade-in-0
+                zoom-in-95
+                slide-in-from-bottom-2
+                duration-200
+              "
             >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-                <h3 className="font-display font-semibold text-sm text-white">
-                  Notifications
-                </h3>
+              {/* HEADER */}
+
+              <div
+                className="
+                  flex items-center justify-between
+                  px-4 py-3
+                  border-b border-[var(--border)]
+                "
+              >
+                <div>
+                  <h3
+                    className="
+                      text-sm font-semibold
+                      text-[var(--foreground)]
+                    "
+                    style={{
+                      fontFamily: "var(--font-display)",
+                    }}
+                  >
+                    Notifications
+                  </h3>
+
+                  {likeNotification.length > 0 && (
+                    <p className="text-[10px] mt-0.5 text-[var(--muted-foreground)]">
+                      {likeNotification.length}{" "}
+                      {likeNotification.length === 1
+                        ? "notification"
+                        : "notifications"}
+                    </p>
+                  )}
+                </div>
+
+                {/* CLEAR ALL */}
+
+                {likeNotification.length > 0 && (
+                  <button
+                    onClick={handleClearAllNotifications}
+                    className="
+                      group
+                      inline-flex items-center gap-1.5
+                      px-2.5 py-1.5
+                      rounded-lg
+                      text-[11px]
+                      font-medium
+                      text-[var(--muted-foreground)]
+                      hover:text-[var(--danger)]
+                      hover:bg-[var(--danger)]/8
+                      active:scale-95
+                      transition-all duration-200
+                    "
+                  >
+                    <Trash2
+                      className="
+                        h-3.5 w-3.5
+                        transition-transform duration-200
+                        group-hover:scale-110
+                      "
+                      strokeWidth={1.8}
+                    />
+                    Clear all
+                  </button>
+                )}
               </div>
-              <div className="max-h-80 overflow-y-auto">
+
+              {/* NOTIFICATION LIST */}
+
+              <div className="max-h-[55vh] overflow-y-auto">
                 {likeNotification.length === 0 ? (
-                  <div className="py-8 text-center">
-                    <p className="text-sm text-white/40">
+                  <div
+                    className="
+                      py-10 px-5
+                      flex flex-col items-center
+                      text-center
+                      animate-in
+                      fade-in-0
+                      duration-200
+                    "
+                  >
+                    <div
+                      className="
+                        h-11 w-11
+                        rounded-full
+                        bg-[var(--surface-2)]
+                        flex items-center justify-center
+                        mb-3
+                      "
+                    >
+                      <Heart
+                        className="
+                          h-5 w-5
+                          text-[var(--muted-foreground)]
+                        "
+                        strokeWidth={1.6}
+                      />
+                    </div>
+
+                    <p className="text-sm font-medium text-[var(--foreground)]">
+                      All caught up
+                    </p>
+
+                    <p className="text-xs mt-1 text-[var(--muted-foreground)]">
                       No notifications yet
                     </p>
                   </div>
                 ) : (
-                  likeNotification.map((n) => (
+                  likeNotification.map((n, index) => (
                     <div
                       key={n._id}
                       onClick={() => handleNotificationClick(n)}
-                      className="group flex items-start gap-3 px-4 py-3 hover:bg-white/5 transition-colors cursor-pointer"
+                      className="
+                        group
+                        flex items-center gap-3
+                        px-4 py-3
+                        cursor-pointer
+                        hover:bg-[var(--surface-2)]
+                        active:bg-[var(--surface-2)]
+                        transition-all duration-200
+                        animate-in
+                        fade-in-0
+                        slide-in-from-bottom-1
+                      "
+                      style={{
+                        animationDelay: `${index * 35}ms`,
+                      }}
                     >
-                      <Avatar className="h-8 w-8 shrink-0 ring-2 ring-white/10">
+                      {/* AVATAR */}
+
+                      <Avatar className="h-9 w-9 shrink-0">
                         <AvatarImage src={n.userDetails?.profilePicture} />
-                        <AvatarFallback className="text-xs bg-gradient-to-br from-violet-500 to-cyan-500 text-white">
+
+                        <AvatarFallback>
                           {(n.userDetails?.fullName || n.userDetails?.username)
                             ?.charAt(0)
                             .toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <p className="text-sm text-white/80 leading-snug flex-1">
-                        <span className="font-semibold text-white">
-                          {n.userDetails?.username}
-                        </span>{" "}
-                        {getNotificationText(n)}
-                      </p>
+
+                      {/* TEXT */}
+
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className="
+                            text-xs
+                            text-[var(--foreground)]
+                            leading-relaxed
+                          "
+                        >
+                          <span className="font-semibold">
+                            {n.userDetails?.username}
+                          </span>{" "}
+                          <span className="text-[var(--muted-foreground)]">
+                            {getNotificationText(n)}
+                          </span>
+                        </p>
+                      </div>
+
+                      {/* REMOVE */}
+
                       <button
+                        aria-label="Remove notification"
                         onClick={(e) => {
                           e.stopPropagation();
-                          dispatch(removeNotification(n._id));
+                          handleRemoveNotification(n._id);
                         }}
-                        className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-white transition-all shrink-0"
+                        className="
+                          shrink-0
+                          h-7 w-7
+                          rounded-full
+                          flex items-center justify-center
+                          text-[var(--muted-foreground)]
+                          opacity-0
+                          group-hover:opacity-100
+                          hover:text-[var(--danger)]
+                          hover:bg-[var(--danger)]/8
+                          active:scale-90
+                          transition-all duration-200
+                        "
                       >
-                        <X className="h-3.5 w-3.5" />
+                        <X className="h-3.5 w-3.5" strokeWidth={2} />
                       </button>
                     </div>
                   ))
@@ -192,16 +575,35 @@ const MobileBottomNav = () => {
             </PopoverContent>
           </Popover>
 
-          {/* Profile avatar button */}
+          {/* =====================================================
+              PROFILE
+          ===================================================== */}
+
           <button
-            onClick={() => setShowProfileMenu((s) => !s)}
-            className={`flex-1 flex items-center justify-center py-1.5 rounded-2xl transition-all duration-300 ${
-              showProfileMenu ? "bg-white/10" : ""
-            }`}
+            onClick={() => setShowProfileMenu((current) => !current)}
+            aria-label="Profile menu"
+            className={`
+              flex-1 flex items-center justify-center
+              py-1.5 rounded-xl
+              transition-all duration-300
+              active:scale-90
+              ${showProfileMenu ? "bg-[var(--surface-2)]" : ""}
+            `}
           >
-            <Avatar className="h-7 w-7 ring-2 ring-white/15">
+            <Avatar
+              className={`
+                h-7 w-7
+                transition-all duration-300
+                ${
+                  showProfileMenu
+                    ? "scale-110 ring-2 ring-[var(--primary)]/30"
+                    : ""
+                }
+              `}
+            >
               <AvatarImage src={user?.profilePicture} />
-              <AvatarFallback className="text-[10px] bg-gradient-to-br from-violet-500 to-cyan-500 text-white">
+
+              <AvatarFallback>
                 {user?.username?.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
@@ -209,37 +611,165 @@ const MobileBottomNav = () => {
         </div>
       </nav>
 
-      {/* ---------- PROFILE MENU ---------- */}
+      {/* =========================================================
+          PROFILE MENU BACKDROP
+      ========================================================= */}
+
       {showProfileMenu && (
         <>
           <div
-            className="md:hidden fixed inset-0 z-40"
+            className="
+              md:hidden
+              fixed inset-0 z-40
+              bg-black/10
+              backdrop-blur-[2px]
+              transition-opacity duration-300
+            "
             onClick={() => setShowProfileMenu(false)}
           />
-          <div className="md:hidden fixed bottom-24 right-3 z-50 w-52 glass-strong rounded-2xl !border-white/10 overflow-hidden shadow-[0_8px_40px_rgba(0,0,0,0.55)]">
+
+          {/* =====================================================
+              PROFILE FLOATING MENU
+          ===================================================== */}
+
+          <div
+            className={`
+              md:hidden
+              fixed
+              bottom-[78px]
+              right-3
+              z-50
+              w-[210px]
+              overflow-hidden
+              rounded-[20px]
+              border border-[var(--border)]
+              bg-[var(--surface)]/95
+              backdrop-blur-xl
+              shadow-[0_20px_60px_rgba(0,0,0,0.22)]
+              origin-bottom-right
+              transition-all duration-300
+              ease-[cubic-bezier(0.34,1.56,0.64,1)]
+              ${
+                profileMenuMounted
+                  ? "opacity-100 scale-100 translate-y-0"
+                  : "opacity-0 scale-90 translate-y-3"
+              }
+            `}
+          >
+            {/* USER HEADER */}
+
+            <div
+              className="
+                px-4 py-3.5
+                border-b border-[var(--border)]
+              "
+            >
+              <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10 shrink-0">
+                  <AvatarImage src={user?.profilePicture} />
+
+                  <AvatarFallback>
+                    {user?.username?.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[var(--foreground)] truncate">
+                    {user?.fullName || user?.username}
+                  </p>
+
+                  <p className="text-[11px] text-[var(--muted-foreground)] truncate">
+                    @{user?.username}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* PROFILE */}
+
             <button
               onClick={() => {
                 navigate(`/profile/${user?._id}`);
                 setShowProfileMenu(false);
               }}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white/80 hover:bg-white/5 transition-colors"
+              className="
+                group
+                w-full
+                flex items-center gap-3
+                px-4 py-3
+                text-sm
+                text-[var(--foreground)]
+                hover:bg-[var(--surface-2)]
+                transition-all duration-200
+              "
             >
-              <Avatar className="h-6 w-6">
-                <AvatarImage src={user?.profilePicture} />
-                <AvatarFallback className="text-[10px] bg-gradient-to-br from-violet-500 to-cyan-500 text-white">
-                  {user?.username?.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              Profile
+              <span
+                className="
+                  h-8 w-8
+                  rounded-lg
+                  flex items-center justify-center
+                  bg-[var(--surface-2)]
+                  group-hover:bg-[var(--primary)]/10
+                  transition-colors duration-200
+                "
+              >
+                <User
+                  className="
+                    h-4 w-4
+                    group-hover:scale-110
+                    transition-transform duration-200
+                  "
+                  strokeWidth={1.8}
+                />
+              </span>
+
+              <span className="font-medium">View profile</span>
             </button>
 
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-rose-300 hover:bg-rose-500/10 transition-colors border-t border-white/5"
-            >
-              <LogOut className="h-4 w-4" />
-              Logout
-            </button>
+            {/* LOGOUT */}
+
+            <div className="border-t border-[var(--border)] p-1.5">
+              <button
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  handleLogout();
+                }}
+                className="
+                  group
+                  w-full
+                  flex items-center gap-3
+                  px-3 py-2.5
+                  rounded-xl
+                  text-sm
+                  text-[var(--danger)]
+                  hover:bg-[var(--danger)]/8
+                  transition-all duration-200
+                  active:scale-[0.98]
+                "
+              >
+                <span
+                  className="
+                    h-8 w-8
+                    rounded-lg
+                    flex items-center justify-center
+                    bg-[var(--danger)]/8
+                    group-hover:bg-[var(--danger)]/12
+                    transition-colors duration-200
+                  "
+                >
+                  <LogOut
+                    className="
+                      h-4 w-4
+                      group-hover:translate-x-0.5
+                      transition-transform duration-200
+                    "
+                    strokeWidth={1.8}
+                  />
+                </span>
+
+                <span className="font-medium">Logout</span>
+              </button>
+            </div>
           </div>
         </>
       )}

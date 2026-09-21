@@ -3,41 +3,27 @@ import { Toaster as Sonner } from "sonner";
 const Toaster = ({ ...props }) => {
   return (
     <Sonner
-      theme="dark"
+      theme="system"
       className="toaster group"
       position="top-center"
       toastOptions={{
         classNames: {
           toast:
-            "group toast !rounded-2xl !border-white/10 !bg-[#0d0d18]/95 !backdrop-blur-2xl !text-white !shadow-[0_16px_48px_rgba(0,0,0,0.6)]",
-          title: "!text-sm !font-semibold !text-white",
-          description: "!text-xs !text-white/60",
+            "group toast !rounded-xl !border-[var(--border)] !bg-[var(--surface)] !text-[var(--foreground)] !shadow-[var(--shadow-lg)]",
+          title: "!text-sm !font-semibold !text-[var(--foreground)]",
+          description: "!text-xs !text-[var(--muted-foreground)]",
           actionButton:
-            "!bg-gradient-to-r !from-violet-500 !to-cyan-500 !text-white !rounded-full !text-xs !font-semibold",
-          cancelButton: "!bg-white/8 !text-white/70 !rounded-full !text-xs",
-          success: "!border-emerald-500/25 [&_[data-icon]]:!text-emerald-300",
-          error: "!border-rose-500/30 [&_[data-icon]]:!text-rose-300",
-          info: "!border-cyan-500/30 [&_[data-icon]]:!text-cyan-300",
-          warning: "!border-amber-500/30 [&_[data-icon]]:!text-amber-300",
-          loading: "!border-violet-500/30 [&_[data-icon]]:!text-violet-300",
+            "!bg-[var(--primary)] !text-[var(--primary-foreground)] !rounded-full !text-xs !font-semibold",
+          cancelButton:
+            "!bg-[var(--surface-2)] !text-[var(--foreground)] !rounded-full !text-xs",
+          success: "!border-emerald-500/25 [&_[data-icon]]:!text-emerald-500",
+          error:
+            "!border-[var(--danger)]/30 [&_[data-icon]]:!text-[var(--danger)]",
+          info: "!border-[var(--primary)]/30 [&_[data-icon]]:!text-[var(--primary)]",
+          warning: "!border-amber-500/30 [&_[data-icon]]:!text-amber-500",
+          loading:
+            "!border-[var(--primary)]/30 [&_[data-icon]]:!text-[var(--primary)]",
         },
-      }}
-      style={{
-        "--normal-bg": "#0d0d18",
-        "--normal-text": "#ffffff",
-        "--normal-border": "rgba(255, 255, 255, 0.1)",
-        "--success-bg": "#0d0d18",
-        "--success-text": "#ffffff",
-        "--success-border": "rgba(16, 185, 129, 0.25)",
-        "--error-bg": "#0d0d18",
-        "--error-text": "#ffffff",
-        "--error-border": "rgba(244, 63, 94, 0.3)",
-        "--info-bg": "#0d0d18",
-        "--info-text": "#ffffff",
-        "--info-border": "rgba(6, 182, 212, 0.3)",
-        "--warning-bg": "#0d0d18",
-        "--warning-text": "#ffffff",
-        "--warning-border": "rgba(245, 158, 11, 0.3)",
       }}
       {...props}
     />

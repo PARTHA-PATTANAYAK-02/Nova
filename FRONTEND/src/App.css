@@ -1,18 +1,15 @@
-/* Orb — app-level tweaks */
+/* Nova — app level */
 
 .App {
     min-height: 100dvh;
-    isolation: isolate;
 }
 
-/* Route transition wrapper (use with framer-motion later) */
 .route-fade {
     animation: fadeIn 0.4s ease both;
 }
 
-/* Focus ring — global */
 :focus-visible {
-    outline: 2px solid oklch(0.78 0.16 210 / 0.8);
+    outline: 2px solid var(--primary);
     outline-offset: 2px;
-    border-radius: 12px;
+    border-radius: 8px;
 }

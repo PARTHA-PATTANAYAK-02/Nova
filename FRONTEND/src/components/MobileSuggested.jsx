@@ -7,11 +7,15 @@ import { toast } from "sonner";
 import { updateFollowing } from "@/redux/authSlice";
 import { apiUrl } from "@/lib/api";
 
-const SuggestedUsers = () => {
+/**
+ * Mobile/tablet-only suggested users card.
+ * Designed to be injected INLINE inside the feed (after every N posts).
+ * Compact, self-contained — no outer max-width wrapper.
+ */
+const MobileSuggested = () => {
   const { suggestedUsers, user } = useSelector((store) => store.auth);
   const dispatch = useDispatch();
   const [followStates, setFollowStates] = useState({});
-  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     const initialState = {};
@@ -39,39 +43,32 @@ const SuggestedUsers = () => {
     }
   };
 
-  const visibleUsers = (suggestedUsers || []).slice(0, showAll ? undefined : 5);
+  if (!suggestedUsers || suggestedUsers.length === 0) return null;
 
   return (
-    <div className="space-y-2.5">
-      {/* HEADER */}
-      <div className="flex items-center justify-between px-3">
+    <div className="lg:hidden card p-4">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
           Suggested for you
         </h2>
-        {(suggestedUsers || []).length > 5 && (
-          <button
-            type="button"
-            onClick={() => setShowAll((c) => !c)}
-            className="text-xs font-medium text-[var(--primary)] hover:underline"
-          >
-            {showAll ? "Less" : "See all"}
-          </button>
-        )}
+        <span className="text-[11px] text-[var(--muted-foreground)]">
+          {suggestedUsers.length} people
+        </span>
       </div>
 
-      {/* LIST */}
+      {/* List */}
       <div className="space-y-0.5">
-        {visibleUsers.map((suggestedUser) => {
+        {suggestedUsers.slice(0, 5).map((suggestedUser) => {
           const isFollowing = followStates[suggestedUser._id];
-
           return (
             <div
               key={suggestedUser._id}
-              className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl hover:bg-[var(--surface-2)] transition-colors"
+              className="flex items-center justify-between gap-2 px-2 py-2 rounded-xl hover:bg-[var(--surface-2)] transition-colors"
             >
               <Link
                 to={`/profile/${suggestedUser._id}`}
-                className="flex items-center gap-2.5 min-w-0 flex-1"
+                className="flex items-center gap-3 min-w-0 flex-1"
               >
                 <Avatar className="h-10 w-10 shrink-0">
                   <AvatarImage
@@ -117,14 +114,8 @@ const SuggestedUsers = () => {
           );
         })}
       </div>
-
-      {(suggestedUsers || []).length === 0 && (
-        <p className="text-xs text-[var(--muted-foreground)] text-center py-3">
-          No suggestions right now
-        </p>
-      )}
     </div>
   );
 };
 
-export default SuggestedUsers;
+export default MobileSuggested;

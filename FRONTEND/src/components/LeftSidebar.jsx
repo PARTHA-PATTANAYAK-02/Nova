@@ -8,7 +8,7 @@ import {
   Bookmark,
   Search,
   X,
-  Sparkles,
+  Trash2,
 } from "lucide-react";
 import React, { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
@@ -18,31 +18,38 @@ import { useDispatch, useSelector } from "react-redux";
 import { setAuthUser } from "@/redux/authSlice";
 import CreatePost from "./CreatePost";
 import { setPosts, setSelectedPost } from "@/redux/postSlice";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import {
   clearNotifications,
   markNotificationsRead,
   removeNotification,
 } from "@/redux/rtnSlice";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { apiUrl } from "@/lib/api";
 
 const LeftSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
+
   const { user } = useSelector((store) => store.auth);
   const { likeNotification, unreadCount } = useSelector(
     (store) => store.realTimeNotification,
   );
+
   const dispatch = useDispatch();
+
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  /* ---------- LOGIC (UNCHANGED) ---------- */
+  /* ============================================================
+     LOGOUT
+  ============================================================ */
+
   const logoutHandler = async () => {
     try {
       const res = await axios.get(apiUrl("/api/v1/user/logout"), {
         withCredentials: true,
       });
+
       if (res.data.success) {
         dispatch(setAuthUser(null));
         dispatch(setSelectedPost(null));
@@ -57,8 +64,13 @@ const LeftSidebar = () => {
     }
   };
 
+  /* ============================================================
+     NOTIFICATIONS
+  ============================================================ */
+
   const handleRemoveNotification = (notificationId) => {
     dispatch(removeNotification(notificationId));
+
     axios
       .delete(apiUrl(`/api/v1/user/notifications/${notificationId}`), {
         withCredentials: true,
@@ -67,7 +79,10 @@ const LeftSidebar = () => {
   };
 
   const handleClearAllNotifications = () => {
+    if (likeNotification.length === 0) return;
+
     dispatch(clearNotifications());
+
     axios
       .delete(apiUrl("/api/v1/user/notifications/clear"), {
         withCredentials: true,
@@ -78,6 +93,7 @@ const LeftSidebar = () => {
   const handleNotificationsOpen = (isOpen) => {
     if (isOpen) {
       dispatch(markNotificationsRead());
+
       axios
         .patch(
           apiUrl("/api/v1/user/notifications/read"),
@@ -99,7 +115,9 @@ const LeftSidebar = () => {
 
   const handleNotificationClick = (notification) => {
     if (notification.type === "message") {
-      navigate("/chat", { state: { user: notification.userDetails } });
+      navigate("/chat", {
+        state: { user: notification.userDetails },
+      });
     } else if (notification.type === "comment") {
       navigate("/", {
         state: { notificationPostId: notification.postId },
@@ -109,7 +127,10 @@ const LeftSidebar = () => {
     }
   };
 
-  /* ---------- NAV ITEMS ---------- */
+  /* ============================================================
+     NAV ITEMS
+  ============================================================ */
+
   const navItems = [
     {
       icon: Home,
@@ -122,7 +143,7 @@ const LeftSidebar = () => {
     },
     {
       icon: Search,
-      text: "Discover",
+      text: "Search",
       path: "/search",
       action: () => navigate("/search"),
     },
@@ -141,206 +162,722 @@ const LeftSidebar = () => {
     {
       icon: Bookmark,
       text: "Saved",
-      path: `/profile/${user?._id}`,
+      isActiveOverride: () =>
+        location.pathname === `/profile/${user?._id}` &&
+        location.state?.tab === "saved",
       action: () =>
-        navigate(`/profile/${user?._id}`, { state: { tab: "saved" } }),
+        navigate(`/profile/${user?._id}`, {
+          state: { tab: "saved" },
+        }),
     },
-    { type: "profile" },
   ];
 
-  const labelCls = `font-medium whitespace-nowrap text-sm transition-all duration-300 ${
-    expanded
-      ? "opacity-100 translate-x-0"
-      : "opacity-0 -translate-x-4 pointer-events-none"
-  }`;
+  /* ============================================================
+     CLASSES
+  ============================================================ */
+
+  const labelCls = `
+    whitespace-nowrap text-[13px] font-medium
+    transition-all duration-300
+    ease-[cubic-bezier(0.22,1,0.36,1)]
+    ${
+      expanded
+        ? "opacity-100 translate-x-0"
+        : "opacity-0 -translate-x-2 pointer-events-none"
+    }
+  `;
+
+  const sidebarItemCls = `
+    group relative
+    flex items-center gap-3
+    rounded-xl px-3 py-2.5
+    w-full
+    transition-all duration-300
+    ease-out
+  `;
+
+  /* ============================================================
+     UI
+  ============================================================ */
 
   return (
-    <aside
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => setExpanded(false)}
-      className={`
-        hidden md:flex fixed left-4 top-4 bottom-4 z-40 flex-col
-        glass-strong rounded-[28px] overflow-hidden
-        shadow-[0_8px_40px_rgba(0,0,0,0.45)]
-        transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]
-        ${expanded ? "w-[248px]" : "w-[80px]"}
-      `}
-    >
-      {/* ---------- LOGO ---------- */}
-      <Link to="/" className="flex items-center gap-3 px-4 pt-5 pb-4 shrink-0">
-        <div className="relative w-12 h-12 shrink-0 flex items-center justify-center">
-          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 flex items-center justify-center glow-primary">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
-          <span className="absolute inset-0 rounded-full bg-violet-500/25 animate-glow-pulse pointer-events-none" />
-        </div>
-        <h1
-          className={`font-display font-bold text-2xl text-gradient whitespace-nowrap transition-all duration-300 ${
-            expanded
-              ? "opacity-100 translate-x-0"
-              : "opacity-0 -translate-x-3 pointer-events-none"
-          }`}
-        >
-          Nova
-        </h1>
-      </Link>
+    <>
+      <aside
+        onMouseEnter={() => setExpanded(true)}
+        onMouseLeave={() => setExpanded(false)}
+        className={`
+          hidden md:flex
+          fixed left-3 top-3 bottom-3
+          z-40
+          flex-col
+          bg-[var(--surface)]/95
+          backdrop-blur-xl
+          border border-[var(--border)]
+          rounded-[20px]
+          overflow-hidden
+          shadow-[var(--shadow-lg)]
 
-      {/* ---------- NAV ---------- */}
-      <nav className="flex-1 flex flex-col gap-1 px-2.5 py-2 overflow-y-auto overflow-x-hidden">
-        {navItems.map((item, i) => {
-          /* --- NOTIFICATIONS --- */
-          if (item.type === "notifications") {
-            return (
-              <Popover key="notif" onOpenChange={handleNotificationsOpen}>
-                <PopoverTrigger asChild>
-                  <button className="group relative flex items-center gap-4 rounded-2xl px-3.5 py-3 text-white/60 hover:text-white hover:bg-white/5 transition-all duration-300 w-full">
-                    <div className="relative shrink-0 w-6 h-6 flex items-center justify-center">
-                      <Heart className="w-5 h-5" />
-                      {unreadCount > 0 && (
-                        <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-gradient-to-br from-rose-500 to-fuchsia-500 px-1 text-[9px] font-bold text-white shadow-lg shadow-rose-500/50">
-                          {unreadCount > 9 ? "9+" : unreadCount}
-                        </span>
+          transition-[width,box-shadow,transform]
+          duration-500
+          ease-[cubic-bezier(0.22,1,0.36,1)]
+
+          ${
+            expanded
+              ? "w-[240px] shadow-[0_18px_55px_rgba(0,0,0,0.14)]"
+              : "w-[68px]"
+          }
+        `}
+      >
+        {/* ======================================================
+            LOGO
+        ====================================================== */}
+
+        <Link
+          to="/"
+          className="
+            group
+            flex items-center gap-3
+            px-4 h-16 shrink-0
+            border-b border-[var(--border)]
+          "
+        >
+          <span
+            className="
+              shrink-0
+              flex items-center justify-center
+              w-8 h-8
+              rounded-[10px]
+
+              transition-all duration-500
+              ease-[cubic-bezier(0.34,1.56,0.64,1)]
+
+              group-hover:scale-110
+              group-hover:rotate-3
+            "
+            style={{
+              background: "var(--primary)",
+              color: "var(--primary-foreground)",
+              boxShadow: expanded
+                ? "0 6px 20px color-mix(in srgb, var(--primary) 25%, transparent)"
+                : "none",
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="
+                transition-transform duration-500
+                group-hover:scale-110
+              "
+            >
+              <path d="M12 2L2 22h20L12 2z" />
+            </svg>
+          </span>
+
+          <span
+            className={`
+              font-bold text-xl
+              text-[var(--foreground)]
+              tracking-tight whitespace-nowrap
+
+              transition-all duration-400
+              ease-[cubic-bezier(0.22,1,0.36,1)]
+
+              ${
+                expanded
+                  ? "opacity-100 translate-x-0"
+                  : "opacity-0 -translate-x-3"
+              }
+            `}
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Nova
+          </span>
+        </Link>
+
+        {/* ======================================================
+            NAVIGATION
+        ====================================================== */}
+
+        <nav className="flex-1 flex flex-col gap-1 p-2.5 overflow-y-auto overflow-x-hidden">
+          {navItems.map((item, i) => {
+            /* ==================================================
+               NOTIFICATIONS
+            ================================================== */
+
+            if (item.type === "notifications") {
+              return (
+                <Popover key="notif" onOpenChange={handleNotificationsOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      className={`
+                        ${sidebarItemCls}
+                        text-[var(--muted-foreground)]
+
+                        hover:text-[var(--foreground)]
+                        hover:bg-[var(--surface-2)]
+
+                        hover:translate-x-0.5
+                        active:scale-[0.98]
+                      `}
+                    >
+                      {/* ICON */}
+
+                      <div
+                        className="
+                          relative shrink-0
+                          w-6 h-6
+                          flex items-center justify-center
+                        "
+                      >
+                        <Heart
+                          className="
+                            w-[22px] h-[22px]
+
+                            transition-all duration-300
+                            ease-[cubic-bezier(0.34,1.56,0.64,1)]
+
+                            group-hover:scale-110
+                            group-hover:-translate-y-0.5
+                          "
+                          strokeWidth={1.8}
+                        />
+
+                        {/* UNREAD BADGE */}
+
+                        {unreadCount > 0 && (
+                          <>
+                            <span
+                              className="
+                                absolute
+                                -top-0.5 -right-0.5
+                                h-4 w-4
+                                rounded-full
+                                bg-[var(--accent)]
+                                opacity-30
+                                animate-ping
+                              "
+                            />
+
+                            <span
+                              className="
+                                absolute
+                                -top-0.5 -right-0.5
+
+                                flex h-4 min-w-4
+                                items-center justify-center
+
+                                rounded-full
+                                px-1
+
+                                text-[9px]
+                                font-bold
+
+                                bg-[var(--accent)]
+                                text-[var(--accent-foreground)]
+
+                                border-2
+                                border-[var(--surface)]
+
+                                transition-transform
+                                duration-300
+
+                                group-hover:scale-110
+                              "
+                            >
+                              {unreadCount > 9 ? "9+" : unreadCount}
+                            </span>
+                          </>
+                        )}
+                      </div>
+
+                      <span className={labelCls}>Notifications</span>
+                    </button>
+                  </PopoverTrigger>
+
+                  {/* =================================================
+                      NOTIFICATION POPUP
+                  ================================================= */}
+
+                  <PopoverContent
+                    side="right"
+                    align="end"
+                    sideOffset={12}
+                    className="
+                      w-[340px]
+                      p-0
+                      overflow-hidden
+
+                      rounded-2xl
+
+                      bg-[var(--surface)]/95
+                      backdrop-blur-xl
+
+                      border border-[var(--border)]
+
+                      shadow-[0_20px_60px_rgba(0,0,0,0.18)]
+
+                      animate-in
+                      fade-in-0
+                      zoom-in-95
+                      slide-in-from-left-2
+                      duration-200
+                    "
+                  >
+                    {/* HEADER */}
+
+                    <div
+                      className="
+                        flex items-center justify-between
+                        px-4 py-3
+                        border-b border-[var(--border)]
+                      "
+                    >
+                      <div>
+                        <h3
+                          className="
+                            text-sm font-semibold
+                            text-[var(--foreground)]
+                          "
+                          style={{
+                            fontFamily: "var(--font-display)",
+                          }}
+                        >
+                          Notifications
+                        </h3>
+
+                        {likeNotification.length > 0 && (
+                          <p
+                            className="
+                              text-[10px]
+                              mt-0.5
+                              text-[var(--muted-foreground)]
+                            "
+                          >
+                            {likeNotification.length}{" "}
+                            {likeNotification.length === 1
+                              ? "notification"
+                              : "notifications"}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* CLEAR ALL */}
+
+                      {likeNotification.length > 0 && (
+                        <button
+                          onClick={handleClearAllNotifications}
+                          className="
+                            group/clear
+
+                            inline-flex
+                            items-center gap-1.5
+
+                            px-2.5 py-1.5
+                            rounded-lg
+
+                            text-[11px]
+                            font-medium
+
+                            text-[var(--muted-foreground)]
+
+                            hover:text-[var(--danger)]
+                            hover:bg-[var(--danger)]/8
+
+                            active:scale-95
+
+                            transition-all duration-200
+                          "
+                        >
+                          <Trash2
+                            className="
+                              h-3.5 w-3.5
+
+                              transition-all duration-200
+                              group-hover/clear:scale-110
+                              group-hover/clear:-rotate-6
+                            "
+                            strokeWidth={1.8}
+                          />
+                          Clear all
+                        </button>
                       )}
                     </div>
-                    <span className={labelCls}>Notifications</span>
-                  </button>
-                </PopoverTrigger>
 
-                <PopoverContent
-                  side="right"
-                  align="end"
-                  sideOffset={14}
-                  className="w-80 p-0 glass-strong !rounded-3xl !border-white/10 overflow-hidden"
-                >
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-                    <h3 className="font-display font-semibold text-sm text-white">
-                      Notifications
-                    </h3>
-                    {likeNotification.length > 0 && (
-                      <button
-                        onClick={handleClearAllNotifications}
-                        className="text-xs text-white/40 hover:text-white transition-colors"
-                      >
-                        Clear all
-                      </button>
-                    )}
-                  </div>
+                    {/* LIST */}
 
-                  <div className="max-h-96 overflow-y-auto">
-                    {likeNotification.length === 0 ? (
-                      <div className="py-10 text-center">
-                        <p className="text-sm text-white/40">
-                          No notifications yet
-                        </p>
-                      </div>
-                    ) : (
-                      likeNotification.map((n) => (
+                    <div className="max-h-96 overflow-y-auto">
+                      {likeNotification.length === 0 ? (
                         <div
-                          key={n._id}
-                          onClick={() => handleNotificationClick(n)}
-                          className="group flex items-start gap-3 px-4 py-3 hover:bg-white/5 transition-colors cursor-pointer relative"
-                        >
-                          <Avatar className="h-9 w-9 shrink-0 ring-2 ring-white/10">
-                            <AvatarImage src={n.userDetails?.profilePicture} />
-                            <AvatarFallback className="text-xs bg-gradient-to-br from-violet-500 to-cyan-500 text-white">
-                              {(
-                                n.userDetails?.fullName ||
-                                n.userDetails?.username
-                              )
-                                ?.charAt(0)
-                                .toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-white/90 leading-snug">
-                              <span className="font-semibold">
-                                {n.userDetails?.username}
-                              </span>{" "}
-                              <span className="text-white/60">
-                                {getNotificationText(n)}
-                              </span>
-                            </p>
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRemoveNotification(n._id);
-                            }}
-                            className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-white transition-all shrink-0"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            );
-          }
+                          className="
+                            py-12
+                            flex flex-col
+                            items-center
+                            justify-center
+                            text-center
 
-          /* --- PROFILE --- */
-          if (item.type === "profile") {
-            const isActive = location.pathname === `/profile/${user?._id}`;
+                            animate-in
+                            fade-in-0
+                            zoom-in-95
+                            duration-300
+                          "
+                        >
+                          <div
+                            className="
+                              w-11 h-11
+                              rounded-full
+                              flex items-center justify-center
+
+                              bg-[var(--surface-2)]
+
+                              mb-3
+
+                              transition-transform
+                              duration-500
+
+                              hover:scale-110
+                            "
+                          >
+                            <Heart
+                              className="
+                                h-5 w-5
+                                text-[var(--muted-foreground)]
+                              "
+                              strokeWidth={1.6}
+                            />
+                          </div>
+
+                          <p
+                            className="
+                              text-sm
+                              font-medium
+                              text-[var(--foreground)]
+                            "
+                          >
+                            All caught up
+                          </p>
+
+                          <p
+                            className="
+                              text-xs
+                              mt-1
+                              text-[var(--muted-foreground)]
+                            "
+                          >
+                            No notifications yet
+                          </p>
+                        </div>
+                      ) : (
+                        likeNotification.map((n, index) => (
+                          <div
+                            key={n._id}
+                            onClick={() => handleNotificationClick(n)}
+                            className="
+                              group/notif
+
+                              flex items-center gap-3
+
+                              px-4 py-3
+
+                              cursor-pointer
+
+                              hover:bg-[var(--surface-2)]
+
+                              transition-all duration-200
+
+                              animate-in
+                              fade-in-0
+                              slide-in-from-left-1
+                            "
+                            style={{
+                              animationDelay: `${index * 35}ms`,
+                              animationFillMode: "both",
+                            }}
+                          >
+                            {/* AVATAR */}
+
+                            <Avatar
+                              className="
+                                h-9 w-9 shrink-0
+
+                                transition-transform
+                                duration-300
+
+                                group-hover/notif:scale-105
+                              "
+                            >
+                              <AvatarImage
+                                src={n.userDetails?.profilePicture}
+                              />
+
+                              <AvatarFallback>
+                                {(
+                                  n.userDetails?.fullName ||
+                                  n.userDetails?.username
+                                )
+                                  ?.charAt(0)
+                                  .toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+
+                            {/* TEXT */}
+
+                            <div className="flex-1 min-w-0">
+                              <p
+                                className="
+                                  text-sm
+                                  text-[var(--foreground)]
+                                  leading-snug
+                                "
+                              >
+                                <span className="font-semibold">
+                                  {n.userDetails?.username}
+                                </span>{" "}
+                                <span className="text-[var(--muted-foreground)]">
+                                  {getNotificationText(n)}
+                                </span>
+                              </p>
+                            </div>
+
+                            {/* REMOVE */}
+
+                            <button
+                              aria-label="Remove notification"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveNotification(n._id);
+                              }}
+                              className="
+                                shrink-0
+
+                                h-7 w-7
+                                rounded-full
+
+                                flex items-center justify-center
+
+                                text-[var(--muted-foreground)]
+
+                                opacity-0
+                                scale-90
+
+                                group-hover/notif:opacity-100
+                                group-hover/notif:scale-100
+
+                                hover:text-[var(--danger)]
+                                hover:bg-[var(--danger)]/8
+
+                                active:scale-75
+
+                                transition-all duration-200
+                              "
+                            >
+                              <X className="h-3.5 w-3.5" strokeWidth={2} />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              );
+            }
+
+            /* ==================================================
+               REGULAR ITEMS
+            ================================================== */
+
+            const Icon = item.icon;
+
+            const isActive = item.isActiveOverride
+              ? item.isActiveOverride()
+              : item.path && location.pathname === item.path;
+
             return (
               <button
-                key="profile"
-                onClick={() => navigate(`/profile/${user?._id}`)}
-                className={`group relative flex items-center gap-4 rounded-2xl px-3 py-2.5 transition-all duration-300 w-full ${
-                  isActive
-                    ? "bg-white/8 text-white"
-                    : "text-white/60 hover:text-white hover:bg-white/5"
-                }`}
+                key={i}
+                onClick={item.action}
+                style={{
+                  transitionDelay: expanded ? `${i * 20}ms` : "0ms",
+                }}
+                className={`
+                  ${sidebarItemCls}
+
+                  ${
+                    isActive
+                      ? "bg-[var(--surface-2)] text-[var(--foreground)]"
+                      : "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)]"
+                  }
+
+                  ${isActive ? "shadow-[inset_0_0_0_1px_var(--border)]" : ""}
+                `}
               >
-                <Avatar className="w-7 h-7 shrink-0 ring-2 ring-white/15">
-                  <AvatarImage src={user?.profilePicture} />
-                  <AvatarFallback className="text-[10px] bg-gradient-to-br from-violet-500 to-cyan-500 text-white">
-                    {user?.username?.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <span className={labelCls}>Profile</span>
+                {/* ACTIVE INDICATOR */}
+
+                <span
+                  className={`
+                    absolute
+                    left-0
+                    top-1/2
+                    -translate-y-1/2
+
+                    w-[3px]
+                    rounded-r-full
+
+                    bg-[var(--primary)]
+
+                    transition-all duration-300
+                    ease-[cubic-bezier(0.34,1.56,0.64,1)]
+
+                    ${
+                      isActive
+                        ? "h-5 opacity-100 scale-y-100"
+                        : "h-0 opacity-0 scale-y-0"
+                    }
+                  `}
+                />
+
+                {/* ICON */}
+
+                <div
+                  className="
+                    relative
+                    shrink-0
+                    w-6 h-6
+                    flex items-center justify-center
+                  "
+                >
+                  <Icon
+                    className={`
+                      w-[22px] h-[22px]
+
+                      transition-all duration-300
+                      ease-[cubic-bezier(0.34,1.56,0.64,1)]
+
+                      group-hover:scale-110
+                      group-hover:-translate-y-0.5
+
+                      ${isActive ? "scale-105" : ""}
+                    `}
+                    strokeWidth={isActive ? 2 : 1.8}
+                  />
+                </div>
+
+                {/* LABEL */}
+
+                <span className={labelCls}>{item.text}</span>
               </button>
             );
-          }
+          })}
+        </nav>
 
-          /* --- REGULAR ITEMS --- */
-          const Icon = item.icon;
-          const isActive = item.path && location.pathname === item.path;
-          return (
-            <button
-              key={i}
-              onClick={item.action}
-              className={`group relative flex items-center gap-4 rounded-2xl px-3.5 py-3 transition-all duration-300 w-full ${
-                isActive
-                  ? "text-white bg-white/8"
-                  : "text-white/60 hover:text-white hover:bg-white/5"
-              }`}
-            >
-              {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-gradient-to-b from-violet-400 to-cyan-400 glow-primary" />
-              )}
-              <div className="relative shrink-0 w-6 h-6 flex items-center justify-center">
-                <Icon className="w-5 h-5" />
-              </div>
-              <span className={labelCls}>{item.text}</span>
-            </button>
-          );
-        })}
-      </nav>
+        {/* ======================================================
+            BOTTOM PROFILE + LOGOUT
+        ====================================================== */}
 
-      {/* ---------- BOTTOM ---------- */}
-      <div className="shrink-0 p-2.5 space-y-1 border-t border-white/5">
-        <button
-          onClick={logoutHandler}
-          className="group flex items-center gap-4 w-full rounded-2xl px-3.5 py-3 text-white/60 hover:text-rose-300 hover:bg-rose-500/10 transition-all duration-300"
+        <div
+          className="
+            shrink-0
+            p-2.5
+            space-y-1
+            border-t border-[var(--border)]
+          "
         >
-          <LogOut className="w-5 h-5 shrink-0" />
-          <span className={labelCls}>Logout</span>
-        </button>
-      </div>
+          {/* PROFILE */}
+
+          <button
+            onClick={() => navigate(`/profile/${user?._id}`)}
+            className={`
+              ${sidebarItemCls}
+
+              ${
+                location.pathname === `/profile/${user?._id}` &&
+                location.state?.tab !== "saved"
+                  ? "bg-[var(--surface-2)] text-[var(--foreground)]"
+                  : "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)]"
+              }
+
+              hover:translate-x-0.5
+              active:scale-[0.98]
+            `}
+          >
+            <Avatar
+              className="
+                w-6 h-6 shrink-0
+
+                transition-all duration-300
+
+                group-hover:scale-110
+              "
+            >
+              <AvatarImage src={user?.profilePicture} />
+
+              <AvatarFallback>
+                {user?.username?.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+
+            <span className={labelCls}>Profile</span>
+          </button>
+
+          {/* LOGOUT */}
+
+          <button
+            onClick={logoutHandler}
+            className="
+              group
+              flex items-center gap-3
+              rounded-xl
+              px-3 py-2
+              w-full
+
+              text-[var(--muted-foreground)]
+
+              hover:text-[var(--danger)]
+              hover:bg-[var(--danger)]/8
+
+              hover:translate-x-0.5
+              active:scale-[0.98]
+
+              transition-all duration-300
+            "
+          >
+            <div
+              className="
+                w-6 h-6
+                shrink-0
+                flex items-center justify-center
+              "
+            >
+              <LogOut
+                className="
+                  w-5 h-5
+
+                  transition-all duration-300
+
+                  group-hover:translate-x-0.5
+                  group-hover:scale-110
+                "
+                strokeWidth={1.8}
+              />
+            </div>
+
+            <span className={labelCls}>Logout</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* ========================================================
+          CREATE POST
+      ======================================================== */}
 
       <CreatePost open={open} setOpen={setOpen} />
-    </aside>
+    </>
   );
 };
 

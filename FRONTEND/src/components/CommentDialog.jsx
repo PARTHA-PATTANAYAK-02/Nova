@@ -7,7 +7,7 @@ import {
 } from "./ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Link } from "react-router-dom";
-import { Send, MessageCircle, Loader2 } from "lucide-react";
+import { Send, MessageCircle, Loader2, Heart } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import Comment from "./Comment";
 import axios from "axios";
@@ -17,39 +17,158 @@ import { Textarea } from "./ui/textarea";
 import { getErrorMessage } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
 
+/* ============================================================
+   SKELETON — comments panel loading placeholder
+   ============================================================ */
+const CommentsPanelSkeleton = () => (
+  <>
+    {/* Caption skeleton */}
+    <div className="mx-4 my-3 space-y-2">
+      <div className="h-3.5 w-full max-w-md rounded bg-[var(--surface-2)] animate-pulse" />
+      <div className="h-3.5 w-3/4 max-w-sm rounded bg-[var(--surface-2)] animate-pulse" />
+    </div>
+
+    {/* Comments skeleton */}
+    <div className="px-4 space-y-3 pt-2">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="flex items-start gap-2.5">
+          <div className="h-8 w-8 rounded-full bg-[var(--surface-2)] animate-pulse shrink-0" />
+          <div className="flex-1 space-y-2 pt-0.5">
+            <div className="h-3 w-24 rounded bg-[var(--surface-2)] animate-pulse" />
+            <div className="h-3 w-2/3 rounded bg-[var(--surface-2)] animate-pulse" />
+          </div>
+        </div>
+      ))}
+    </div>
+  </>
+);
+
 const CommentDialog = ({ open, setOpen }) => {
   const [text, setText] = useState("");
   const { selectedPost, posts } = useSelector((store) => store.post);
+  const { user } = useSelector((store) => store.auth);
+  const [postDetail, setPostDetail] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [comments, setComments] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const dispatch = useDispatch();
 
-  /* ---------- LOGIC (UNCHANGED) ---------- */
+  /* ============================================================
+     RESET when dialog closes — prevents stale data flash on
+     next open
+     ============================================================ */
   useEffect(() => {
-    setComments(selectedPost?.comments || []);
-  }, [selectedPost]);
+    if (!open) {
+      setPostDetail(null);
+      setComments([]);
+      setText("");
+      setLoading(false);
+    }
+  }, [open]);
 
+  /* ---------- FETCH FULL POST DETAIL when dialog opens ---------- */
+  useEffect(() => {
+    if (!open || !selectedPost?._id) return;
+
+    let cancelled = false;
+    setLoading(true);
+    setPostDetail(null); // clear previous before fetch
+
+    axios
+      .get(apiUrl(`/api/v1/post/${selectedPost._id}/detail`), {
+        withCredentials: true,
+      })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.data.success && res.data.post) {
+          setPostDetail(res.data.post);
+        } else {
+          setPostDetail(selectedPost);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPostDetail(selectedPost);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, selectedPost?._id]);
+
+  const post = postDetail || selectedPost;
+
+  /* ---------- COMMENTS — NEWEST FIRST ---------- */
+  useEffect(() => {
+    const raw = Array.isArray(post?.comments) ? post.comments : [];
+
+    const valid = raw.filter(
+      (c) => c && (c.text || c.comment) && (c.author || c.user),
+    );
+
+    const sorted = [...valid].sort((a, b) => {
+      const da = new Date(a.createdAt || 0).getTime();
+      const db = new Date(b.createdAt || 0).getTime();
+      return db - da;
+    });
+
+    setComments(sorted);
+  }, [post]);
+
+  /* ---------- ADD COMMENT ---------- */
   const sendMessageHandler = async () => {
-    if (!text.trim() || !selectedPost?._id) return;
+    if (!text.trim() || !post?._id || submitting) return;
+
+    const commentText = text.trim();
 
     try {
       setSubmitting(true);
       const res = await axios.post(
-        apiUrl(`/api/v1/post/${selectedPost?._id}/comment`),
-        { text },
+        apiUrl(`/api/v1/post/${post._id}/comment`),
+        { text: commentText },
         { withCredentials: true },
       );
 
       if (res.data.success) {
-        const updatedComments = [...comments, res.data.comment];
+        const newComment = res.data.comment || {
+          _id: `temp-${Date.now()}`,
+          text: commentText,
+          author: {
+            _id: user?._id,
+            username: user?.username,
+            fullName: user?.fullName,
+            profilePicture: user?.profilePicture,
+          },
+          createdAt: new Date().toISOString(),
+        };
+
+        const updatedComments = [newComment, ...comments];
         setComments(updatedComments);
+        setPostDetail((prev) =>
+          prev ? { ...prev, comments: updatedComments } : prev,
+        );
 
         const updatedPosts = posts.map((p) =>
-          p._id === selectedPost._id ? { ...p, comments: updatedComments } : p,
+          p._id === post._id ? { ...p, comments: updatedComments } : p,
         );
         dispatch(setPosts(updatedPosts));
+
         toast.success("Comment added");
         setText("");
+
+        axios
+          .get(apiUrl(`/api/v1/post/${post._id}/detail`), {
+            withCredentials: true,
+          })
+          .then((r) => {
+            if (r.data.success && r.data.post) {
+              setPostDetail(r.data.post);
+            }
+          })
+          .catch(() => undefined);
       }
     } catch (error) {
       toast.error(getErrorMessage(error, "Unable to add your comment."));
@@ -58,111 +177,209 @@ const CommentDialog = ({ open, setOpen }) => {
     }
   };
 
+  /* ---------- Derived ---------- */
+  const author = post?.author || post?.user || {};
+  const authorName = author.fullName?.trim() || author.username || "Unknown";
+  const authorHandle = author.username || "";
+  const authorAvatar = author.profilePicture || "";
+
+  const likeCount = Array.isArray(post?.likes) ? post.likes.length : 0;
+  const isLikedByMe =
+    user && Array.isArray(post?.likes) && post.likes.includes(user._id);
+
+  /* Should show skeleton? — when fetching detail for a NEW post */
+  const showSkeleton = loading && !postDetail;
+
   /* ---------- UI ---------- */
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-[95vw] md:max-w-5xl p-0 h-[85vh] md:h-[80vh] overflow-hidden glass-strong !rounded-[28px] !border-white/10 !gap-0 flex flex-col md:flex-row">
+      <DialogContent
+        className="!flex flex-col md:flex-row max-w-[95vw] md:max-w-4xl p-0 h-[90vh] md:h-[80vh] overflow-hidden !gap-0"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <DialogTitle className="sr-only">Comments</DialogTitle>
         <DialogDescription className="sr-only">
           View and add comments on this post
         </DialogDescription>
 
         {/* ============ IMAGE PANEL ============ */}
-        <div className="hidden md:flex md:w-1/2 bg-black/50 items-center justify-center relative overflow-hidden">
-          <img
-            src={selectedPost?.image}
-            alt="Post"
-            className="w-full h-full object-contain"
-          />
+        <div className="w-full md:w-1/2 md:h-full h-[32vh] shrink-0 bg-black flex items-center justify-center overflow-hidden border-b md:border-b-0 md:border-r border-[var(--border)]">
+          {selectedPost?.image && !showSkeleton ? (
+            <img
+              src={selectedPost.image}
+              alt="Post"
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            <div className="w-full h-full bg-[var(--surface-2)] animate-pulse" />
+          )}
         </div>
 
         {/* ============ COMMENTS PANEL ============ */}
-        <div className="w-full md:w-1/2 flex flex-col min-h-0 bg-white/[0.02] backdrop-blur-xl">
-          {/* Header */}
-          <div className="shrink-0 p-4 border-b border-white/8">
-            <div className="flex items-center gap-3">
-              <div className="relative shrink-0">
-                <div className="absolute -inset-0.5 rounded-full bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 opacity-70" />
-                <Avatar className="relative h-9 w-9 ring-2 ring-[#0a0a18]">
-                  <AvatarImage src={selectedPost?.author?.profilePicture} />
-                  <AvatarFallback className="bg-gradient-to-br from-violet-500 to-cyan-500 text-white text-xs font-semibold">
-                    {(
-                      selectedPost?.author?.fullName ||
-                      selectedPost?.author?.username
-                    )
-                      ?.charAt(0)
-                      .toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <Link
-                  to={`/profile/${selectedPost?.author?._id}`}
-                  className="font-semibold text-sm text-white hover:text-violet-300 transition-colors truncate block"
-                >
-                  {selectedPost?.author?.fullName ||
-                    selectedPost?.author?.username}
-                </Link>
-                <p className="text-[11px] text-white/40">Author</p>
-              </div>
-
-              <span className="text-[11px] px-2.5 py-1 rounded-full bg-white/5 border border-white/8 text-white/50">
-                {comments.length}{" "}
-                {comments.length === 1 ? "comment" : "comments"}
-              </span>
-            </div>
-          </div>
-
-          {/* Comments list */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-1">
-            {comments.length > 0 ? (
-              comments.map((comment) => (
-                <Comment key={comment._id} comment={comment} />
-              ))
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center py-8">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-violet-500/20 to-cyan-500/20 border border-white/10 flex items-center justify-center mb-3">
-                  <MessageCircle className="w-6 h-6 text-white/50" />
+        <div className="w-full md:w-1/2 flex-1 flex flex-col min-h-0 bg-[var(--surface)]">
+          {/* ---- Header ---- */}
+          <div className="shrink-0 px-4 py-3 border-b border-[var(--border)]">
+            {showSkeleton ? (
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-full bg-[var(--surface-2)] animate-pulse shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3.5 w-32 rounded bg-[var(--surface-2)] animate-pulse" />
+                  <div className="h-3 w-20 rounded bg-[var(--surface-2)] animate-pulse" />
                 </div>
-                <p className="font-display text-sm font-semibold text-white">
-                  No comments yet
-                </p>
-                <p className="text-xs text-white/40 mt-1">
-                  Be the first to say something.
-                </p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <Link to={`/profile/${author._id}`} className="shrink-0">
+                  <Avatar className="h-9 w-9">
+                    <AvatarImage src={authorAvatar} />
+                    <AvatarFallback>
+                      {authorName.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                </Link>
+
+                <div className="flex-1 min-w-0">
+                  <Link
+                    to={`/profile/${author._id}`}
+                    className="font-semibold text-sm text-[var(--foreground)] hover:opacity-80 transition-opacity truncate block"
+                  >
+                    {authorName}
+                  </Link>
+                  {authorHandle && (
+                    <p className="text-[11px] text-[var(--muted-foreground)] truncate">
+                      @{authorHandle}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </div>
 
-          {/* Input */}
-          <div className="shrink-0 p-3 border-t border-white/8">
-            <div className="flex items-end gap-2">
-              <Textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="Add a comment..."
-                rows={1}
-                className="min-h-[42px] max-h-32 bg-white/5 border-white/10 text-white placeholder:text-white/30 rounded-2xl resize-none focus-visible:border-violet-400/50 focus-visible:ring-violet-400/20 py-2.5"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey && !submitting) {
-                    e.preventDefault();
-                    sendMessageHandler();
-                  }
-                }}
-              />
-              <button
-                onClick={sendMessageHandler}
-                disabled={!text.trim() || submitting}
-                className="shrink-0 w-11 h-11 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-white shadow-[0_0_18px_rgba(124,92,255,0.4)] hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
-              >
-                {submitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
+          {/* ---- Scrollable content ---- */}
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {showSkeleton ? (
+              <CommentsPanelSkeleton />
+            ) : (
+              <>
+                {/* ===== CAPTION — simple box ===== */}
+                {post?.caption && (
+                  <div className="mx-4 mt-3 mb-2 px-3.5 py-2.5 rounded-lg bg-[var(--surface-2)]">
+                    <p className="text-[13px] text-[var(--foreground)] leading-relaxed">
+                      {post.caption}
+                    </p>
+                  </div>
                 )}
-              </button>
-            </div>
+
+                {/* ===== Section label ===== */}
+                {comments.length > 0 && (
+                  <div className="px-4 pt-2 pb-1.5 flex items-center gap-2">
+                    <div className="h-px flex-1 bg-[var(--border)]" />
+                    <span className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)]">
+                      Comments
+                    </span>
+                    <div className="h-px flex-1 bg-[var(--border)]" />
+                  </div>
+                )}
+
+                {/* ===== Comments list (newest first) ===== */}
+                <div className="px-2 py-1 space-y-0.5">
+                  {comments.length > 0 ? (
+                    comments.map((comment) => (
+                      <Comment key={comment._id} comment={comment} />
+                    ))
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center py-10 px-4">
+                      <div className="w-12 h-12 rounded-full bg-[var(--surface-2)] flex items-center justify-center mb-3">
+                        <MessageCircle
+                          className="w-5 h-5 text-[var(--muted-foreground)]"
+                          strokeWidth={1.8}
+                        />
+                      </div>
+                      <p className="text-sm font-semibold text-[var(--foreground)]">
+                        No comments yet
+                      </p>
+                      <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                        Be the first to say something.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* ---- Stats + Input ---- */}
+          <div className="shrink-0 border-t border-[var(--border)]">
+            {showSkeleton ? (
+              <div className="px-4 pt-3 pb-3 space-y-2">
+                <div className="h-3.5 w-40 rounded bg-[var(--surface-2)] animate-pulse" />
+                <div className="h-10 w-full rounded-lg bg-[var(--surface-2)] animate-pulse" />
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-4 px-4 pt-3 pb-2">
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <Heart
+                      className={`h-4 w-4 ${
+                        isLikedByMe
+                          ? "fill-[var(--danger)] text-[var(--danger)]"
+                          : "text-[var(--foreground)]"
+                      }`}
+                      strokeWidth={1.8}
+                    />
+                    <span className="font-semibold text-[var(--foreground)] tabular-nums">
+                      {likeCount}
+                    </span>
+                    <span className="text-[var(--muted-foreground)]">
+                      {likeCount === 1 ? "like" : "likes"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 text-sm text-[var(--muted-foreground)]">
+                    <MessageCircle className="h-4 w-4" strokeWidth={1.8} />
+                    <span className="font-semibold text-[var(--foreground)] tabular-nums">
+                      {comments.length}
+                    </span>
+                    <span>
+                      {comments.length === 1 ? "comment" : "comments"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="px-3 pb-3">
+                  <div className="flex items-end gap-2">
+                    <Textarea
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                      placeholder="Add a comment..."
+                      rows={1}
+                      className="min-h-[40px] max-h-28 resize-none rounded-lg py-2.5"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey && !submitting) {
+                          e.preventDefault();
+                          sendMessageHandler();
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={sendMessageHandler}
+                      disabled={!text.trim() || submitting}
+                      className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{
+                        background: "var(--primary)",
+                        color: "var(--primary-foreground)",
+                      }}
+                    >
+                      {submitting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" strokeWidth={2} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </DialogContent>

@@ -1,18 +1,15 @@
 import { useEffect, useState } from "react";
 import { ThemeContext } from "./theme-context";
 
-/**
- * Nova is a dark-first experience.
- * The aurora background, glass surfaces and neon gradients are all
- * designed for dark. Light mode will be added later as a separate pass.
- *
- * For now we force dark on <html> so Tailwind `dark:` utilities work.
- */
+const STORAGE_KEY = "nova-theme";
+
 const getInitialTheme = () => {
   if (typeof window === "undefined") return "dark";
-  const stored = localStorage.getItem("theme");
-  // Only switch to light if the user explicitly chose it before.
-  return stored === "light" ? "light" : "dark";
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored === "light" || stored === "dark") return stored;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
 };
 
 export const ThemeProvider = ({ children }) => {
@@ -22,8 +19,8 @@ export const ThemeProvider = ({ children }) => {
   useEffect(() => {
     const root = document.documentElement;
     root.classList.toggle("dark", dark);
-    root.style.colorScheme = dark ? "dark" : "light";
-    localStorage.setItem("theme", theme);
+    root.style.colorScheme = theme;
+    localStorage.setItem(STORAGE_KEY, theme);
   }, [theme, dark]);
 
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
@@ -34,3 +31,5 @@ export const ThemeProvider = ({ children }) => {
     </ThemeContext.Provider>
   );
 };
+
+export default ThemeProvider;

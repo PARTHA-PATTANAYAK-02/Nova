@@ -3,30 +3,38 @@ import Posts from "./Posts";
 
 const Feed = ({ requestState }) => {
   return (
-    <div className="max-w-[640px] mx-auto px-4 sm:px-6 py-6 md:py-10 animate-fade-in">
-      {/* ---------- Header ---------- */}
-      <header className="mb-8 flex items-end justify-between">
+    <div className="max-w-[600px] mx-auto px-3 sm:px-4 py-4 animate-fade-in">
+      {/* Header */}
+      <header className="mb-5 flex items-end justify-between">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/40">
-            Your orbit
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
+            Your feed
           </p>
-          <h1 className="mt-2 font-display text-3xl md:text-4xl font-bold tracking-tight">
-            <span className="text-gradient">Today's signals</span>
+          <h1
+            className="mt-1 text-2xl md:text-3xl font-bold tracking-tight text-[var(--foreground)]"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Today's stories
           </h1>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 glass rounded-full pl-2.5 pr-3.5 py-1.5">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--surface)] border border-[var(--border)]">
+          <span className="relative flex h-1.5 w-1.5">
+            <span
+              className="absolute inline-flex h-full w-full rounded-full opacity-60 animate-ping"
+              style={{ background: "var(--success)" }}
+            />
+            <span
+              className="relative inline-flex h-1.5 w-1.5 rounded-full"
+              style={{ background: "var(--success)" }}
+            />
           </span>
-          <span className="text-[11px] font-medium text-white/70 tracking-wide">
+          <span className="text-[11px] font-medium text-[var(--muted-foreground)]">
             Live
           </span>
         </div>
       </header>
 
-      {/* ---------- Posts ---------- */}
       <Posts requestState={requestState} />
     </div>
   );

@@ -7,15 +7,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "./ui/dialog";
-import { Bookmark, MessageCircle, MoreHorizontal, Send } from "lucide-react";
-import { Button } from "./ui/button";
-import { FaHeart, FaRegHeart } from "react-icons/fa";
+import {
+  Bookmark,
+  MessageCircle,
+  MoreHorizontal,
+  Send,
+  Heart,
+} from "lucide-react";
 import CommentDialog from "./CommentDialog";
 import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
 import { toast } from "sonner";
 import { setPosts, setSelectedPost } from "@/redux/postSlice";
-import { Badge } from "./ui/badge";
 import { Link, useNavigate } from "react-router-dom";
 import { updateBookmarks, updateFollowing } from "@/redux/authSlice";
 import { getErrorMessage } from "@/lib/utils";
@@ -41,23 +44,20 @@ const Post = ({ post }) => {
   const [postLike, setPostLike] = useState(post.likes.length);
   const [comment, setComment] = useState(post.comments);
   const [actionLoading, setActionLoading] = useState(null);
+
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  /* ---------- REFS (logic) ---------- */
   const likeRef = useRef(null);
   const commentRef = useRef(null);
   const bookmarkRef = useRef(null);
 
-  /* ---------- LOGIC (UNCHANGED) ---------- */
+  /* ---------- IMAGE DIMENSIONS ---------- */
   useEffect(() => {
     const img = new Image();
     img.src = post.image;
     img.onload = () => {
-      setImageDimensions({
-        width: img.width,
-        height: img.height,
-      });
+      setImageDimensions({ width: img.width, height: img.height });
     };
   }, [post.image]);
 
@@ -67,55 +67,74 @@ const Post = ({ post }) => {
     }
   }, [selectedPost, post._id]);
 
-  const changeEventHandler = (e) => {
-    setText(e.target.value);
+  const changeEventHandler = (e) => setText(e.target.value);
+
+  const triggerAnimation = (ref, cls) => {
+    if (!ref.current) return;
+    const el = ref.current;
+    el.classList.remove(cls);
+    // Force reflow so animation restarts
+    void el.offsetWidth;
+    el.classList.add(cls);
+    setTimeout(() => el.classList.remove(cls), 700);
   };
 
-  const animateButton = (ref, animationClass) => {
-    if (ref.current) {
-      ref.current.classList.add(animationClass);
-      setTimeout(() => {
-        ref.current.classList.remove(animationClass);
-      }, 700);
-    }
-  };
-
+  /* ---------- LIKE — INSTANT (optimistic) ---------- */
   const likeOrDislikeHandler = async () => {
-    if (actionLoading) return;
+    if (actionLoading === "like") return;
+
+    const wasLiked = liked;
+    const nowLiked = !wasLiked;
+    const newCount = wasLiked ? postLike - 1 : postLike + 1;
+
+    // 1) INSTANT UI
+    setLiked(nowLiked);
+    setPostLike(newCount);
+
+    // 2) INSTANT animation
+    triggerAnimation(likeRef, "animate-like");
+
+    // 3) INSTANT redux
+    const updatedPostData = posts.map((p) =>
+      p._id === post._id
+        ? {
+            ...p,
+            likes: wasLiked
+              ? p.likes.filter((id) => id !== user._id)
+              : [...p.likes, user._id],
+          }
+        : p,
+    );
+    dispatch(setPosts(updatedPostData));
+
+    // 4) INSTANT toast
+    toast.success(nowLiked ? "Post liked" : "Post unliked");
+
+    // 5) Background API
     try {
       setActionLoading("like");
-      const action = liked ? "dislike" : "like";
+      const action = nowLiked ? "like" : "dislike";
       const res = await axios.get(
         apiUrl(`/api/v1/post/${post._id}/${action}`),
         { withCredentials: true },
       );
-      if (res.data.success) {
-        animateButton(likeRef, "animate-like");
-
-        const updatedLikes = liked ? postLike - 1 : postLike + 1;
-        setPostLike(updatedLikes);
-        setLiked(!liked);
-
-        const updatedPostData = posts.map((p) =>
-          p._id === post._id
-            ? {
-                ...p,
-                likes: liked
-                  ? p.likes.filter((id) => id !== user._id)
-                  : [...p.likes, user._id],
-              }
-            : p,
-        );
-        dispatch(setPosts(updatedPostData));
-        toast.success(res.data.message);
+      if (!res.data.success) {
+        // rollback
+        setLiked(wasLiked);
+        setPostLike(wasLiked ? newCount + 1 : newCount - 1);
+        dispatch(setPosts(posts));
       }
     } catch (error) {
+      setLiked(wasLiked);
+      setPostLike(wasLiked ? newCount + 1 : newCount - 1);
+      dispatch(setPosts(posts));
       toast.error(getErrorMessage(error, "Unable to update the like."));
     } finally {
       setActionLoading(null);
     }
   };
 
+  /* ---------- COMMENT ---------- */
   const commentHandler = async () => {
     if (!text.trim() || actionLoading) return;
     try {
@@ -124,22 +143,18 @@ const Post = ({ post }) => {
         apiUrl(`/api/v1/post/${post._id}/comment`),
         { text },
         {
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           withCredentials: true,
         },
       );
       if (res.data.success) {
-        animateButton(commentRef, "animate-comment");
+        triggerAnimation(commentRef, "animate-comment");
 
         const updatedCommentData = [...comment, res.data.comment];
         setComment(updatedCommentData);
-
         const updatedPostData = posts.map((p) =>
           p._id === post._id ? { ...p, comments: updatedCommentData } : p,
         );
-
         dispatch(setPosts(updatedPostData));
         toast.success(res.data.message);
         setText("");
@@ -151,6 +166,7 @@ const Post = ({ post }) => {
     }
   };
 
+  /* ---------- DELETE ---------- */
   const deletePostHandler = async () => {
     if (actionLoading) return;
     try {
@@ -173,6 +189,7 @@ const Post = ({ post }) => {
     }
   };
 
+  /* ---------- BOOKMARK ---------- */
   const bookmarkHandler = async () => {
     if (actionLoading) return;
     try {
@@ -182,7 +199,7 @@ const Post = ({ post }) => {
         { withCredentials: true },
       );
       if (res.data.success) {
-        animateButton(bookmarkRef, "animate-bookmark");
+        triggerAnimation(bookmarkRef, "animate-bookmark");
         toast.success(res.data.message);
         setBookmarked(res.data.type === "saved");
         dispatch(updateBookmarks({ postId: post._id }));
@@ -194,6 +211,7 @@ const Post = ({ post }) => {
     }
   };
 
+  /* ---------- FOLLOW ---------- */
   const handleFollow = async () => {
     if (actionLoading) return;
     try {
@@ -203,7 +221,6 @@ const Post = ({ post }) => {
         {},
         { withCredentials: true },
       );
-
       if (res.data.success) {
         toast.success(res.data.message);
         dispatch(updateFollowing(post.author._id));
@@ -221,62 +238,56 @@ const Post = ({ post }) => {
 
   /* ---------- UI ---------- */
   return (
-    <article className="group/post relative glass rounded-[28px] overflow-hidden shadow-[0_8px_40px_rgba(0,0,0,0.35)] transition-all duration-500 hover:shadow-[0_16px_60px_rgba(124,92,255,0.18)] hover:border-white/15">
-      {/* ---------- HEADER ---------- */}
-      <header className="flex items-center justify-between px-4 py-3.5">
-        <div className="flex items-center gap-3 min-w-0">
+    <article className="card card-hover overflow-hidden">
+      {/* ============ HEADER ============ */}
+      <header className="flex items-center justify-between px-3 py-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
           <Link to={`/profile/${post.author._id}`} className="shrink-0">
-            <div className="relative">
-              <div className="absolute -inset-0.5 rounded-full bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 opacity-70 group-hover/post:opacity-100 transition-opacity duration-300" />
-              <Avatar className="relative h-10 w-10 ring-2 ring-[#0a0a18]">
-                <AvatarImage
-                  src={post.author?.profilePicture}
-                  alt="post_image"
-                />
-                <AvatarFallback className="bg-gradient-to-br from-violet-500 to-cyan-500 text-white text-xs font-semibold">
-                  {(post.author?.fullName || post.author?.username)
-                    ?.charAt(0)
-                    .toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </div>
+            <Avatar className="h-9 w-9">
+              <AvatarImage src={post.author?.profilePicture} alt="post_image" />
+              <AvatarFallback>
+                {(post.author?.fullName || post.author?.username)
+                  ?.charAt(0)
+                  .toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
           </Link>
 
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
             <Link
               to={`/profile/${post.author._id}`}
-              className="font-semibold text-[15px] text-white/95 hover:text-white truncate transition-colors"
+              className="font-semibold text-sm text-[var(--foreground)] hover:opacity-80 transition-opacity truncate"
             >
               {post.author?.fullName || post.author?.username}
             </Link>
             {user?._id === post.author._id && (
-              <Badge className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/70 border-white/10 hover:bg-white/10">
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--surface-2)] text-[var(--muted-foreground)] font-medium">
                 You
-              </Badge>
+              </span>
             )}
           </div>
         </div>
 
         <Dialog>
           <DialogTrigger asChild>
-            <button className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/8 transition-all duration-200">
-              <MoreHorizontal className="h-5 w-5" />
+            <button className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors">
+              <MoreHorizontal className="h-5 w-5" strokeWidth={1.8} />
             </button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[400px] glass-strong !rounded-3xl !border-white/10 p-2">
+          <DialogContent className="sm:max-w-[380px] p-2">
             <DialogTitle className="sr-only">Post options</DialogTitle>
             <DialogDescription className="sr-only">
               Actions you can take on this post
             </DialogDescription>
-            <div className="space-y-1 p-2">
+            <div className="space-y-0.5 p-1">
               {post?.author?._id !== user?._id && (
                 <button
                   onClick={handleFollow}
                   disabled={actionLoading !== null}
-                  className={`w-full text-left px-4 py-3 rounded-2xl text-sm font-medium transition-colors disabled:opacity-50 ${
+                  className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
                     isFollowing
-                      ? "text-rose-300 hover:bg-rose-500/10"
-                      : "text-violet-300 hover:bg-violet-500/10"
+                      ? "text-[var(--danger)] hover:bg-[var(--surface-2)]"
+                      : "text-[var(--primary)] hover:bg-[var(--surface-2)]"
                   }`}
                 >
                   {isFollowing ? "Unfollow" : "Follow"}
@@ -285,15 +296,15 @@ const Post = ({ post }) => {
               <button
                 onClick={bookmarkHandler}
                 disabled={actionLoading !== null}
-                className="w-full text-left px-4 py-3 rounded-2xl text-sm font-medium text-white/80 hover:bg-white/5 transition-colors disabled:opacity-50"
+                className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors disabled:opacity-50"
               >
-                {bookmarked ? "Remove from saved" : "Add to saved"}
+                {bookmarked ? "Remove from saved" : "Save post"}
               </button>
               {user && user?._id === post?.author._id && (
                 <button
                   onClick={deletePostHandler}
                   disabled={actionLoading !== null}
-                  className="w-full text-left px-4 py-3 rounded-2xl text-sm font-medium text-rose-300 hover:bg-rose-500/10 transition-colors disabled:opacity-50"
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-[var(--danger)] hover:bg-[var(--surface-2)] transition-colors disabled:opacity-50"
                 >
                   Delete post
                 </button>
@@ -303,15 +314,18 @@ const Post = ({ post }) => {
         </Dialog>
       </header>
 
-      {/* ---------- IMAGE ---------- */}
+      {/* ============ IMAGE ============ */}
       <div
-        className="relative w-full bg-[#0a0a18] flex items-center justify-center overflow-hidden"
+        className="relative w-full flex items-center justify-center overflow-hidden bg-[var(--surface-2)]"
         style={{
-          maxHeight: "680px",
+          maxHeight: "640px",
           aspectRatio:
             imageDimensions.width > 0
               ? `${imageDimensions.width}/${imageDimensions.height}`
               : "1/1",
+        }}
+        onDoubleClick={() => {
+          if (!liked) likeOrDislikeHandler();
         }}
       >
         <img
@@ -329,28 +343,23 @@ const Post = ({ post }) => {
         />
       </div>
 
-      {/* ---------- ACTIONS ---------- */}
-      <div className="px-4 pt-3 pb-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-1">
+      {/* ============ ACTIONS ============ */}
+      <div className="px-3 pt-2 pb-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-0.5">
             {/* LIKE */}
             <button
               ref={likeRef}
               onClick={likeOrDislikeHandler}
-              disabled={actionLoading !== null}
-              className="group/btn w-10 h-10 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/8 transition-all duration-200 disabled:opacity-50"
+              className="relative w-9 h-9 rounded-full flex items-center justify-center text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
             >
-              {liked ? (
-                <FaHeart
-                  size={22}
-                  className="text-rose-500 drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]"
-                />
-              ) : (
-                <FaRegHeart
-                  size={22}
-                  className="group-hover/btn:scale-110 transition-transform"
-                />
-              )}
+              <Heart
+                className={`h-[22px] w-[22px] like-heart ${
+                  liked ? "is-liked" : ""
+                }`}
+                strokeWidth={liked ? 0 : 1.8}
+                fill={liked ? "var(--danger)" : "none"}
+              />
             </button>
 
             {/* COMMENT */}
@@ -360,9 +369,9 @@ const Post = ({ post }) => {
                 dispatch(setSelectedPost(post));
                 setOpen(true);
               }}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/8 transition-all duration-200"
+              className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
             >
-              <MessageCircle className="h-6 w-6 hover:scale-110 transition-transform" />
+              <MessageCircle className="h-[22px] w-[22px]" strokeWidth={1.8} />
             </button>
 
             {/* SEND / DM */}
@@ -371,9 +380,9 @@ const Post = ({ post }) => {
               aria-label={`Message ${
                 post.author?.fullName || post.author?.username
               }`}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/8 transition-all duration-200"
+              className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
             >
-              <Send className="h-6 w-6 hover:scale-110 transition-transform" />
+              <Send className="h-[22px] w-[22px]" strokeWidth={1.8} />
             </button>
           </div>
 
@@ -381,23 +390,21 @@ const Post = ({ post }) => {
           <button
             ref={bookmarkRef}
             onClick={bookmarkHandler}
-            disabled={actionLoading !== null}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/8 transition-all duration-200 disabled:opacity-50"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
           >
             <Bookmark
-              className={`h-6 w-6 transition-all duration-200 hover:scale-110 ${
-                bookmarked
-                  ? "fill-amber-300 text-amber-300 drop-shadow-[0_0_8px_rgba(251,191,36,0.55)]"
-                  : ""
+              className={`h-[22px] w-[22px] transition-all duration-200 ${
+                bookmarked ? "fill-[var(--gold)] text-[var(--gold)]" : ""
               }`}
+              strokeWidth={1.8}
             />
           </button>
         </div>
 
-        {/* LIKES */}
-        <div className="mb-1.5 text-sm font-semibold text-white/95">
+        {/* LIKES COUNT */}
+        <div className="mb-1 text-sm font-semibold text-[var(--foreground)]">
           {postLike}{" "}
-          <span className="font-medium text-white/60">
+          <span className="font-medium text-[var(--muted-foreground)]">
             {postLike === 1 ? "like" : "likes"}
           </span>
         </div>
@@ -406,11 +413,11 @@ const Post = ({ post }) => {
         <div className="mb-1 text-sm leading-relaxed">
           <Link
             to={`/profile/${post.author._id}`}
-            className="font-semibold text-white/95 mr-2 hover:text-white transition-colors"
+            className="font-semibold text-[var(--foreground)] mr-1.5 hover:opacity-80 transition-opacity"
           >
             {post.author?.fullName || post.author?.username}
           </Link>
-          <span className="text-white/75">{post.caption}</span>
+          <span className="text-[var(--foreground)]">{post.caption}</span>
         </div>
 
         {/* COMMENTS PREVIEW */}
@@ -420,7 +427,7 @@ const Post = ({ post }) => {
               dispatch(setSelectedPost(post));
               setOpen(true);
             }}
-            className="text-xs text-white/40 hover:text-white/70 transition-colors mt-1"
+            className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors mt-0.5"
           >
             View all {comment.length}{" "}
             {comment.length === 1 ? "comment" : "comments"}
@@ -428,19 +435,23 @@ const Post = ({ post }) => {
         )}
 
         {/* ADD COMMENT */}
-        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5">
+        <div className="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-[var(--border)]">
           <input
             type="text"
             placeholder="Add a comment..."
             value={text}
             onChange={changeEventHandler}
-            className="flex-1 bg-transparent outline-none text-sm placeholder-white/30 text-white/90 py-1.5"
+            className="flex-1 bg-transparent outline-none text-sm placeholder:text-[var(--muted-foreground)] text-[var(--foreground)] py-1"
           />
           {text && (
             <button
               onClick={commentHandler}
               disabled={actionLoading !== null}
-              className="text-xs font-semibold px-3 py-1.5 rounded-full bg-gradient-to-r from-violet-500 to-cyan-500 text-white hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+              className="text-xs font-semibold px-3 py-1.5 rounded-full transition-opacity disabled:opacity-50"
+              style={{
+                background: "var(--primary)",
+                color: "var(--primary-foreground)",
+              }}
             >
               {actionLoading === "comment" ? "Posting…" : "Post"}
             </button>
