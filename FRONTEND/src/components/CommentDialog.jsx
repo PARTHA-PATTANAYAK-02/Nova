@@ -18,17 +18,15 @@ import { getErrorMessage } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
 
 /* ============================================================
-   SKELETON — comments panel loading placeholder
+   SKELETON
    ============================================================ */
 const CommentsPanelSkeleton = () => (
   <>
-    {/* Caption skeleton */}
     <div className="mx-4 my-3 space-y-2">
       <div className="h-3.5 w-full max-w-md rounded bg-[var(--surface-2)] animate-pulse" />
       <div className="h-3.5 w-3/4 max-w-sm rounded bg-[var(--surface-2)] animate-pulse" />
     </div>
 
-    {/* Comments skeleton */}
     <div className="px-4 space-y-3 pt-2">
       {Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className="flex items-start gap-2.5">
@@ -51,11 +49,11 @@ const CommentDialog = ({ open, setOpen }) => {
   const [loading, setLoading] = useState(false);
   const [comments, setComments] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [liking, setLiking] = useState(false);
   const dispatch = useDispatch();
 
   /* ============================================================
-     RESET when dialog closes — prevents stale data flash on
-     next open
+     RESET when dialog closes
      ============================================================ */
   useEffect(() => {
     if (!open) {
@@ -63,16 +61,17 @@ const CommentDialog = ({ open, setOpen }) => {
       setComments([]);
       setText("");
       setLoading(false);
+      setLiking(false);
     }
   }, [open]);
 
-  /* ---------- FETCH FULL POST DETAIL when dialog opens ---------- */
+  /* ---------- FETCH FULL POST DETAIL ---------- */
   useEffect(() => {
     if (!open || !selectedPost?._id) return;
 
     let cancelled = false;
     setLoading(true);
-    setPostDetail(null); // clear previous before fetch
+    setPostDetail(null);
 
     axios
       .get(apiUrl(`/api/v1/post/${selectedPost._id}/detail`), {
@@ -117,6 +116,84 @@ const CommentDialog = ({ open, setOpen }) => {
 
     setComments(sorted);
   }, [post]);
+
+  /* ============================================================
+     LIKE / UNLIKE — OPTIMISTIC
+     - instant UI update
+     - background API
+     - rollback on error
+     ============================================================ */
+  const likeCount = Array.isArray(post?.likes) ? post.likes.length : 0;
+  const isLikedByMe =
+    user && Array.isArray(post?.likes) && post.likes.includes(user._id);
+
+  const handleLikeToggle = async () => {
+    if (!post?._id || !user?._id || liking) return;
+
+    const wasLiked = isLikedByMe;
+    const nowLiked = !wasLiked;
+
+    // 1) INSTANT — local postDetail update
+    setPostDetail((prev) => {
+      if (!prev) return prev;
+      const currentLikes = Array.isArray(prev.likes) ? prev.likes : [];
+      const nextLikes = nowLiked
+        ? [...currentLikes, user._id]
+        : currentLikes.filter((id) => id !== user._id);
+      return { ...prev, likes: nextLikes };
+    });
+
+    // 2) INSTANT — redux posts list update
+    const updatedPosts = posts.map((p) =>
+      p._id === post._id
+        ? {
+            ...p,
+            likes: nowLiked
+              ? [...(p.likes || []), user._id]
+              : (p.likes || []).filter((id) => id !== user._id),
+          }
+        : p,
+    );
+    dispatch(setPosts(updatedPosts));
+
+    // 3) Background API
+    try {
+      setLiking(true);
+      const action = nowLiked ? "like" : "dislike";
+      const res = await axios.get(
+        apiUrl(`/api/v1/post/${post._id}/${action}`),
+        { withCredentials: true },
+      );
+
+      if (!res.data.success) {
+        // rollback
+        setPostDetail((prev) => {
+          if (!prev) return prev;
+          const currentLikes = Array.isArray(prev.likes) ? prev.likes : [];
+          const rollbackLikes = wasLiked
+            ? [...currentLikes, user._id]
+            : currentLikes.filter((id) => id !== user._id);
+          return { ...prev, likes: rollbackLikes };
+        });
+        dispatch(setPosts(posts));
+        toast.error("Something went wrong");
+      }
+    } catch (error) {
+      // rollback
+      setPostDetail((prev) => {
+        if (!prev) return prev;
+        const currentLikes = Array.isArray(prev.likes) ? prev.likes : [];
+        const rollbackLikes = wasLiked
+          ? [...currentLikes, user._id]
+          : currentLikes.filter((id) => id !== user._id);
+        return { ...prev, likes: rollbackLikes };
+      });
+      dispatch(setPosts(posts));
+      toast.error(getErrorMessage(error, "Unable to update the like."));
+    } finally {
+      setLiking(false);
+    }
+  };
 
   /* ---------- ADD COMMENT ---------- */
   const sendMessageHandler = async () => {
@@ -183,11 +260,6 @@ const CommentDialog = ({ open, setOpen }) => {
   const authorHandle = author.username || "";
   const authorAvatar = author.profilePicture || "";
 
-  const likeCount = Array.isArray(post?.likes) ? post.likes.length : 0;
-  const isLikedByMe =
-    user && Array.isArray(post?.likes) && post.likes.includes(user._id);
-
-  /* Should show skeleton? — when fetching detail for a NEW post */
   const showSkeleton = loading && !postDetail;
 
   /* ---------- UI ---------- */
@@ -261,7 +333,7 @@ const CommentDialog = ({ open, setOpen }) => {
               <CommentsPanelSkeleton />
             ) : (
               <>
-                {/* ===== CAPTION — simple box ===== */}
+                {/* ===== CAPTION ===== */}
                 {post?.caption && (
                   <div className="mx-4 mt-3 mb-2 px-3.5 py-2.5 rounded-lg bg-[var(--surface-2)]">
                     <p className="text-[13px] text-[var(--foreground)] leading-relaxed">
@@ -281,7 +353,7 @@ const CommentDialog = ({ open, setOpen }) => {
                   </div>
                 )}
 
-                {/* ===== Comments list (newest first) ===== */}
+                {/* ===== Comments list ===== */}
                 <div className="px-2 py-1 space-y-0.5">
                   {comments.length > 0 ? (
                     comments.map((comment) => (
@@ -318,13 +390,25 @@ const CommentDialog = ({ open, setOpen }) => {
             ) : (
               <>
                 <div className="flex items-center gap-4 px-4 pt-3 pb-2">
-                  <div className="flex items-center gap-1.5 text-sm">
+                  {/* LIKE — interactive */}
+                  <button
+                    type="button"
+                    onClick={handleLikeToggle}
+                    disabled={liking}
+                    aria-label={isLikedByMe ? "Unlike" : "Like"}
+                    className="
+                      group inline-flex items-center gap-1.5 text-sm
+                      rounded-full px-1 -mx-1 py-0.5
+                      hover:bg-[var(--surface-2)] transition-colors
+                      active:scale-95 disabled:cursor-not-allowed
+                    "
+                  >
                     <Heart
-                      className={`h-4 w-4 ${
+                      className={`h-4 w-4 transition-all duration-200 ${
                         isLikedByMe
                           ? "fill-[var(--danger)] text-[var(--danger)]"
-                          : "text-[var(--foreground)]"
-                      }`}
+                          : "text-[var(--foreground)] group-hover:text-[var(--danger)]"
+                      } ${liking ? "opacity-60" : ""}`}
                       strokeWidth={1.8}
                     />
                     <span className="font-semibold text-[var(--foreground)] tabular-nums">
@@ -333,8 +417,9 @@ const CommentDialog = ({ open, setOpen }) => {
                     <span className="text-[var(--muted-foreground)]">
                       {likeCount === 1 ? "like" : "likes"}
                     </span>
-                  </div>
+                  </button>
 
+                  {/* Comment count (static) */}
                   <div className="flex items-center gap-1.5 text-sm text-[var(--muted-foreground)]">
                     <MessageCircle className="h-4 w-4" strokeWidth={1.8} />
                     <span className="font-semibold text-[var(--foreground)] tabular-nums">

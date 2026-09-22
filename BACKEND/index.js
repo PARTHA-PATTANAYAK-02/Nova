@@ -6,6 +6,8 @@ import connectDB from "./utils/db.js";
 import userRoute from "./routes/user.route.js";
 import postRoute from "./routes/post.route.js";
 import messageRoute from "./routes/message.route.js";
+import storyRoute from "./routes/story.route.js";
+import { removeLegacyStoryTtlIndex, startStoryCleanup } from "./utils/storyCleanup.js";
 import { app, server } from "./socket/socket.js";
 dotenv.config();
 
@@ -32,8 +34,13 @@ app.use(cors(corsOptions));
 app.use("/api/v1/user", userRoute);
 app.use("/api/v1/post", postRoute);
 app.use("/api/v1/message", messageRoute);
+app.use("/api/v1/story", storyRoute);
 
-server.listen(PORT, HOST, () => {
-  connectDB();
+server.listen(PORT, HOST, async () => {
+  const databaseConnected = await connectDB();
+  if (databaseConnected) {
+    await removeLegacyStoryTtlIndex();
+    startStoryCleanup();
+  }
   console.log(`Server listening at http://${HOST}:${PORT}`);
 });

@@ -1,9 +1,13 @@
 import React from "react";
+import StoriesBar from "./StoriesBar";
 import Posts from "./Posts";
 
 const Feed = ({ requestState }) => {
   return (
     <div className="max-w-[600px] mx-auto px-3 sm:px-4 py-4 animate-fade-in">
+      {/* Stories */}
+      <StoriesBar />
+
       {/* Header */}
       <header className="mb-5 flex items-end justify-between">
         <div>
