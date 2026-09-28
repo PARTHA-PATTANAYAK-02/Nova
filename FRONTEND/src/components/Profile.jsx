@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import useGetUserProfile from "@/hooks/useGetUserProfile";
 import { updateFollowing, setAuthUser } from "@/redux/authSlice";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import {
   AtSign,
@@ -22,6 +22,7 @@ import {
   UserCheck,
   MoreHorizontal,
   Trash2,
+  Home,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
@@ -33,6 +34,13 @@ import { toast } from "sonner";
 import { ErrorState } from "./RequestState";
 import { getErrorMessage } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+/* Validate MongoDB ObjectId format (24 hex chars) */
+const isValidObjectId = (id) =>
+  typeof id === "string" && /^[0-9a-fA-F]{24}$/.test(id);
 
 /* ============================================================
    PROFILE SKELETON
@@ -87,6 +95,42 @@ const ProfileSkeleton = () => (
   </div>
 );
 
+/* ============================================================
+   PROFILE NOT FOUND (invalid ID)
+   ============================================================ */
+const ProfileNotFound = () => (
+  <div className="mx-auto max-w-3xl px-3 sm:px-4 py-4 animate-fade-in">
+    <div className="card py-16 px-6 flex flex-col items-center justify-center text-center">
+      <div className="w-14 h-14 rounded-full bg-[var(--surface-2)] flex items-center justify-center mb-4">
+        <Compass
+          className="w-6 h-6 text-[var(--muted-foreground)]"
+          strokeWidth={1.8}
+        />
+      </div>
+      <h3
+        className="text-lg font-semibold text-[var(--foreground)] mb-1"
+        style={{ fontFamily: "var(--font-display)" }}
+      >
+        Profile not found
+      </h3>
+      <p className="text-sm text-[var(--muted-foreground)] max-w-xs">
+        This user doesn't exist or the link is broken.
+      </p>
+      <Link
+        to="/"
+        className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-full transition-all active:scale-95"
+        style={{
+          background: "var(--primary)",
+          color: "var(--primary-foreground)",
+        }}
+      >
+        <Home className="w-4 h-4" strokeWidth={2} />
+        Go home
+      </Link>
+    </div>
+  </div>
+);
+
 const Profile = () => {
   const params = useParams();
   const userId = params.id;
@@ -108,6 +152,7 @@ const Profile = () => {
   const { userProfile, user } = useSelector((store) => store.auth);
   const { posts: reduxPosts } = useSelector((store) => store.post);
 
+  const isValidId = isValidObjectId(userId);
   const isProfileLoaded = userProfile?._id === userId;
 
   const { dark, toggleTheme } = useTheme();
@@ -115,8 +160,6 @@ const Profile = () => {
 
   /* ============================================================
      RESET ON PROFILE ID CHANGE
-     React Router reuses this component for /profile/:id routes,
-     so local modals must be closed + selectedPost cleared.
      ============================================================ */
   useEffect(() => {
     setActiveTab(location.state?.tab || "posts");
@@ -219,6 +262,13 @@ const Profile = () => {
   /* ============================================================
      LOADING / ERROR GATE
      ============================================================ */
+
+  /* 1) INVALID ObjectId → instant "not found" (no skeleton hang) */
+  if (!isValidId) {
+    return <ProfileNotFound />;
+  }
+
+  /* 2) Still loading OR profile hasn't loaded for this id yet */
   if (!isProfileLoaded) {
     if (profileRequest.error && !profileRequest.loading) {
       return (
