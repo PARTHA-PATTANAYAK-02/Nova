@@ -203,7 +203,6 @@
 // }
 
 // export default App;
-
 import { useEffect, useRef } from "react";
 import ChatPage from "./components/ChatPage";
 import EditProfile from "./components/EditProfile";
@@ -213,6 +212,7 @@ import MainLayout from "./components/MainLayout";
 import Profile from "./components/Profile";
 import Signup from "./components/Signup";
 import SearchPage from "./components/SearchPage";
+import NotFound from "./components/NotFound";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { io } from "socket.io-client";
 import { useDispatch, useSelector } from "react-redux";
@@ -282,6 +282,11 @@ const browserRouter = createBrowserRouter([
   {
     path: "/signup",
     element: <Signup />,
+  },
+  /* ---------- CATCH-ALL 404 ---------- */
+  {
+    path: "*",
+    element: <NotFound />,
   },
 ]);
 
