@@ -1618,3 +1618,18 @@ button[disabled] {
   transform: translateY(-1px);
   box-shadow: 0 6px 20px color-mix(in oklab, var(--primary) 40%, transparent);
 }
+/* =========================================================
+   404 — Floating animation
+   ========================================================= */
+@keyframes float404 {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(-1.5deg);
+  }
+}
+
+.animate-404-float {
+  animation: float404 3.5s ease-in-out infinite;
+}
