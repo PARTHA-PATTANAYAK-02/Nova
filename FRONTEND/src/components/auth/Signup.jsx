@@ -26,7 +26,6 @@ import OtpInput from "@/components/auth/OtpInput";
    ============================================================ */
 const AmbientBackground = () => (
   <div className="pointer-events-none absolute inset-0 overflow-hidden">
-    {/* Aurora blobs */}
     <span
       className="absolute -top-20 -left-20 h-56 w-56 rounded-full opacity-30 blur-3xl animate-aurora-drift-1"
       style={{ background: "var(--primary)" }}
@@ -40,7 +39,6 @@ const AmbientBackground = () => (
       style={{ background: "var(--primary)" }}
     />
 
-    {/* Drifting particles */}
     {Array.from({ length: 18 }).map((_, i) => {
       const size = 2 + (i % 3);
       const left = `${(i * 37) % 100}%`;
@@ -66,9 +64,6 @@ const AmbientBackground = () => (
   </div>
 );
 
-/* ============================================================
-   SCANNING LINE — appears while verifying
-   ============================================================ */
 const ScanningLine = ({ active }) => {
   if (!active) return null;
   return (
@@ -78,9 +73,6 @@ const ScanningLine = ({ active }) => {
   );
 };
 
-/* ============================================================
-   SUCCESS BURST — confetti-like particle explosion
-   ============================================================ */
 const SuccessBurst = ({ active }) => {
   if (!active) return null;
   const colors = [
@@ -112,7 +104,6 @@ const SuccessBurst = ({ active }) => {
           />
         );
       })}
-      {/* Expanding ring */}
       <span
         className="absolute h-20 w-20 rounded-full border-2 animate-success-ring"
         style={{ borderColor: "var(--success)" }}
@@ -128,20 +119,14 @@ const SuccessBurst = ({ active }) => {
   );
 };
 
-/* ============================================================
-   ICON ORB — pulsing mail icon with orbiting ring
-   ============================================================ */
 const IconOrb = ({ success }) => (
   <div className="relative mx-auto h-20 w-20">
-    {/* Soft glow */}
     <span
       className="absolute inset-0 rounded-full opacity-40 blur-2xl animate-pulse-glow"
       style={{
         background: success ? "var(--success)" : "var(--primary)",
       }}
     />
-
-    {/* Outer rotating ring */}
     <span
       className="absolute inset-0 rounded-full border border-dashed animate-orbit-slow"
       style={{
@@ -150,8 +135,6 @@ const IconOrb = ({ success }) => (
           : "color-mix(in oklab, var(--primary) 30%, transparent)",
       }}
     />
-
-    {/* Pulsing rings */}
     <span
       className="absolute inset-1 rounded-full border-2 animate-pulse-ring"
       style={{
@@ -165,8 +148,6 @@ const IconOrb = ({ success }) => (
         animationDelay: "500ms",
       }}
     />
-
-    {/* Icon */}
     <span
       className="relative flex h-full w-full items-center justify-center rounded-2xl border transition-colors duration-500"
       style={{
@@ -188,9 +169,6 @@ const IconOrb = ({ success }) => (
   </div>
 );
 
-/* ============================================================
-   MAGNETIC OTP WRAPPER — glow follows mouse
-   ============================================================ */
 const MagneticGlow = ({ children, disabled }) => {
   const [pos, setPos] = useState({ x: 0, y: 0, active: false });
   const ref = React.useRef(null);
@@ -214,7 +192,6 @@ const MagneticGlow = ({ children, disabled }) => {
       onMouseLeave={handleLeave}
       className="relative"
     >
-      {/* Glow follow */}
       <span
         className="pointer-events-none absolute inset-0 rounded-2xl transition-opacity duration-300"
         style={{
@@ -250,9 +227,9 @@ const Signup = () => {
     setInput({ ...input, [e.target.name]: e.target.value });
   };
 
-  /* ---------- REQUEST OTP ---------- */
   const requestOtp = async () => {
-    const fullName = `${input.firstName.trim()} ${input.lastName.trim()}`.trim();
+    const fullName =
+      `${input.firstName.trim()} ${input.lastName.trim()}`.trim();
     if (input.password !== input.confirmPassword) {
       toast.error("Your passwords don't match.");
       return;
@@ -301,7 +278,6 @@ const Signup = () => {
     await requestOtp();
   };
 
-  /* ---------- VERIFY OTP ---------- */
   const verifySignupHandler = async (code) => {
     const otpValue = code || otp;
     if (!otpValue || otpValue.length !== 6 || loading) return;
@@ -341,7 +317,8 @@ const Signup = () => {
   };
 
   useEffect(() => {
-    if (user) navigate(user.username ? "/" : "/welcome/setup", { replace: true });
+    if (user)
+      navigate(user.username ? "/" : "/welcome/setup", { replace: true });
   }, [navigate, user]);
 
   const backToDetails = () => {
@@ -350,14 +327,11 @@ const Signup = () => {
     setStep("details");
   };
 
-  /* ============================================================
-     UI
-     ============================================================ */
   return (
-    <div className="min-h-screen w-full grid lg:grid-cols-2 bg-[var(--background)]">
+    <div className="h-screen w-full grid lg:grid-cols-2 bg-[var(--background)] overflow-hidden">
       {/* LEFT — BRAND */}
       <aside
-        className="hidden lg:flex relative flex-col justify-between p-12 overflow-hidden"
+        className="hidden lg:flex relative flex-col justify-between p-12 overflow-hidden h-screen"
         style={{
           background:
             "linear-gradient(155deg, var(--primary) 0%, var(--primary-hover) 100%)",
@@ -371,23 +345,27 @@ const Signup = () => {
           }}
         />
 
-        <Link to="/" className="relative flex items-center gap-3 w-fit">
+        <Link to="/" className="relative flex items-center gap-3 w-fit group">
           <span
-            className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/15 backdrop-blur-sm border border-white/20"
-            style={{ color: "#fff" }}
+            className="
+              relative flex items-center justify-center
+              w-14 h-14
+              rounded-full
+              overflow-hidden
+              bg-black
+              ring-1 ring-white/20
+              shadow-[0_4px_20px_rgba(0,0,0,0.4)]
+              transition-all duration-300
+              group-hover:scale-110
+              group-hover:ring-white/40
+            "
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 2L2 22h20L12 2z" />
-            </svg>
+            <img
+              src="/logo.gif"
+              alt="Nova"
+              draggable={false}
+              className="w-full h-full object-cover select-none"
+            />
           </span>
           <span
             className="text-2xl font-bold text-white tracking-tight"
@@ -421,32 +399,33 @@ const Signup = () => {
       </aside>
 
       {/* RIGHT — FORM */}
-      <main className="flex items-center justify-center p-6 lg:p-12">
+      <main className="flex items-center justify-center px-6 py-6 lg:p-8 overflow-y-auto">
         <div className="w-full max-w-md">
-          <div className="lg:hidden flex justify-center mb-8">
-            <Link to="/" className="flex items-center gap-2.5">
+          {/* Mobile logo */}
+          <div className="lg:hidden flex justify-center mb-5">
+            <Link to="/" className="flex items-center gap-2.5 group">
               <span
-                className="flex items-center justify-center w-9 h-9 rounded-lg"
-                style={{
-                  background: "var(--primary)",
-                  color: "var(--primary-foreground)",
-                }}
+                className="
+                  relative flex items-center justify-center
+                  w-11 h-11
+                  rounded-full
+                  overflow-hidden
+                  bg-black
+                  ring-1 ring-[var(--border)]
+                  shadow-[var(--shadow-sm)]
+                  transition-all duration-300
+                  group-hover:scale-110
+                "
               >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 2L2 22h20L12 2z" />
-                </svg>
+                <img
+                  src="/logo.gif"
+                  alt="Nova"
+                  draggable={false}
+                  className="w-full h-full object-cover select-none"
+                />
               </span>
               <span
-                className="text-2xl font-bold text-[var(--foreground)] tracking-tight"
+                className="text-xl font-bold text-[var(--foreground)] tracking-tight"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 Nova
@@ -458,34 +437,34 @@ const Signup = () => {
           {step === "details" && (
             <form
               onSubmit={signupHandler}
-              className="card p-6 md:p-8 space-y-5 relative overflow-hidden animate-step-in-back"
+              className="card p-5 md:p-6 relative overflow-hidden animate-step-in-back"
             >
               {burst && <CodeSentBurst />}
 
-              <div className="space-y-1.5">
+              <div className="mb-4">
                 <h2
-                  className="text-2xl md:text-3xl font-bold text-[var(--foreground)]"
+                  className="text-xl md:text-2xl font-bold text-[var(--foreground)]"
                   style={{ fontFamily: "var(--font-display)" }}
                 >
                   Create account
                 </h2>
-                <p className="text-sm text-[var(--muted-foreground)]">
+                <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
                   We'll check your email before creating your account.
                 </p>
               </div>
 
-              {/* Name */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
+              {/* Name row */}
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="space-y-1">
                   <label
                     htmlFor="firstName"
-                    className="text-xs font-medium text-[var(--foreground)]"
+                    className="text-[11px] font-medium text-[var(--foreground)]"
                   >
                     First name
                   </label>
                   <div className="relative group">
                     <User
-                      className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)] group-focus-within:text-[var(--primary)] transition-colors pointer-events-none"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--muted-foreground)] group-focus-within:text-[var(--primary)] transition-colors pointer-events-none"
                       strokeWidth={1.8}
                     />
                     <Input
@@ -498,14 +477,14 @@ const Signup = () => {
                       autoComplete="given-name"
                       maxLength={40}
                       required
-                      className="pl-10"
+                      className="pl-9 h-10 text-sm"
                     />
                   </div>
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label
                     htmlFor="lastName"
-                    className="text-xs font-medium text-[var(--foreground)]"
+                    className="text-[11px] font-medium text-[var(--foreground)]"
                   >
                     Last name
                   </label>
@@ -519,21 +498,22 @@ const Signup = () => {
                     autoComplete="family-name"
                     maxLength={39}
                     required
+                    className="h-10 text-sm"
                   />
                 </div>
               </div>
 
               {/* Email */}
-              <div className="space-y-1.5">
+              <div className="space-y-1 mb-3">
                 <label
                   htmlFor="email"
-                  className="text-xs font-medium text-[var(--foreground)]"
+                  className="text-[11px] font-medium text-[var(--foreground)]"
                 >
                   Email
                 </label>
                 <div className="relative group">
                   <Mail
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)] group-focus-within:text-[var(--primary)] transition-colors pointer-events-none"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--muted-foreground)] group-focus-within:text-[var(--primary)] transition-colors pointer-events-none"
                     strokeWidth={1.8}
                   />
                   <Input
@@ -544,22 +524,22 @@ const Signup = () => {
                     onChange={changeEventHandler}
                     placeholder="you@example.com"
                     required
-                    className="pl-10"
+                    className="pl-9 h-10 text-sm"
                   />
                 </div>
               </div>
 
               {/* Password */}
-              <div className="space-y-1.5">
+              <div className="space-y-1 mb-3">
                 <label
                   htmlFor="password"
-                  className="text-xs font-medium text-[var(--foreground)]"
+                  className="text-[11px] font-medium text-[var(--foreground)]"
                 >
                   Password
                 </label>
                 <div className="relative group">
                   <Lock
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)] group-focus-within:text-[var(--primary)] transition-colors pointer-events-none"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--muted-foreground)] group-focus-within:text-[var(--primary)] transition-colors pointer-events-none"
                     strokeWidth={1.8}
                   />
                   <Input
@@ -571,7 +551,7 @@ const Signup = () => {
                     placeholder="At least 6 characters"
                     required
                     minLength={6}
-                    className="pl-10 pr-11"
+                    className="pl-9 pr-10 h-10 text-sm"
                   />
                   <button
                     type="button"
@@ -579,29 +559,29 @@ const Signup = () => {
                     aria-label={
                       showPassword ? "Hide password" : "Show password"
                     }
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-md flex items-center justify-center text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-md flex items-center justify-center text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
                     tabIndex={-1}
                   >
                     {showPassword ? (
-                      <EyeOff className="w-4 h-4" strokeWidth={1.8} />
+                      <EyeOff className="w-3.5 h-3.5" strokeWidth={1.8} />
                     ) : (
-                      <Eye className="w-4 h-4" strokeWidth={1.8} />
+                      <Eye className="w-3.5 h-3.5" strokeWidth={1.8} />
                     )}
                   </button>
                 </div>
               </div>
 
               {/* Confirm password */}
-              <div className="space-y-1.5">
+              <div className="space-y-1 mb-4">
                 <label
                   htmlFor="confirmPassword"
-                  className="text-xs font-medium text-[var(--foreground)]"
+                  className="text-[11px] font-medium text-[var(--foreground)]"
                 >
                   Retype password
                 </label>
                 <div className="relative group">
                   <Lock
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)] group-focus-within:text-[var(--primary)] transition-colors pointer-events-none"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--muted-foreground)] group-focus-within:text-[var(--primary)] transition-colors pointer-events-none"
                     strokeWidth={1.8}
                   />
                   <Input
@@ -614,7 +594,7 @@ const Signup = () => {
                     autoComplete="new-password"
                     required
                     minLength={6}
-                    className="pl-10 pr-11"
+                    className="pl-9 pr-10 h-10 text-sm"
                   />
                 </div>
               </div>
@@ -622,7 +602,7 @@ const Signup = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-11 inline-flex items-center justify-center gap-2 rounded-full font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] group"
+                className="w-full h-10 inline-flex items-center justify-center gap-2 rounded-full font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] group"
                 style={{
                   background: "var(--primary)",
                   color: "var(--primary-foreground)",
@@ -644,15 +624,7 @@ const Signup = () => {
                 )}
               </button>
 
-              <div className="flex items-center gap-3">
-                <div className="divider flex-1" />
-                <span className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
-                  or
-                </span>
-                <div className="divider flex-1" />
-              </div>
-
-              <p className="text-center text-sm text-[var(--muted-foreground)]">
+              <p className="mt-4 text-center text-sm text-[var(--muted-foreground)]">
                 Already have an account?{" "}
                 <Link
                   to="/login"
@@ -664,23 +636,15 @@ const Signup = () => {
             </form>
           )}
 
-          {/* ============ STEP 2 — VERIFY (next-level animated) ============ */}
+          {/* ============ STEP 2 — VERIFY ============ */}
           {step === "verify" && (
             <div className="card relative overflow-hidden animate-step-in-up">
-              {/* Ambient background */}
               <AmbientBackground />
-
-              {/* Scan line while verifying */}
               <ScanningLine active={loading} />
-
-              {/* Success burst */}
               <SuccessBurst active={otpSuccess} />
-
-              {/* Code-sent burst overlay (initial) */}
               {burst && <CodeSentBurst />}
 
-              {/* Top bar */}
-              <div className="relative z-10 flex items-center justify-between px-5 pt-5">
+              <div className="relative z-10 flex items-center justify-between px-5 pt-4">
                 <button
                   type="button"
                   onClick={backToDetails}
@@ -701,9 +665,7 @@ const Signup = () => {
                 <div className="w-8 h-8" />
               </div>
 
-              {/* Content */}
               <div className="relative z-10 px-6 md:px-8 pb-6 md:pb-8 pt-4 text-center">
-                {/* Icon orb (rotating + pulsing) */}
                 <div
                   className="mb-5 animate-stagger-1"
                   style={{ animationDelay: "100ms" }}
@@ -711,7 +673,6 @@ const Signup = () => {
                   <IconOrb success={otpSuccess} />
                 </div>
 
-                {/* Heading */}
                 <div
                   className="animate-stagger-2"
                   style={{ animationDelay: "220ms" }}
@@ -734,7 +695,6 @@ const Signup = () => {
                   )}
                 </div>
 
-                {/* OTP — with magnetic glow */}
                 <div
                   className="mt-7 animate-stagger-3"
                   style={{ animationDelay: "340ms" }}
@@ -754,7 +714,6 @@ const Signup = () => {
                   </MagneticGlow>
                 </div>
 
-                {/* Status line */}
                 <div
                   className="mt-5 flex items-center justify-center min-h-[20px] animate-stagger-4"
                   style={{ animationDelay: "460ms" }}
@@ -772,7 +731,6 @@ const Signup = () => {
                   )}
                 </div>
 
-                {/* Resend */}
                 {!otpSuccess && (
                   <div
                     className="mt-6 pt-5 border-t border-[var(--border)] animate-stagger-5"
@@ -802,7 +760,7 @@ const Signup = () => {
             </div>
           )}
 
-          <p className="mt-5 text-center text-[11px] text-[var(--muted-foreground)] leading-relaxed">
+          <p className="mt-4 text-center text-[10px] text-[var(--muted-foreground)] leading-relaxed">
             By continuing you agree to Nova's Terms & Privacy Policy.
           </p>
         </div>
@@ -812,7 +770,7 @@ const Signup = () => {
 };
 
 /* ============================================================
-   Code-sent burst overlay (for step 1 → step 2 transition)
+   Code-sent burst overlay
    ============================================================ */
 const CodeSentBurst = () => (
   <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center overflow-hidden">
