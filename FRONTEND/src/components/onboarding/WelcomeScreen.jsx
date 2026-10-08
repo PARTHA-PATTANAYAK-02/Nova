@@ -1,60 +1,92 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Sparkles } from "lucide-react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import Home from "@/components/feed/Home";
 import MainLayout from "@/components/layout/MainLayout";
 
-const WELCOME_DURATION_MS = 4400;
+const WELCOME_DURATION_MS = 5000;
+
+/* heading কে letter-by-letter stagger করে reveal করি */
+const RevealText = ({ text }) => {
+  const letters = useMemo(() => Array.from(text), [text]);
+  return (
+    <h1 className="nova-welcome-greeting">
+      {letters.map((ch, i) => (
+        <span key={i} className="reveal" style={{ "--i": i }}>
+          {ch === " " ? "\u00A0" : ch}
+        </span>
+      ))}
+    </h1>
+  );
+};
 
 const WelcomeScreen = ({ greeting }) => {
   const { user } = useSelector((store) => store.auth);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const timeout = setTimeout(
+    const t = setTimeout(
       () => navigate("/", { replace: true }),
       WELCOME_DURATION_MS,
     );
-    return () => clearTimeout(timeout);
+    return () => clearTimeout(t);
   }, [navigate]);
+
+  const message =
+    greeting || `Welcome back, ${user?.fullName?.trim() || "friend"}`;
 
   return (
     <div className="min-h-screen">
       <MainLayout>
         <Home />
       </MainLayout>
-      <main className="nova-welcome-overlay fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden bg-[#050914] text-center">
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(circle at center, rgba(34,64,138,0.38), transparent 62%)",
-          }}
-        />
-        <div className="relative z-10 flex flex-col items-center px-5">
-          <img
-            src="/logo.gif"
-            alt="Nova"
-            className="nova-welcome-logo h-auto max-h-[62vh] w-[min(82vw,620px)] object-contain"
-            style={{
-              animation:
-                "nova-welcome-zoom 4.4s cubic-bezier(0.2,0.7,0.25,1) forwards",
-            }}
-          />
-          <div className="nova-welcome-message mt-1 text-white">
-            <p className="flex items-center justify-center gap-2 text-xs font-medium tracking-[0.18em] text-white/65 sm:text-sm">
-              <Sparkles className="h-4 w-4" /> YOUR ORBIT STARTS HERE
-            </p>
-            <h1
-              className="mt-2 text-2xl font-bold sm:text-3xl"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              {greeting ||
-                `Welcome back, ${user?.fullName?.trim() || "friend"}`}
-            </h1>
+
+      {/* inline zIndex — Tailwind বা কোনো library override করতে না পারে */}
+      <main
+        className="nova-welcome-overlay"
+        style={{ zIndex: 2147483647 }}
+        aria-live="polite"
+      >
+        <div className="nova-welcome-aurora" aria-hidden />
+        <div className="nova-welcome-vignette" aria-hidden />
+
+        <div className="nova-welcome-stage">
+          {/* rings + rotating sweep + orbit dots */}
+          <div className="nova-welcome-rings" aria-hidden>
+            <span className="nova-welcome-ring" />
+            <span className="nova-welcome-ring" />
+            <span className="nova-welcome-ring" />
+            <span className="nova-welcome-sweep" />
+            <div className="nova-welcome-orbit">
+              <i />
+              <i />
+              <i />
+            </div>
+          </div>
+
+          {/* logo — transparent bg in both themes */}
+          <div className="nova-welcome-logo-wrap">
+            <img
+              src="/logo.gif"
+              alt="Nova"
+              draggable={false}
+              className="nova-welcome-logo"
+            />
+          </div>
+
+          {/* message */}
+          <div className="nova-welcome-message">
+            <span className="nova-welcome-kicker">
+              <Sparkles className="h-3.5 w-3.5" />
+              Your orbit starts here
+            </span>
+            <RevealText text={message} />
           </div>
         </div>
+
+        {/* thin theme-colored progress bar */}
+        <div className="nova-welcome-progress" aria-hidden />
       </main>
     </div>
   );
