@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { getErrorMessage } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
+import { removeConversationNotifications } from "@/redux/rtnSlice";
 
 const useGetAllMessage = () => {
   const dispatch = useDispatch();
@@ -25,6 +26,7 @@ const useGetAllMessage = () => {
           {},
           { withCredentials: true },
         );
+        dispatch(removeConversationNotifications({ userId: selectedUser._id }));
       }
       setState({ loading: false, error: null });
     } catch (error) {

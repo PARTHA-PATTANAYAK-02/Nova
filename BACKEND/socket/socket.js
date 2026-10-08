@@ -2,26 +2,20 @@ import { Server } from "socket.io";
 import express from "express";
 import http from "http";
 import jwt from "jsonwebtoken";
-import dotenv from "dotenv";
-
-dotenv.config();
+import { environment } from "../config/environment.js";
 
 const app = express();
 
 const server = http.createServer(app);
-
-const allowedOrigins = (process.env.CLIENT_URLS || "http://localhost:5173")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-const isProduction = process.env.NODE_ENV === "production";
 
 const io = new Server(server, {
   cors: {
     origin: (origin, callback) =>
       callback(
         null,
-        !isProduction || !origin || allowedOrigins.includes(origin),
+        !environment.runtime.isProduction ||
+          !origin ||
+          environment.client.allowedOrigins.includes(origin),
       ),
     methods: ["GET", "POST"],
     credentials: true,
@@ -39,7 +33,7 @@ io.use((socket, next) => {
   if (!token) return next(new Error("Unauthorized socket connection"));
 
   try {
-    const decoded = jwt.verify(token, process.env.SECRET_KEY);
+    const decoded = jwt.verify(token, environment.authentication.jwtSecret);
     socket.userId = decoded.userId;
     next();
   } catch (error) {

@@ -1,4 +1,7 @@
 import jwt from "jsonwebtoken";
+import { environment } from "../config/environment.js";
+import { clearAuthCookie } from "../utils/authCookie.js";
+
 const isAuthenticated = async (req, res, next) => {
   try {
     const token = req.cookies.token;
@@ -8,7 +11,7 @@ const isAuthenticated = async (req, res, next) => {
         success: false,
       });
     }
-    const decode = await jwt.verify(token, process.env.SECRET_KEY);
+    const decode = await jwt.verify(token, environment.authentication.jwtSecret);
     if (!decode) {
       return res.status(401).json({
         message: "Invalid",
@@ -18,6 +21,7 @@ const isAuthenticated = async (req, res, next) => {
     req.id = decode.userId;
     next();
   } catch (error) {
+    clearAuthCookie(res);
     return res.status(401).json({
       message: "Invalid or expired authentication token",
       success: false,

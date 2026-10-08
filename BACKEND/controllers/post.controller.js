@@ -27,27 +27,51 @@ export const emitPostUpdated = async (postId) => {
 };
 
 export const addNewPost = async (req, res) => {
+  let uploadedPublicId;
+  let resourceType = "image";
   try {
-    const { caption } = req.body;
+    const caption = typeof req.body.caption === "string" ? req.body.caption.trim() : "";
     const image = req.file;
     const authorId = req.id;
 
-    if (!image) return res.status(400).json({ message: "Image required" });
+    if (!image) return res.status(400).json({ success: false, message: "Media file required" });
+    const isVideo = image.mimetype?.startsWith("video/");
+    const isImage = image.mimetype?.startsWith("image/");
+    if (!isVideo && !isImage) {
+      return res.status(400).json({ success: false, message: "Choose an image or video file" });
+    }
+    if (isVideo && image.size > 50 * 1024 * 1024) {
+      return res.status(413).json({ success: false, message: "Videos must be 50 MB or smaller" });
+    }
+    if (isImage && image.size > 10 * 1024 * 1024) {
+      return res.status(413).json({ success: false, message: "Images must be 10 MB or smaller" });
+    }
+    if (caption.length > 2200) {
+      return res.status(400).json({ success: false, message: "Caption can be up to 2,200 characters" });
+    }
 
-    // image upload
-    const optimizedImageBuffer = await sharp(image.buffer)
-      .resize({ width: 800, height: 800, fit: "inside" })
-      .toFormat("jpeg", { quality: 80 })
-      .toBuffer();
-
-    // buffer to data uri
-    const fileUri = `data:image/jpeg;base64,${optimizedImageBuffer.toString(
-      "base64",
-    )}`;
-    const cloudResponse = await cloudinary.uploader.upload(fileUri);
+    const uploadBuffer = isVideo
+      ? image.buffer
+      : await sharp(image.buffer)
+          .rotate()
+          .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
+          .jpeg({ quality: 84, mozjpeg: true })
+          .toBuffer();
+    resourceType = isVideo ? "video" : "image";
+    const cloudResponse = await new Promise((resolve, reject) => {
+      cloudinary.uploader
+        .upload_stream(
+          { folder: "nova/posts", resource_type: resourceType },
+          (error, result) => (error ? reject(error) : resolve(result)),
+        )
+        .end(uploadBuffer);
+    });
+    uploadedPublicId = cloudResponse.public_id;
     const post = await Post.create({
       caption,
       image: cloudResponse.secure_url,
+      mediaType: resourceType,
+      mediaPublicId: uploadedPublicId,
       author: authorId,
     });
     const user = await User.findById(authorId);
@@ -66,7 +90,18 @@ export const addNewPost = async (req, res) => {
       success: true,
     });
   } catch (error) {
-    console.log(error);
+    if (uploadedPublicId) {
+      try {
+        await cloudinary.uploader.destroy(uploadedPublicId, {
+          resource_type: resourceType,
+          invalidate: true,
+        });
+      } catch (cleanupError) {
+        console.error("Unable to remove failed post upload:", cleanupError);
+      }
+    }
+    console.error("addNewPost error:", error);
+    return res.status(500).json({ success: false, message: "Unable to create post" });
   }
 };
 export const getAllPost = async (req, res) => {
@@ -308,6 +343,17 @@ export const deletePost = async (req, res) => {
 
     // delete associated comments
     await Comment.deleteMany({ post: postId });
+
+    if (post.mediaPublicId) {
+      try {
+        await cloudinary.uploader.destroy(post.mediaPublicId, {
+          resource_type: post.mediaType === "video" ? "video" : "image",
+          invalidate: true,
+        });
+      } catch (cleanupError) {
+        console.error("Unable to remove deleted post media:", cleanupError);
+      }
+    }
 
     io.emit("postDeleted", postId);
 

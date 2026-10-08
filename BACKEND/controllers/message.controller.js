@@ -6,6 +6,12 @@ import mongoose from "mongoose";
 import { createAndEmitNotification } from "../utils/notifications.js";
 import { Notification } from "../models/notification.model.js";
 
+const MESSAGE_REACTIONS = new Set([
+  "❤️", "😂", "😮", "😢", "🙏", "🔥",
+  "👍", "👏", "🎉", "😍", "🤔", "😎",
+  "💯", "🥰", "😭", "🤯", "✨", "💔",
+]);
+
 const getConversationForUsers = (firstUserId, secondUserId) =>
   Conversation.findOne({
     participants: { $all: [firstUserId, secondUserId] },
@@ -28,6 +34,7 @@ export const sendMessage = async (req, res) => {
     const senderId = req.id;
     const receiverId = req.params.id;
     const message = req.body.textMessage?.trim();
+    const replyToId = req.body.replyToId;
 
     if (!mongoose.isValidObjectId(receiverId)) {
       return res
@@ -54,6 +61,32 @@ export const sendMessage = async (req, res) => {
     }
 
     let conversation = await getConversationForUsers(senderId, receiverId);
+    let replyTo;
+    if (replyToId) {
+      if (!mongoose.isValidObjectId(replyToId) || !conversation) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid message to reply to" });
+      }
+      const repliedMessage = await Message.findOne({
+        _id: replyToId,
+        $or: [
+          { senderId, receiverId },
+          { senderId: receiverId, receiverId: senderId },
+        ],
+      }).select("senderId message");
+      if (!repliedMessage) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Reply message not found" });
+      }
+      replyTo = {
+        messageId: repliedMessage._id,
+        senderId: repliedMessage.senderId,
+        message: repliedMessage.message,
+      };
+    }
+
     if (!conversation) {
       conversation = await Conversation.create({
         participants: [senderId, receiverId],
@@ -69,6 +102,7 @@ export const sendMessage = async (req, res) => {
       senderId,
       receiverId,
       message,
+      replyTo,
       status: receiverSocketId ? "delivered" : "sent",
     });
 
@@ -157,7 +191,7 @@ export const getMessage = async (req, res) => {
 export const getConversations = async (req, res) => {
   try {
     const conversations = await Conversation.find({ participants: req.id })
-      .populate("participants", "username profilePicture")
+      .populate("participants", "username fullName profilePicture")
       .populate("lastMessage")
       .sort({ lastMessageAt: -1, updatedAt: -1 });
 
@@ -208,14 +242,12 @@ export const markMessagesAsRead = async (req, res) => {
     );
     if (unreadEntry) unreadEntry.count = 0;
     await conversation.save();
-    await Notification.updateMany(
+    await Notification.deleteMany(
       {
         recipient: readerId,
         type: "message",
         conversationId: conversation._id,
-        read: false,
       },
-      { $set: { read: true } },
     );
 
     const senderSocketId = getReceiverSocketId(senderId);
@@ -238,6 +270,72 @@ export const markMessagesAsRead = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Unable to mark messages as read",
+    });
+  }
+};
+
+export const reactToMessage = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id) || !mongoose.isValidObjectId(req.params.userId)) {
+      return res.status(400).json({ success: false, message: "Invalid message" });
+    }
+    const { emoji } = req.body;
+    if (emoji !== null && !MESSAGE_REACTIONS.has(emoji)) {
+      return res.status(400).json({ success: false, message: "Unsupported message reaction" });
+    }
+
+    const message = await Message.findOne({
+      _id: req.params.id,
+      $or: [
+        { senderId: req.id, receiverId: req.params.userId },
+        { senderId: req.params.userId, receiverId: req.id },
+      ],
+    });
+    if (!message) {
+      return res.status(404).json({ success: false, message: "Message not found" });
+    }
+    if (message.senderId.toString() === req.id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only react to messages sent by the other person",
+      });
+    }
+
+    const existing = message.reactions.find(
+      (reaction) => reaction.userId.toString() === req.id.toString(),
+    );
+    if (existing) message.reactions.pull(existing._id);
+    if (emoji && existing?.emoji !== emoji) {
+      message.reactions.push({ userId: req.id, emoji });
+    }
+    await message.save();
+
+    const update = {
+      messageId: message._id,
+      actorId: req.id.toString(),
+      senderId: message.senderId.toString(),
+      receiverId: message.receiverId.toString(),
+      emoji: emoji && existing?.emoji !== emoji ? emoji : null,
+      reactions: message.reactions.map((reaction) => ({
+        userId: reaction.userId,
+        emoji: reaction.emoji,
+      })),
+    };
+    for (const participantId of [message.senderId, message.receiverId]) {
+      const socketId = getReceiverSocketId(participantId.toString());
+      if (socketId) io.to(socketId).emit("messageReactionUpdated", update);
+    }
+
+    return res.status(200).json({
+      success: true,
+      emoji: update.emoji,
+      reactions: update.reactions,
+    });
+  } catch (error) {
+    console.error("reactToMessage error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to react to message",
     });
   }
 };

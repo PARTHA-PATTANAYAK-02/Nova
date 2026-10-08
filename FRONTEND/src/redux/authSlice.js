@@ -1,16 +1,19 @@
 import { createSlice } from "@reduxjs/toolkit";
 
+const initialState = {
+  user: null,
+  suggestedUsers: [],
+  userProfile: null,
+  selectedUser: null,
+};
+
 const authSlice = createSlice({
   name: "auth",
-  initialState: {
-    user: null,
-    suggestedUsers: [],
-    userProfile: null,
-    selectedUser: null,
-  },
+  initialState,
   reducers: {
     // ✅ Set logged in user
     setAuthUser: (state, action) => {
+      if (!action.payload) return initialState;
       state.user = action.payload;
     },
 
@@ -20,11 +23,12 @@ const authSlice = createSlice({
 
       if (!state.user) return;
 
-      const isFollowing = state.user.following.includes(followedUserId);
+      const following = state.user.following || [];
+      const isFollowing = following.includes(followedUserId);
 
       if (isFollowing) {
         // Unfollow logic
-        state.user.following = state.user.following.filter(
+        state.user.following = following.filter(
           (id) => id !== followedUserId,
         );
       } else {

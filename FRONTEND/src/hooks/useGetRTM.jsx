@@ -1,4 +1,4 @@
-import { setMessages, updateMessageStatus } from "@/redux/chatSlice";
+import { setMessages, updateMessageReactions, updateMessageStatus } from "@/redux/chatSlice";
 import { getSocketInstance } from "@/redux/socketSlice";
 import { useEffect } from "react";
 import { useState } from "react";
@@ -17,6 +17,18 @@ const useGetRTM = () => {
 
     const handleMessageStatus = (statusUpdate) => {
       dispatch(updateMessageStatus(statusUpdate));
+    };
+    const handleMessageReactionUpdate = (reactionUpdate) => {
+      const participants = [reactionUpdate.senderId, reactionUpdate.receiverId];
+      if (
+        participants.includes(user?._id?.toString()) &&
+        participants.includes(selectedUser._id.toString())
+      ) {
+        dispatch(updateMessageReactions({
+          ...reactionUpdate,
+          conversationUserId: selectedUser._id.toString(),
+        }));
+      }
     };
 
     const handleUserTyping = ({ userId }) => {
@@ -53,12 +65,14 @@ const useGetRTM = () => {
     socket?.on("userStoppedTyping", handleUserStoppedTyping);
     socket?.on("messagesRead", handleMessagesRead);
     socket?.on("messageStatus", handleMessageStatus);
+    socket?.on("messageReactionUpdated", handleMessageReactionUpdate);
 
     return () => {
       socket?.off("userTyping", handleUserTyping);
       socket?.off("userStoppedTyping", handleUserStoppedTyping);
       socket?.off("messagesRead", handleMessagesRead);
       socket?.off("messageStatus", handleMessageStatus);
+      socket?.off("messageReactionUpdated", handleMessageReactionUpdate);
       setIsTyping(false);
     };
   }, [messages, selectedUser, user?._id, dispatch, socket, connected]);

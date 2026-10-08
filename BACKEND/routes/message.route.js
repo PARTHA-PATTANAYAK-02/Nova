@@ -5,6 +5,7 @@ import {
   getConversations,
   getMessage,
   markMessagesAsRead,
+  reactToMessage,
   sendMessage,
 } from "../controllers/message.controller.js";
 
@@ -14,5 +15,6 @@ router.route("/send/:id").post(isAuthenticated, sendMessage);
 router.route("/all/:id").get(isAuthenticated, getMessage);
 router.route("/conversations").get(isAuthenticated, getConversations);
 router.route("/read/:id").patch(isAuthenticated, markMessagesAsRead);
+router.route("/:userId/reaction/:id").patch(isAuthenticated, reactToMessage);
 
 export default router;

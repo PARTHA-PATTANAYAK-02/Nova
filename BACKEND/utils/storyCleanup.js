@@ -32,7 +32,7 @@ export const cleanupExpiredStories = async () => {
     const expiredStories = await Story.find({
       expiresAt: { $lte: new Date() },
     })
-      .select("_id imagePublicId")
+      .select("_id imagePublicId resourceType")
       .lean();
 
     for (const story of expiredStories) {
@@ -41,7 +41,7 @@ export const cleanupExpiredStories = async () => {
         // can still be safely removed, but new uploads always have one.
         if (story.imagePublicId) {
           await cloudinary.uploader.destroy(story.imagePublicId, {
-            resource_type: "image",
+            resource_type: story.resourceType === "video" ? "video" : "image",
             invalidate: true,
           });
         }

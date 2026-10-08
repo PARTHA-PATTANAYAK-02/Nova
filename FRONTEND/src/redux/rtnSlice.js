@@ -55,6 +55,23 @@ const rtnSlice = createSlice({
       state.likeNotification = state.likeNotification.filter(
         (item) => item._id !== action.payload,
       );
+      state.unreadCount = state.likeNotification.filter(
+        (item) => !item.read,
+      ).length;
+    },
+    removeConversationNotifications: (state, action) => {
+      const userId = action.payload?.userId?.toString();
+      const conversationId = action.payload?.conversationId?.toString();
+      state.likeNotification = state.likeNotification.filter((item) => {
+        if (item.type !== "message") return true;
+        if (conversationId && item.conversationId?.toString() === conversationId) {
+          return false;
+        }
+        return !userId || item.userId?.toString() !== userId;
+      });
+      state.unreadCount = state.likeNotification.filter(
+        (item) => !item.read,
+      ).length;
     },
   },
 });
@@ -65,5 +82,6 @@ export const {
   markNotificationsRead,
   clearNotifications,
   removeNotification,
+  removeConversationNotifications,
 } = rtnSlice.actions;
 export default rtnSlice.reducer;

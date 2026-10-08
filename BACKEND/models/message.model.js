@@ -17,6 +17,20 @@ const messageSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    replyTo: {
+      messageId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Message",
+      },
+      senderId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      message: {
+        type: String,
+        maxlength: 5000,
+      },
+    },
     status: {
       type: String,
       enum: ["sent", "delivered", "seen"],
@@ -25,6 +39,17 @@ const messageSchema = new mongoose.Schema(
     readAt: {
       type: Date,
     },
+    reactions: [{
+      userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+      },
+      emoji: {
+        type: String,
+        required: true,
+      },
+    }],
   },
   { timestamps: true },
 );

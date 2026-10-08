@@ -2,11 +2,12 @@ import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
-    username: { type: String, required: true, unique: true },
-    email: { type: String, required: true, unique: true },
+    username: { type: String, trim: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, required: true },
     fullName: { type: String, default: "", trim: true, maxlength: 80 },
     profilePicture: { type: String, default: "" },
+    coverPicture: { type: String, default: "" },
     bio: { type: String, default: "", maxlength: 300 },
     gender: { type: String, enum: ["male", "female"] },
     dateOfBirth: { type: Date },
@@ -19,7 +20,7 @@ const userSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-userSchema.index({ username: 1 });
+userSchema.index({ username: 1 }, { unique: true, sparse: true });
 userSchema.index({ fullName: 1 });
 
 export const User = mongoose.model("User", userSchema);

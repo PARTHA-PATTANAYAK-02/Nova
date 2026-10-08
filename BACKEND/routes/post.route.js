@@ -1,6 +1,6 @@
 import express from "express";
 import isAuthenticated from "../middlewares/isAuthenticated.js";
-import upload from "../middlewares/multer.js";
+import { uploadPost } from "../middlewares/multer.js";
 import {
   addComment,
   addNewPost,
@@ -18,7 +18,7 @@ const router = express.Router();
 
 router
   .route("/addpost")
-  .post(isAuthenticated, upload.single("image"), addNewPost);
+  .post(isAuthenticated, uploadPost, addNewPost);
 router.route("/all").get(isAuthenticated, getAllPost);
 router.route("/:id/detail").get(isAuthenticated, getPostById);
 router.route("/userpost/all").get(isAuthenticated, getUserPost);
