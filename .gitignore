@@ -17,4 +17,4 @@ build/
 Thumbs.db
 
 # vs code 
-.vscode
+.vscode/
