@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { Input } from "@/components/ui/input";
 import axios from "axios";
 import { toast } from "sonner";
 import { Link, useNavigate } from "react-router-dom";
@@ -8,6 +7,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { setAuthUser } from "@/redux/authSlice";
 import { getErrorMessage } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
+import AuthStage from "@/components/auth/AuthStage";
 
 const Login = () => {
   const [input, setInput] = useState({ email: "", password: "" });
@@ -17,12 +17,10 @@ const Login = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  const changeEventHandler = (e) => {
+  const changeEventHandler = (e) =>
     setInput({ ...input, [e.target.name]: e.target.value });
-  };
 
-  /* ---------- LOGIN (UNCHANGED LOGIC) ---------- */
-  const signupHandler = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       setLoading(true);
@@ -33,7 +31,6 @@ const Login = () => {
       if (res.data.success) {
         dispatch(setAuthUser(res.data.user));
         navigate("/welcome", { replace: true });
-
         setInput({ email: "", password: "" });
       }
     } catch (error) {
@@ -49,248 +46,114 @@ const Login = () => {
     if (user) navigate("/welcome", { replace: true });
   }, [navigate, user]);
 
-  /* ---------- UI ---------- */
   return (
-    <div className="h-screen w-full grid lg:grid-cols-2 bg-[var(--background)] overflow-hidden">
-      {/* LEFT — BRAND PANEL */}
-      <aside
-        className="hidden lg:flex relative flex-col justify-between p-12 overflow-hidden h-screen"
-        style={{
-          background:
-            "linear-gradient(155deg, var(--primary) 0%, var(--primary-hover) 100%)",
-        }}
-      >
-        <div
-          className="absolute inset-0 opacity-[0.08]"
-          style={{
-            backgroundImage:
-              "repeating-linear-gradient(90deg, rgba(255,255,255,0.4) 0, rgba(255,255,255,0.4) 1px, transparent 1px, transparent 48px)",
-          }}
-        />
+    <div className="nv-split">
+      <AuthStage variant="login" />
 
-        {/* ============ DESKTOP LOGO — GIF in circle ============ */}
-        <Link to="/" className="relative flex items-center gap-3 w-fit group">
-          <span
-            className="
-              relative flex items-center justify-center
-              w-14 h-14
-              rounded-full
-              overflow-hidden
-              bg-black
-              ring-1 ring-white/20
-              shadow-[0_4px_20px_rgba(0,0,0,0.4)]
-              transition-all duration-300
-              group-hover:scale-110
-              group-hover:ring-white/40
-            "
-          >
-            <img
-              src="/logo.gif"
-              alt="Nova"
-              draggable={false}
-              className="w-full h-full object-cover select-none"
-            />
-          </span>
-          <span
-            className="text-2xl font-bold text-white tracking-tight"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Nova
-          </span>
-        </Link>
+      <main className="nv-form-side">
+        <span className="nv-form-top" aria-hidden />
+        <span className="nv-form-glow" aria-hidden />
 
-        <div className="relative max-w-md">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/60 mb-4">
-            Welcome back
-          </p>
-          <h2
-            className="text-4xl xl:text-5xl font-bold leading-[1.1] text-white"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            A quieter place to be{" "}
-            <em className="not-italic text-white/80">loud.</em>
-          </h2>
-          <p className="mt-5 text-white/70 text-base leading-relaxed">
-            Step back into your orbit. Share moments, keep close to the people
-            that matter, no noise in between.
-          </p>
-        </div>
-
-        <div className="relative flex items-center gap-2 text-white/50 text-xs">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span>Systems online</span>
-        </div>
-      </aside>
-
-      {/* RIGHT — FORM */}
-      <main className="flex items-center justify-center p-6 lg:p-9 overflow-y-auto">
-        <div className="w-full max-w-md">
-          {/* ============ MOBILE LOGO — GIF in circle ============ */}
-          <div className="lg:hidden flex justify-center mb-8">
-            <Link to="/" className="flex items-center gap-2.5 group">
-              <span
-                className="
-                  relative flex items-center justify-center
-                  w-12 h-12
-                  rounded-full
-                  overflow-hidden
-                  bg-black
-                  ring-1 ring-[var(--border)]
-                  shadow-[var(--shadow-sm)]
-                  transition-all duration-300
-                  group-hover:scale-110
-                "
-              >
-                <img
-                  src="/logo.gif"
-                  alt="Nova"
-                  draggable={false}
-                  className="w-full h-full object-cover select-none"
-                />
-              </span>
-              <span
-                className="text-2xl font-bold text-[var(--foreground)] tracking-tight"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                Nova
-              </span>
-            </Link>
+        <form onSubmit={handleSubmit} className="nv-form">
+          <div className="nv-form-mbrand">
+            <span className="nv-form-mbrand-logo">
+              <img src="/logo.gif" alt="Nova" draggable={false} />
+            </span>
+            <span className="nv-form-mbrand-name">Nova</span>
           </div>
 
-          <form onSubmit={signupHandler} className="card p-6 md:p-8 space-y-5">
-            <div className="space-y-1.5">
-              <h2
-                className="text-2xl md:text-3xl font-bold text-[var(--foreground)]"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                Sign in
-              </h2>
-              <p className="text-sm text-[var(--muted-foreground)]">
-                Continue where you left off.
-              </p>
-            </div>
+          <div className="nv-form-head">
+            <h1 className="nv-form-title">Sign in</h1>
+            <p className="nv-form-sub">
+              Welcome back. Continue where you left off.
+            </p>
+          </div>
 
-            {/* Email */}
-            <div className="space-y-1.5">
-              <label
-                htmlFor="email"
-                className="text-xs font-medium text-[var(--foreground)]"
-              >
-                Email
-              </label>
-              <div className="relative group">
-                <Mail
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)] group-focus-within:text-[var(--primary)] transition-colors pointer-events-none"
-                  strokeWidth={1.8}
-                />
-                <Input
-                  id="email"
-                  type="email"
-                  name="email"
-                  value={input.email}
-                  onChange={changeEventHandler}
-                  placeholder="you@example.com"
-                  required
-                  className="pl-10"
-                />
-              </div>
-            </div>
+          {/* Email */}
+          <div className="nv-field has-icon">
+            <input
+              id="email"
+              name="email"
+              type="email"
+              className="nv-field-input"
+              placeholder=" "
+              value={input.email}
+              onChange={changeEventHandler}
+              autoComplete="email"
+              required
+            />
+            <label htmlFor="email" className="nv-field-label">
+              Email address
+            </label>
+            <span className="nv-field-icon">
+              <Mail strokeWidth={1.8} />
+            </span>
+          </div>
 
-            {/* Password with show/hide */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label
-                  htmlFor="password"
-                  className="text-xs font-medium text-[var(--foreground)]"
-                >
-                  Password
-                </label>
-                <Link
-                  to="/forgot-password"
-                  className="text-[11px] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-                >
-                  Forgot?
-                </Link>
-              </div>
-              <div className="relative group">
-                <Lock
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)] group-focus-within:text-[var(--primary)] transition-colors pointer-events-none"
-                  strokeWidth={1.8}
-                />
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  name="password"
-                  value={input.password}
-                  onChange={changeEventHandler}
-                  placeholder="••••••••"
-                  required
-                  className="pl-10 pr-11"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((s) => !s)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-md flex items-center justify-center text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
-                  tabIndex={-1}
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-4 h-4" strokeWidth={1.8} />
-                  ) : (
-                    <Eye className="w-4 h-4" strokeWidth={1.8} />
-                  )}
-                </button>
-              </div>
-            </div>
-
+          {/* Password */}
+          <div className="nv-field has-icon has-eye">
+            <input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              className="nv-field-input"
+              placeholder=" "
+              value={input.password}
+              onChange={changeEventHandler}
+              autoComplete="current-password"
+              required
+            />
+            <label htmlFor="password" className="nv-field-label">
+              Password
+            </label>
+            <span className="nv-field-icon">
+              <Lock strokeWidth={1.8} />
+            </span>
             <button
-              type="submit"
-              disabled={loading}
-              className="w-full h-11 inline-flex items-center justify-center gap-2 rounded-full font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] group"
-              style={{
-                background: "var(--primary)",
-                color: "var(--primary-foreground)",
-              }}
+              type="button"
+              className="nv-field-eye"
+              onClick={() => setShowPassword((s) => !s)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              tabIndex={-1}
             >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Signing in...
-                </>
+              {showPassword ? (
+                <EyeOff className="w-4 h-4" strokeWidth={1.8} />
               ) : (
-                <>
-                  Sign in
-                  <ArrowRight
-                    className="h-4 w-4 group-hover:translate-x-0.5 transition-transform"
-                    strokeWidth={2}
-                  />
-                </>
+                <Eye className="w-4 h-4" strokeWidth={1.8} />
               )}
             </button>
+          </div>
 
-            <div className="flex items-center gap-3">
-              <div className="divider flex-1" />
-              <span className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
-                or
-              </span>
-              <div className="divider flex-1" />
-            </div>
+          <div className="nv-form-forgot">
+            <Link to="/forgot-password">Forgot password?</Link>
+          </div>
 
-            <p className="text-center text-sm text-[var(--muted-foreground)]">
-              New to Nova?{" "}
-              <Link
-                to="/signup"
-                className="font-semibold text-[var(--primary)] hover:underline"
-              >
-                Create an account
-              </Link>
-            </p>
-          </form>
+          <button type="submit" disabled={loading} className="nv-form-btn">
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Signing in...
+              </>
+            ) : (
+              <>
+                Sign in
+                <ArrowRight
+                  className="nv-form-arrow h-4 w-4"
+                  strokeWidth={2.2}
+                />
+              </>
+            )}
+          </button>
 
-          <p className="mt-5 text-center text-[11px] text-[var(--muted-foreground)] leading-relaxed">
-            By signing in you agree to Nova's Terms & Privacy Policy.
+          <p className="nv-form-switch">
+            New to Nova? <Link to="/signup">Create an account</Link>
           </p>
-        </div>
+
+          <p className="nv-form-terms">
+            By signing in you agree to Nova's <Link to="/terms">Terms</Link> &{" "}
+            <Link to="/privacy">Privacy</Link>.
+          </p>
+        </form>
       </main>
     </div>
   );

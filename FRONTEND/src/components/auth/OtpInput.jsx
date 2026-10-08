@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Instagram-style OTP input.
- *  - 6 individual boxes
- *  - Auto-focus next on type
- *  - Backspace → previous box
- *  - Paste support
- *  - Shake on error
- *  - Success pulse
+ * OtpInput — "Emerald Pulse" premium (v2)
+ *
+ *  Fixes:
+ *   • loading state now ONLY reacts to `loading` prop (not auto)
+ *   • on error → clears all digits + refocuses first box
+ *   • success/error ring animations
  */
 const OtpInput = ({
   length = 6,
@@ -18,79 +17,80 @@ const OtpInput = ({
   success = false,
   disabled = false,
   autoFocus = true,
+  loading = false,
 }) => {
   const [digits, setDigits] = useState(() =>
     Array.from({ length }, (_, i) => value[i] || ""),
   );
-  const [focusedIndex, setFocusedIndex] = useState(-1);
-  const inputRefs = useRef([]);
+  const [focused, setFocused] = useState(-1);
+  const [ringKey, setRingKey] = useState(0);
+  const refs = useRef([]);
 
-  /* Sync external value */
+  /* sync external value */
   useEffect(() => {
-    const next = Array.from({ length }, (_, i) => value[i] || "");
-    setDigits(next);
+    setDigits(Array.from({ length }, (_, i) => value[i] || ""));
   }, [value, length]);
 
-  /* Auto focus first box on mount */
+  /* auto focus first empty box on mount */
   useEffect(() => {
-    if (autoFocus && inputRefs.current[0]) {
-      setTimeout(() => inputRefs.current[0]?.focus(), 400);
-    }
+    if (!autoFocus || !refs.current[0]) return;
+    const t = setTimeout(() => refs.current[0]?.focus(), 350);
+    return () => clearTimeout(t);
   }, [autoFocus]);
 
+  /* ⬇ FIX: on error → wipe digits + refocus first */
+  useEffect(() => {
+    if (!error) return;
+    setDigits(Array.from({ length }, () => ""));
+    onChange?.("");
+    const t = setTimeout(() => refs.current[0]?.focus(), 550);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error, length]);
+
   const commit = (next) => {
-    onChange?.(next.join(""));
-    if (next.every((d) => d !== "")) {
-      onComplete?.(next.join(""));
-    }
+    const joined = next.join("");
+    onChange?.(joined);
+    if (next.every((d) => d !== "")) onComplete?.(joined);
   };
 
   const handleChange = (index, raw) => {
     const clean = raw.replace(/\D/g, "");
     if (!clean) return;
-
     const next = [...digits];
 
-    // Paste multiple digits
     if (clean.length > 1) {
       const chars = clean.slice(0, length - index).split("");
-      chars.forEach((c, i) => {
-        next[index + i] = c;
-      });
+      chars.forEach((c, i) => (next[index + i] = c));
       setDigits(next);
+      setRingKey((k) => k + 1);
       commit(next);
-
-      const lastFilled = Math.min(index + chars.length, length - 1);
-      inputRefs.current[lastFilled]?.focus();
+      refs.current[Math.min(index + chars.length, length - 1)]?.focus();
       return;
     }
 
-    // Single digit
     next[index] = clean;
     setDigits(next);
+    setRingKey((k) => k + 1);
     commit(next);
-
-    if (index < length - 1) {
-      inputRefs.current[index + 1]?.focus();
-    }
+    if (index < length - 1) refs.current[index + 1]?.focus();
   };
 
   const handleKeyDown = (index, e) => {
     if (e.key === "Backspace") {
       e.preventDefault();
       const next = [...digits];
-      if (next[index]) {
-        next[index] = "";
-      } else if (index > 0) {
+      if (next[index]) next[index] = "";
+      else if (index > 0) {
         next[index - 1] = "";
-        inputRefs.current[index - 1]?.focus();
+        refs.current[index - 1]?.focus();
       }
       setDigits(next);
       onChange?.(next.join(""));
     } else if (e.key === "ArrowLeft" && index > 0) {
-      inputRefs.current[index - 1]?.focus();
+      refs.current[index - 1]?.focus();
     } else if (e.key === "ArrowRight" && index < length - 1) {
-      inputRefs.current[index + 1]?.focus();
+      refs.current[index + 1]?.focus();
     }
   };
 
@@ -98,71 +98,83 @@ const OtpInput = ({
     e.preventDefault();
     const pasted = e.clipboardData.getData("text").replace(/\D/g, "");
     if (!pasted) return;
-
     const next = Array.from({ length }, (_, i) => pasted[i] || "");
     setDigits(next);
+    setRingKey((k) => k + 1);
     commit(next);
-
-    const lastIdx = Math.min(pasted.length, length - 1);
-    inputRefs.current[lastIdx]?.focus();
+    refs.current[Math.min(pasted.length, length - 1)]?.focus();
   };
+
+  const anyFilled = digits.some((d) => d !== "");
 
   return (
     <div
-      className={`flex items-center justify-center gap-2 sm:gap-2.5 ${
-        error ? "animate-otp-shake" : ""
-      }`}
+      className={`nv-otp ${anyFilled ? "is-typing" : ""} ${
+        error ? "is-shake is-error" : ""
+      } ${success ? "is-success" : ""} ${loading ? "is-loading" : ""}`}
       onPaste={handlePaste}
     >
       {digits.map((digit, i) => {
-        const isFocused = focusedIndex === i;
         const isFilled = digit !== "";
+        const isFocused = focused === i;
 
         return (
-          <input
+          <div
             key={i}
-            ref={(el) => (inputRefs.current[i] = el)}
-            type="text"
-            inputMode="numeric"
-            maxLength={1}
-            value={digit}
-            disabled={disabled}
-            onFocus={() => setFocusedIndex(i)}
-            onBlur={() => setFocusedIndex(-1)}
-            onChange={(e) => handleChange(i, e.target.value)}
-            onKeyDown={(e) => handleKeyDown(i, e)}
-            aria-label={`Digit ${i + 1}`}
-            className={`
-              otp-digit
-              w-11 h-14 sm:w-12 sm:h-16
-              text-center text-xl sm:text-2xl font-bold
-              rounded-xl
-              border-2
-              outline-none
-              transition-all duration-200
-              caret-transparent
-              ${disabled ? "opacity-50 cursor-not-allowed" : ""}
-              ${
-                success
-                  ? "border-[var(--success)] bg-[var(--success)]/10 text-[var(--success)] animate-otp-success"
-                  : error
-                    ? "border-[var(--danger)] text-[var(--danger)]"
-                    : isFilled
-                      ? "border-[var(--primary)]/60 bg-[var(--surface-2)] text-[var(--foreground)]"
-                      : "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)]"
-              }
-              ${
-                isFocused && !error && !success
-                  ? "border-[var(--primary)] ring-4 ring-[var(--primary)]/15 scale-[1.05]"
-                  : ""
-              }
-            `}
-            style={{
-              animationDelay: `${i * 70}ms`,
-            }}
-          />
+            className={`nv-otp-box ${isFilled ? "is-filled" : ""} ${
+              isFocused ? "is-focused" : ""
+            } ${disabled ? "is-disabled" : ""}`}
+          >
+            <input
+              ref={(el) => (refs.current[i] = el)}
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={1}
+              value={digit}
+              disabled={disabled}
+              onFocus={() => setFocused(i)}
+              onBlur={() => setFocused(-1)}
+              onChange={(e) => handleChange(i, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(i, e)}
+              aria-label={`Digit ${i + 1}`}
+              aria-invalid={error || undefined}
+              className="nv-otp-input"
+              tabIndex={disabled ? -1 : 0}
+            />
+
+            {isFilled && (
+              <span
+                key={`ring-${i}-${ringKey}`}
+                className="nv-otp-ring"
+                aria-hidden
+              />
+            )}
+
+            {isFilled && (
+              <span
+                key={`digit-${i}-${digit}`}
+                className="nv-otp-digit"
+                aria-hidden
+              >
+                {digit}
+              </span>
+            )}
+
+            {isFocused && !isFilled && !disabled && (
+              <span className="nv-otp-caret" aria-hidden />
+            )}
+          </div>
         );
       })}
+
+      <span className="nv-otp-sweep" aria-hidden />
+
+      <span className="nv-otp-loader" aria-hidden>
+        <span />
+        <span />
+        <span />
+      </span>
     </div>
   );
 };
