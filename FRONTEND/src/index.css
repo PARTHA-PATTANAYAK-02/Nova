@@ -803,99 +803,7 @@ main {
   border: none;
 }
 
-/* =========================================================
-   POST INTERACTIONS
-   ========================================================= */
-@keyframes likeHeartPop {
-  0% {
-    transform: scale(1);
-  }
-
-  30% {
-    transform: scale(0.82);
-  }
-
-  55% {
-    transform: scale(1.28);
-  }
-
-  75% {
-    transform: scale(0.96);
-  }
-
-  100% {
-    transform: scale(1);
-  }
-}
-
-@keyframes likeHeartGlow {
-  0% {
-    filter: drop-shadow(0 0 0 transparent);
-  }
-
-  40% {
-    filter: drop-shadow(0 0 10px var(--danger));
-  }
-
-  100% {
-    filter: drop-shadow(0 0 0 transparent);
-  }
-}
-
-@keyframes commentPop {
-  0% {
-    transform: scale(1);
-  }
-
-  40% {
-    transform: scale(1.2);
-  }
-
-  100% {
-    transform: scale(1);
-  }
-}
-
-@keyframes bookmarkFly {
-  0% {
-    transform: translateY(0) scale(1) rotate(0deg);
-  }
-
-  35% {
-    transform: translateY(-5px) scale(1.18) rotate(-6deg);
-  }
-
-  65% {
-    transform: translateY(-2px) scale(0.98) rotate(3deg);
-  }
-
-  100% {
-    transform: translateY(0) scale(1) rotate(0deg);
-  }
-}
-
-.animate-like {
-  animation: likeHeartPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.animate-comment {
-  animation: commentPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.animate-bookmark {
-  animation: bookmarkFly 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.like-heart {
-  transition:
-    fill 250ms cubic-bezier(0.4, 0, 0.2, 1),
-    color 250ms cubic-bezier(0.4, 0, 0.2, 1),
-    transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.like-heart.is-liked {
-  animation: likeHeartGlow 0.9s cubic-bezier(0.4, 0, 0.2, 1);
-}
+/* Legacy post-interaction rules replaced by the NOVA SOCIAL FEED styles appended below. */
 
 /* =========================================================
    MESSAGE ENTRY ANIMATION
@@ -3737,4 +3645,794 @@ button[disabled] {
 .nv-field.is-mismatch .nv-field-input {
   border-color: color-mix(in oklab, var(--danger) 55%, transparent);
   background: color-mix(in oklab, var(--danger) 4%, var(--surface));
+}
+
+
+
+/* =========================================================
+   NOVA SOCIAL FEED — EDITORIAL / IMMERSIVE POST REDESIGN
+   Appended overrides: replaces the old post-card visual language.
+   ========================================================= */
+:root {
+  --nova-post-ink: #171923;
+  --nova-post-muted: #777b88;
+  --nova-post-line: rgba(22, 25, 35, 0.09);
+  --nova-post-paper: #fff;
+  --nova-post-canvas: #f4f5f8;
+  --nova-post-pink: #ff315d;
+  --nova-post-violet: #7959f6;
+  --nova-post-shadow: 0 18px 54px rgba(20, 23, 38, 0.075);
+}
+
+.dark {
+  --nova-post-ink: #f6f7fb;
+  --nova-post-muted: #a2a7b6;
+  --nova-post-line: rgba(255, 255, 255, 0.1);
+  --nova-post-paper: #151722;
+  --nova-post-canvas: #101119;
+  --nova-post-shadow: 0 18px 54px rgba(0, 0, 0, 0.24);
+}
+
+.nova-post {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  min-width: 0;
+  overflow: clip;
+  color: var(--nova-post-ink);
+  background: var(--nova-post-paper);
+  border: 1px solid var(--nova-post-line);
+  border-radius: 24px;
+  box-shadow: var(--nova-post-shadow);
+  animation: novaPostEnter 620ms cubic-bezier(.2,.8,.2,1) both;
+  transition: border-color 240ms ease, box-shadow 300ms ease, transform 300ms ease;
+}
+.nova-post:hover {
+  border-color: color-mix(in srgb, var(--nova-post-violet) 24%, var(--nova-post-line));
+  box-shadow: 0 22px 64px rgba(20, 23, 38, 0.105);
+}
+@keyframes novaPostEnter {
+  from { opacity: 0; transform: translateY(18px) scale(.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.nova-post__header {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--nova-post-paper);
+}
+.nova-post__identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.nova-post__avatar-link { display: block; flex: 0 0 auto; border-radius: 50%; }
+.nova-post__avatar {
+  width: 44px !important;
+  height: 44px !important;
+  border: 2px solid var(--nova-post-paper);
+  outline: 2px solid var(--nova-post-violet);
+  outline-offset: 1px;
+  transition: transform 300ms cubic-bezier(.2,.8,.2,1);
+}
+.nova-post__avatar-link:hover .nova-post__avatar { transform: rotate(-7deg) scale(1.06); }
+.nova-post__author-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.nova-post__author-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.nova-post__author-name {
+  max-width: 240px;
+  overflow: hidden;
+  color: var(--nova-post-ink);
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: -.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.nova-post__author-name:hover, .nova-post__caption-author:hover { color: var(--nova-post-violet); }
+.nova-post__you {
+  padding: 3px 6px;
+  border-radius: 5px;
+  color: var(--nova-post-violet);
+  background: color-mix(in srgb, var(--nova-post-violet) 10%, transparent);
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: .1em;
+}
+.nova-post__subtitle {
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--nova-post-muted);
+  font-size: 11px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nova-post__icon-button, .nova-post__action, .nova-post__player-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.nova-post__more {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  color: var(--nova-post-muted);
+  background: transparent;
+  border-radius: 50%;
+  transition: background 180ms ease, color 180ms ease, transform 220ms ease;
+}
+.nova-post__more:hover { color: var(--nova-post-ink); background: var(--nova-post-canvas); transform: rotate(90deg); }
+.nova-post__menu-dialog { border-radius: 22px !important; }
+.nova-post__menu { display: grid; gap: 5px; margin-top: 16px; }
+.nova-post__menu button {
+  padding: 13px 14px;
+  border: 0;
+  border-radius: 12px;
+  text-align: left;
+  color: var(--nova-post-ink);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 650;
+  transition: background 180ms ease, transform 180ms ease;
+}
+.nova-post__menu button:hover { background: var(--nova-post-canvas); transform: translateX(3px); }
+.nova-post__menu button.is-danger { color: #ef476f; }
+.nova-post__menu button:disabled { opacity: .5; cursor: wait; }
+
+.nova-post__media {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  overflow: hidden;
+  background: #090a0e;
+  isolation: isolate;
+}
+.nova-post__media.is-video { aspect-ratio: 4 / 5; max-height: min(76vh, 780px); }
+.nova-post__media.is-image { min-height: 180px; max-height: 820px; }
+.nova-post__video, .nova-post__image {
+  display: block;
+  width: 100%;
+  max-height: inherit;
+  object-fit: contain;
+  user-select: none;
+}
+.nova-post__video {
+  width: 100%;
+  height: 100%;
+  max-height: min(76vh, 780px);
+  object-fit: contain;
+  background: #08090d;
+  cursor: pointer;
+}
+.nova-post__image { max-height: 78vh; object-fit: contain; }
+.nova-post__center-play {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 70px;
+  height: 70px;
+  place-items: center;
+  padding-left: 4px;
+  color: #fff;
+  background: rgba(18, 18, 24, .55);
+  border: 1px solid rgba(255,255,255,.58);
+  border-radius: 50%;
+  box-shadow: 0 8px 38px rgba(0,0,0,.28), inset 0 0 0 5px rgba(255,255,255,.07);
+  backdrop-filter: blur(14px);
+  transform: translate(-50%, -50%);
+  animation: novaPlayAppear 420ms cubic-bezier(.2,1.4,.4,1) both;
+  cursor: pointer;
+  transition: background 220ms ease, box-shadow 220ms ease;
+}
+.nova-post__center-play:hover { background: rgba(121, 89, 246, .78); box-shadow: 0 0 0 10px rgba(255,255,255,.1), 0 8px 38px rgba(0,0,0,.3); }
+@keyframes novaPlayAppear {
+  from { opacity: 0; transform: translate(-50%,-50%) scale(.62); }
+  to { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+}
+.nova-post__video-controls {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 42px 16px 14px;
+  color: #fff;
+  background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.14) 20%, rgba(0,0,0,.78) 100%);
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+.nova-post__video-controls.is-visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.nova-post__seek-wrap { position: relative; height: 18px; display: flex; align-items: center; margin-bottom: 8px; cursor: pointer; }
+.nova-post__seek-track {
+  position: relative;
+  width: 100%;
+  height: 3px;
+  overflow: visible;
+  border-radius: 99px;
+  background: rgba(255,255,255,.34);
+  transition: height 160ms ease;
+}
+.nova-post__seek-wrap:hover .nova-post__seek-track { height: 5px; }
+.nova-post__seek-progress {
+  position: relative;
+  height: 100%;
+  border-radius: inherit;
+  background: #fff;
+  box-shadow: 0 0 10px rgba(255,255,255,.4);
+}
+.nova-post__seek-thumb {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0;
+  transform: translate(-50%,-50%) scale(.7);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.nova-post__seek-wrap:hover .nova-post__seek-thumb { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+.nova-post__seek-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.nova-post__player-row { display: flex; align-items: center; gap: 10px; min-height: 30px; }
+.nova-post__player-button {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  color: #fff;
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 50%;
+  transition: background 180ms ease, transform 180ms ease;
+}
+.nova-post__player-button:hover { background: rgba(255,255,255,.26); transform: scale(1.08); }
+.nova-post__player-button:active { transform: scale(.92); }
+.nova-post__time { color: rgba(255,255,255,.92); font-size: 10px; font-variant-numeric: tabular-nums; font-weight: 650; letter-spacing: .02em; white-space: nowrap; }
+.nova-post__time span { padding: 0 3px; color: rgba(255,255,255,.48); }
+.nova-post__player-spacer { flex: 1; }
+.nova-post__volume { display: flex; align-items: center; gap: 7px; }
+.nova-post__volume-slider { width: 0; overflow: hidden; opacity: 0; transition: width 180ms ease, opacity 180ms ease; }
+.nova-post__volume-slider.is-open { width: 72px; opacity: 1; }
+.nova-post__volume-slider input { display: block; width: 70px; height: 20px; accent-color: white; cursor: pointer; }
+.nova-post__media-hint {
+  position: absolute;
+  z-index: 2;
+  top: 15px;
+  left: 15px;
+  padding: 6px 9px;
+  color: rgba(255,255,255,.88);
+  background: rgba(0,0,0,.25);
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 7px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .13em;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+.nova-post__media.is-video:hover .nova-post__media-hint { opacity: .75; }
+.nova-post__heart-burst {
+  position: absolute;
+  z-index: 8;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 120px;
+  height: 120px;
+  place-items: center;
+  color: #ff315d;
+  filter: drop-shadow(0 10px 28px rgba(255,49,93,.36));
+  pointer-events: none;
+  animation: novaHeartBurst 850ms cubic-bezier(.15,.85,.25,1) both;
+}
+.nova-post__heart-burst svg { width: 100%; height: 100%; }
+@keyframes novaHeartBurst {
+  0% { opacity: 0; transform: translate(-50%,-50%) scale(.15) rotate(-18deg); }
+  24% { opacity: 1; transform: translate(-50%,-50%) scale(1.16) rotate(7deg); }
+  42% { transform: translate(-50%,-50%) scale(.94) rotate(-3deg); }
+  62% { opacity: 1; transform: translate(-50%,-50%) scale(1) rotate(0); }
+  100% { opacity: 0; transform: translate(-50%,-50%) scale(1.5) rotate(0); }
+}
+
+.nova-post__body { padding: 12px 18px 16px; }
+.nova-post__actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.nova-post__action-group { display: flex; align-items: center; gap: 8px; }
+.nova-post__action {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  color: var(--nova-post-ink);
+  background: transparent;
+  border-radius: 14px;
+  transition: color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+.nova-post__action:hover { background: var(--nova-post-canvas); transform: translateY(-2px); }
+.nova-post__action:active { transform: scale(.88); }
+.nova-post__action:disabled { opacity: .58; cursor: wait; }
+.nova-post__like.is-liked { color: var(--nova-post-pink); }
+.nova-post__like.is-liked svg { filter: drop-shadow(0 3px 7px rgba(255,49,93,.2)); }
+.nova-post__bookmark.is-saved { color: var(--nova-post-violet); background: color-mix(in srgb, var(--nova-post-violet) 9%, transparent); }
+.nova-post__saved-check {
+  position: absolute;
+  top: 3px;
+  right: 1px;
+  padding: 1px;
+  color: white;
+  background: var(--nova-post-violet);
+  border-radius: 50%;
+  animation: novaCheckIn 260ms cubic-bezier(.2,1.6,.4,1) both;
+}
+@keyframes novaCheckIn { from { opacity: 0; transform: scale(0) rotate(-45deg); } to { opacity: 1; transform: scale(1) rotate(0); } }
+.nova-post-like-pop { animation: novaLikePop 560ms cubic-bezier(.2,1.5,.4,1) both; }
+@keyframes novaLikePop {
+  0% { transform: scale(1); }
+  30% { transform: scale(.78) rotate(-8deg); }
+  58% { transform: scale(1.32) rotate(5deg); }
+  78% { transform: scale(.93); }
+  100% { transform: scale(1); }
+}
+.nova-post-comment-pop { animation: novaCommentPop 470ms cubic-bezier(.2,1.5,.4,1) both; }
+@keyframes novaCommentPop {
+  0% { transform: scale(1) rotate(0); }
+  40% { transform: scale(1.2) rotate(-8deg); }
+  70% { transform: scale(.92) rotate(3deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+.nova-post-save-in { animation: novaSaveIn 620ms cubic-bezier(.2,1.45,.4,1) both; }
+.nova-post-save-out { animation: novaSaveOut 500ms ease both; }
+@keyframes novaSaveIn {
+  0% { transform: translateY(0) scale(1); }
+  32% { transform: translateY(-8px) scale(1.18) rotate(-10deg); }
+  65% { transform: translateY(2px) scale(.92) rotate(5deg); }
+  100% { transform: translateY(0) scale(1) rotate(0); }
+}
+@keyframes novaSaveOut {
+  0% { transform: scale(1); opacity: 1; }
+  45% { transform: scale(.72) rotate(12deg); opacity: .55; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.nova-post__likes-count { display: flex; align-items: baseline; gap: 5px; margin: 2px 0 8px; color: var(--nova-post-muted); font-size: 12px; }
+.nova-post__likes-number { color: var(--nova-post-ink); font-size: 13px; font-weight: 800; letter-spacing: -.02em; }
+.nova-post__caption { display: block; margin: 0; color: var(--nova-post-ink); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.nova-post__caption-author { margin-right: 7px; color: var(--nova-post-ink); font-weight: 800; text-decoration: none; transition: color 180ms ease; }
+.nova-post__view-comments { display: block; margin-top: 8px; padding: 0; color: var(--nova-post-muted); background: none; border: 0; font-size: 12px; font-weight: 600; cursor: pointer; transition: color 180ms ease; }
+.nova-post__view-comments:hover { color: var(--nova-post-violet); }
+.nova-post__comment-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 15px;
+  padding: 9px 10px;
+  background: var(--nova-post-canvas);
+  border: 1px solid transparent;
+  border-radius: 16px;
+  transition: border-color 220ms ease, box-shadow 220ms ease, background 220ms ease;
+}
+.nova-post__comment-form:focus-within {
+  border-color: color-mix(in srgb, var(--nova-post-violet) 45%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--nova-post-violet) 9%, transparent);
+}
+.nova-post__comment-avatar { width: 27px !important; height: 27px !important; flex: 0 0 auto; }
+.nova-post__comment-form input {
+  width: 100%;
+  min-width: 0;
+  padding: 5px 0;
+  color: var(--nova-post-ink);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-size: 12px;
+}
+.nova-post__comment-form input::placeholder { color: var(--nova-post-muted); }
+.nova-post__comment-submit {
+  display: inline-flex;
+  min-width: 42px;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 11px;
+  color: var(--nova-post-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+.nova-post__comment-submit.is-ready { color: #fff; background: var(--nova-post-violet); box-shadow: 0 4px 12px rgba(121,89,246,.2); }
+.nova-post__comment-submit.is-ready:hover { transform: translateY(-1px); background: #6845ef; }
+.nova-post__comment-submit:disabled { cursor: default; opacity: .48; }
+.nova-post__spinner { width: 13px; height: 13px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: novaSpinner 650ms linear infinite; }
+@keyframes novaSpinner { to { transform: rotate(360deg); } }
+
+@media (max-width: 640px) {
+  .nova-post { border-radius: 18px; }
+  .nova-post__header { min-height: 68px; padding: 12px 13px; }
+  .nova-post__avatar { width: 39px !important; height: 39px !important; }
+  .nova-post__author-name { max-width: 190px; }
+  .nova-post__media.is-video { aspect-ratio: 4 / 5; max-height: 70vh; }
+  .nova-post__video { max-height: 70vh; }
+  .nova-post__body { padding: 10px 13px 13px; }
+  .nova-post__action-group { gap: 4px; }
+  .nova-post__action { width: 39px; height: 39px; }
+  .nova-post__video-controls { padding: 34px 11px 10px; }
+  .nova-post__media-hint { display: none; }
+  .nova-post__center-play { width: 60px; height: 60px; }
+  .nova-post__heart-burst { width: 94px; height: 94px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nova-post, .nova-post *, .nova-post *::before, .nova-post *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+
+/* ===== NOVA POST POLISH — requested refinements ===== */
+.nova-post { border: 1px solid rgba(160,174,200,.18); box-shadow: 0 16px 44px rgba(0,0,0,.13), inset 0 1px 0 rgba(255,255,255,.025); }
+.nova-post__media.is-image { border-top: 1px solid rgba(210,220,240,.22); border-bottom: 1px solid rgba(210,220,240,.22); background: #090b12; }
+.nova-post__image { outline: 1px solid rgba(255,255,255,.055); outline-offset: -1px; }
+/* Keep profile avatar clean: no colored ring or outline. */
+.nova-post__avatar { border: 0 !important; outline: 0 !important; box-shadow: none !important; }
+.nova-post__avatar-link:hover .nova-post__avatar { transform: scale(1.035); }
+/* Strong visual distinction between author name and caption copy. */
+.nova-post__caption { display:flex; flex-wrap:wrap; align-items:baseline; gap: 3px 7px; margin-top: 3px; line-height:1.7; }
+.nova-post__caption-author { display:inline-flex; align-items:center; margin-right:0; font-weight:850; letter-spacing:-.015em; }
+.nova-post__caption-text { color: color-mix(in srgb, var(--nova-post-ink) 88%, #aab4c8); font-weight:450; }
+/* Animated numeric counter on both image and video posts. */
+.nova-post__count-tick { display:inline-block; transform-origin:50% 75%; animation:novaCountTick 420ms cubic-bezier(.2,1.5,.4,1) both; }
+@keyframes novaCountTick { 0% { opacity:.45; transform:translateY(7px) scale(.82); filter:blur(2px); } 65% { opacity:1; transform:translateY(-2px) scale(1.12); filter:blur(0); } 100% { transform:translateY(0) scale(1); } }
+/* Comment icon opens the dedicated dialog; feed stays uncluttered. No logo/avatar in the inline field. */
+.nova-post__comment-launch { width:100%; display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; padding:13px 15px; color:var(--nova-post-muted); background:color-mix(in srgb, var(--nova-post-paper) 84%, #7c8aa5 16%); border:1px solid rgba(155,170,198,.15); border-radius:15px; font-size:12px; text-align:left; cursor:pointer; transition:background 220ms ease,border-color 220ms ease,color 220ms ease,transform 220ms ease; }
+.nova-post__comment-launch svg { opacity:.65; transition:transform 220ms ease,opacity 220ms ease; }
+.nova-post__comment-launch:hover { color:var(--nova-post-ink); border-color:rgba(155,170,198,.32); background:color-mix(in srgb, var(--nova-post-paper) 72%, #8b9ab5 28%); transform:translateY(-1px); }
+.nova-post__comment-launch:hover svg { opacity:1; transform:translateX(2px) scale(1.08); }
+/* Three-dot menu: soft pop-in, staggered actions and tactile hover. */
+.nova-post__more { transition:background 200ms ease,transform 260ms cubic-bezier(.2,1.5,.4,1),color 200ms ease; }
+.nova-post__more:hover { transform:rotate(90deg) scale(1.08); }
+.nova-post__options-dialog { animation:novaOptionsIn 260ms cubic-bezier(.16,1,.3,1) both; transform-origin:top right; }
+.nova-post__options-dialog button { transition:background 180ms ease,transform 180ms ease,color 180ms ease; }
+.nova-post__options-dialog button:hover { transform:translateX(3px); }
+@keyframes novaOptionsIn { from { opacity:0; transform:translateY(-8px) scale(.94); filter:blur(3px); } to { opacity:1; transform:translateY(0) scale(1); filter:blur(0); } }
+@media (prefers-reduced-motion: reduce) { .nova-post__count-tick,.nova-post__options-dialog { animation:none !important; } }
+
+
+/* =========================================================
+   NOVA SOCIAL FEED — interaction polish v2
+   ========================================================= */
+.nova-post__media { position: relative; isolation: isolate; }
+.nova-post__heart-burst {
+  position: absolute; z-index: 8; left: 50%; top: 50%; width: clamp(92px, 17vw, 150px); aspect-ratio: 1;
+  color: #ff2d55; pointer-events: none; transform: translate(-50%, -50%);
+  filter: drop-shadow(0 8px 26px rgba(255, 45, 85, .42));
+  animation: novaInstagramHeart .92s cubic-bezier(.16, 1, .3, 1) both;
+}
+.nova-post__heart-burst svg { width: 100%; height: 100%; }
+@keyframes novaInstagramHeart {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.15) rotate(-22deg); }
+  18% { opacity: 1; transform: translate(-50%, -50%) scale(1.18) rotate(8deg); }
+  32% { transform: translate(-50%, -50%) scale(.94) rotate(-4deg); }
+  48% { transform: translate(-50%, -50%) scale(1.06) rotate(2deg); }
+  72% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(.82) rotate(0); }
+}
+.nova-post__media-hint { display: none !important; }
+.nova-post__actions { align-items: center; margin: 2px 0 12px; }
+.nova-post__action-group { align-items: center; gap: 14px; }
+.nova-post__action-group--right { margin-left: auto; }
+.nova-post__action-unit { display: inline-flex; align-items: center; gap: 6px; }
+.nova-post__action {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 42px; height: 42px; border-radius: 14px; background: transparent;
+  transition: transform .22s cubic-bezier(.2,.8,.2,1), background .22s ease, color .22s ease;
+}
+.nova-post__action:hover { transform: translateY(-2px) scale(1.04); background: rgba(130,145,175,.10); }
+.nova-post__action:active { transform: scale(.86); }
+.nova-post__like.is-liked { color: #ff3158; }
+.nova-post__like.is-liked svg { filter: drop-shadow(0 2px 8px rgba(255,49,88,.22)); animation: novaLikeIconPop .48s cubic-bezier(.2,1.6,.4,1) both; }
+@keyframes novaLikeIconPop { 0%{transform:scale(.65)} 55%{transform:scale(1.32)} 78%{transform:scale(.92)} 100%{transform:scale(1)} }
+.nova-post__inline-count { min-width: 1ch; font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--nova-post-ink); animation: novaCountIn .28s ease both; }
+@keyframes novaCountIn { from { opacity:.35; transform:translateY(5px) scale(.88) } to { opacity:1; transform:translateY(0) scale(1) } }
+.nova-post__caption { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 7px; line-height: 1.65; margin: 10px 0 7px; }
+.nova-post__caption-author { font-weight: 750; letter-spacing: -.015em; white-space: nowrap; }
+.nova-post__caption-text { color: var(--nova-post-ink); overflow-wrap: anywhere; }
+.nova-post__view-comments { display: inline-flex; padding: 5px 0; font-size: 13px; font-weight: 550; color: var(--nova-post-muted); transition: color .2s ease, transform .2s ease; }
+.nova-post__view-comments:hover { color: var(--nova-post-ink); transform: translateX(2px); }
+.nova-post__inline-comment { display:flex; align-items:center; gap:10px; margin-top:12px; padding: 5px 6px 5px 15px; min-height:48px; border:1px solid rgba(145,160,190,.20); border-radius:16px; background:color-mix(in srgb, var(--nova-post-paper) 88%, #9caac1 12%); transition:border-color .2s ease, box-shadow .2s ease, background .2s ease; }
+.nova-post__inline-comment:focus-within { border-color:rgba(125,145,190,.58); box-shadow:0 0 0 3px rgba(125,145,190,.10); }
+.nova-post__inline-comment input { flex:1; min-width:0; border:0; outline:0; background:transparent; color:var(--nova-post-ink); font:inherit; font-size:13px; }
+.nova-post__inline-comment input::placeholder { color:var(--nova-post-muted); }
+.nova-post__inline-comment button { padding:9px 13px; border-radius:11px; color:#fff; background:#315ee8; font-size:12px; font-weight:700; transition:transform .2s ease, opacity .2s ease, background .2s ease; }
+.nova-post__inline-comment button:hover:not(:disabled) { transform:translateY(-1px); background:#244bc7; }
+.nova-post__inline-comment button:active:not(:disabled) { transform:scale(.94); }
+.nova-post__inline-comment button:disabled { opacity:.38; cursor:not-allowed; }
+.nova-post__more { transition:transform .25s cubic-bezier(.2,.8,.2,1), background .2s ease; }
+.nova-post__more:hover { transform:rotate(90deg) scale(1.06); }
+.nova-post__menu-dialog[data-state="open"] { animation:novaMenuEnter .24s cubic-bezier(.16,1,.3,1) both; }
+.nova-post__menu button { transition:background .18s ease, transform .18s ease, padding-left .18s ease; }
+.nova-post__menu button:hover { transform:translateX(3px); padding-left:18px; }
+@media (max-width: 520px) {
+  .nova-post__actions { margin-bottom:9px; }
+  .nova-post__action-group { gap:9px; }
+  .nova-post__action { width:39px; height:39px; border-radius:12px; }
+  .nova-post__inline-count { font-size:12px; }
+  .nova-post__inline-comment { min-height:45px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nova-post__heart-burst, .nova-post__like.is-liked svg, .nova-post__inline-count { animation-duration:.01ms !important; }
+}
+
+
+/* =========================================================
+   NOVA POST — PREMIUM COMPACT SOCIAL FEED
+   Tighter rhythm, richer hierarchy, Instagram-style counters.
+   ========================================================= */
+.nova-post {
+  width: 100%; max-width: 640px; margin: 0 auto 22px; overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--nova-post-ink) 10%, transparent);
+  border-radius: 20px; background: var(--nova-post-paper);
+  box-shadow: 0 8px 28px rgba(12, 20, 38, .075), 0 1px 2px rgba(12,20,38,.04);
+  transition: box-shadow .22s ease, border-color .22s ease;
+}
+.nova-post:hover { box-shadow: 0 14px 38px rgba(12,20,38,.11); }
+.nova-post__header { min-height: 66px; padding: 11px 15px; gap: 12px; }
+.nova-post__identity { gap: 10px; }
+.nova-post__avatar { width: 42px !important; height: 42px !important; }
+.nova-post__author-meta { gap: 2px; }
+.nova-post__author-name { font-size: 13px; font-weight: 750; letter-spacing: -.015em; }
+.nova-post__subtitle { font-size: 11px; line-height: 1.35; }
+.nova-post__more { width: 36px; height: 36px; border-radius: 12px; }
+.nova-post__media { border-radius: 0; background: #0b0d12; }
+.nova-post__media.is-image { min-height: 0; max-height: none; }
+.nova-post__image, .nova-post__video { display: block; width: 100%; max-height: min(76vh, 760px); object-fit: contain; }
+.nova-post__image { aspect-ratio: auto; }
+.nova-post__body { padding: 10px 15px 13px; }
+.nova-post__actions { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0 0 5px; }
+.nova-post__action-group { display:flex; align-items:center; gap:13px; }
+.nova-post__action-group--right { margin-left:auto; gap:7px; }
+.nova-post__action-unit { display:inline-flex; align-items:center; gap:5px; }
+.nova-post__action { width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; border-radius:10px; padding:0; }
+.nova-post__action svg { display:block; flex:0 0 auto; }
+.nova-post__action:hover { transform:translateY(-1px); background:color-mix(in srgb, var(--nova-post-ink) 6%, transparent); }
+.nova-post__inline-count { font-size:13px; line-height:1; font-weight:700; letter-spacing:-.025em; font-variant-numeric:tabular-nums; }
+.nova-post__like.is-liked { color:#ff315d; }
+.nova-post__bookmark.is-saved { color:#6d5dfc; background:color-mix(in srgb, #6d5dfc 9%, transparent); }
+.nova-post__caption { display:block; margin:5px 0 3px; font-size:13px; line-height:1.55; }
+.nova-post__caption-author { margin-right:6px; font-weight:800; }
+.nova-post__caption-text { color:var(--nova-post-ink); font-weight:400; overflow-wrap:anywhere; }
+.nova-post__view-comments { display:flex; margin:4px 0 0; padding:2px 0; font-size:12px; line-height:1.45; color:var(--nova-post-muted); }
+.nova-post__inline-comment { display:flex; align-items:center; gap:8px; min-height:40px; margin-top:9px; padding:3px 4px 3px 12px; border:1px solid color-mix(in srgb, var(--nova-post-ink) 12%, transparent); border-radius:13px; background:color-mix(in srgb, var(--nova-post-paper) 96%, var(--nova-post-ink)); }
+.nova-post__inline-comment input { font-size:12px; }
+.nova-post__inline-comment button { padding:7px 11px; border-radius:9px; font-size:11px; }
+.nova-post__heart-burst { width:clamp(86px, 15vw, 132px); }
+.nova-post__menu-dialog { border-radius:18px !important; }
+@media (max-width:640px) {
+  .nova-post { margin-bottom:15px; border-radius:16px; }
+  .nova-post__header { min-height:61px; padding:10px 12px; }
+  .nova-post__avatar { width:39px !important; height:39px !important; }
+  .nova-post__body { padding:8px 12px 11px; }
+  .nova-post__action-group { gap:9px; }
+  .nova-post__action-group--right { gap:4px; }
+  .nova-post__action { width:32px; height:32px; }
+  .nova-post__inline-count { font-size:12px; }
+  .nova-post__inline-comment { min-height:38px; }
+}
+
+
+/* Like state clarity + tactile bounce using regular lucide icons (no AnimateIcons dependency). */
+.nova-post__like { transform-origin:center; }
+.nova-post__like.is-liked { color:#ff315d !important; }
+.nova-post__like.is-liked .nova-post__like-icon { fill:currentColor; stroke:currentColor; filter:drop-shadow(0 2px 5px rgba(255,49,93,.24)); }
+.nova-post__like:not(.is-liked) .nova-post__like-icon { fill:none; }
+.nova-post__like.nova-post-like-pop { animation:novaLikeButtonBounce .52s cubic-bezier(.2,1.6,.4,1) both; }
+.nova-post__like.nova-post-like-pop .nova-post__like-icon { animation:novaLikeGlyphBounce .52s cubic-bezier(.2,1.6,.4,1) both; }
+.nova-post__action.nova-post-like-pop:not(.nova-post__like) { animation:novaActionBounce .42s cubic-bezier(.2,1.5,.4,1) both; }
+.nova-post__action:active { transform:scale(.88); }
+@keyframes novaLikeButtonBounce { 0%{transform:scale(1)} 35%{transform:scale(.78)} 65%{transform:scale(1.22)} 82%{transform:scale(.94)} 100%{transform:scale(1)} }
+@keyframes novaLikeGlyphBounce { 0%{transform:scale(1) rotate(0)} 35%{transform:scale(.78) rotate(-10deg)} 65%{transform:scale(1.22) rotate(7deg)} 82%{transform:scale(.94) rotate(-2deg)} 100%{transform:scale(1) rotate(0)} }
+@keyframes novaActionBounce { 0%{transform:scale(1)} 45%{transform:scale(.82)} 75%{transform:scale(1.12)} 100%{transform:scale(1)} }
+@media (prefers-reduced-motion: reduce) { .nova-post__like.nova-post-like-pop,.nova-post__like.nova-post-like-pop .nova-post__like-icon,.nova-post__action.nova-post-like-pop { animation-duration:.01ms !important; } }
+
+
+/* =========================================================
+   COMMENTS — PREMIUM REDESIGN (integrated into index.css)
+   ========================================================= */
+
+/* Nova social comments — editorial dark-glass panel, compact and responsive */
+.comment-dialog-premium {
+  border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent) !important;
+  border-radius: 24px !important;
+  background: var(--surface) !important;
+  box-shadow: 0 30px 100px rgba(0, 0, 0, .28) !important;
+  color: var(--foreground);
+}
+.comment-dialog-premium__media {
+  background: #080a10;
+  border-right: 1px solid var(--border);
+  position: relative;
+}
+.comment-dialog-premium__media img,
+.comment-dialog-premium__media video {
+  max-height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+}
+.comment-dialog-premium__panel { background: var(--surface); }
+.comment-dialog-premium__header {
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  background: color-mix(in srgb, var(--surface) 92%, var(--primary));
+  border-color: var(--border) !important;
+}
+.comment-dialog-premium__header .h-9 { width: 42px; height: 42px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent); }
+.comment-dialog-premium__panel > .flex-1 { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted-foreground) 35%, transparent) transparent; }
+.comment-dialog-premium__panel > .flex-1::-webkit-scrollbar { width: 5px; }
+.comment-dialog-premium__panel > .flex-1::-webkit-scrollbar-thumb { border-radius: 20px; background: color-mix(in srgb, var(--muted-foreground) 32%, transparent); }
+.comment-dialog-premium__panel .rounded-lg.bg-\[var\(--surface-2\)\] {
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+}
+.comment-dialog-premium__panel .text-\[10px\].uppercase { font-size: 10px; letter-spacing: .18em; font-weight: 750; }
+.comment-premium {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  transition: background .18s ease, transform .18s ease;
+}
+.comment-premium:hover { background: color-mix(in srgb, var(--foreground) 4%, transparent); }
+.comment-premium__avatar-link { flex: 0 0 auto; margin-top: 2px; }
+.comment-premium__avatar { width: 35px !important; height: 35px !important; border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent); }
+.comment-premium__content { min-width: 0; flex: 1; }
+.comment-premium__bubble {
+  display: inline-block;
+  max-width: 100%;
+  padding: 9px 12px 8px;
+  border-radius: 4px 16px 16px 16px;
+  background: color-mix(in srgb, var(--surface-2) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+.comment-premium__author { display: inline-block; max-width: 100%; color: var(--foreground); font-size: 12px; font-weight: 800; line-height: 1.3; text-decoration: none; }
+.comment-premium__author:hover { color: var(--primary); }
+.comment-premium__text { margin: 3px 0 0; color: color-mix(in srgb, var(--foreground) 91%, transparent); font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; white-space: pre-wrap; }
+.comment-premium__meta { padding: 5px 4px 0; color: var(--muted-foreground); font-size: 10px; font-weight: 550; }
+.comment-dialog-premium__footer { background: color-mix(in srgb, var(--surface) 96%, var(--primary)); border-color: var(--border) !important; }
+.comment-dialog-premium__stats { min-height: 53px; gap: 15px; }
+.comment-dialog-premium__stats > button:first-child { color: var(--foreground); }
+.comment-dialog-premium__stats > button:first-child svg { color: #ff426d; }
+.comment-dialog-premium__stats > div { font-size: 12px; }
+.comment-dialog-premium__save {
+  display: inline-flex; align-items: center; gap: 7px; margin-left: auto;
+  padding: 8px 12px; border-radius: 999px; border: 1px solid var(--border-strong);
+  color: var(--foreground); background: color-mix(in srgb, var(--surface) 82%, var(--primary));
+  font-size: 12px; font-weight: 750; transition: transform .18s ease, background .18s ease, color .18s ease, border-color .18s ease;
+}
+.comment-dialog-premium__save:hover:not(:disabled) { transform: translateY(-1px); border-color: color-mix(in srgb, var(--primary) 55%, var(--border)); }
+.comment-dialog-premium__save:active:not(:disabled) { transform: scale(.94); }
+.comment-dialog-premium__save.is-saved { color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, var(--surface)); border-color: color-mix(in srgb, var(--primary) 35%, var(--border)); }
+.comment-dialog-premium__save:disabled { opacity: .55; cursor: not-allowed; }
+.comment-dialog-premium__composer-wrap { padding: 4px 14px 14px; }
+.comment-dialog-premium__composer {
+  padding: 5px 5px 5px 12px; gap: 9px; border: 1px solid var(--border-strong);
+  border-radius: 17px; background: var(--surface); transition: border-color .2s ease, box-shadow .2s ease;
+}
+.comment-dialog-premium__composer:focus-within { border-color: color-mix(in srgb, var(--primary) 60%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent); }
+.comment-dialog-premium__textarea { border: 0 !important; box-shadow: none !important; background: transparent !important; padding: 8px 0 !important; min-height: 36px !important; font-size: 13px !important; line-height: 1.5; color: var(--foreground) !important; }
+.comment-dialog-premium__textarea:focus-visible { outline: none !important; ring: 0 !important; }
+.comment-dialog-premium__send { width: 36px; height: 36px; border-radius: 12px !important; box-shadow: 0 5px 12px color-mix(in srgb, var(--primary) 25%, transparent); }
+.comment-dialog-premium__send:hover:not(:disabled) { transform: translateY(-1px) scale(1.03); }
+@media (max-width: 767px) {
+  .comment-dialog-premium { width: calc(100vw - 18px) !important; max-width: calc(100vw - 18px) !important; height: min(92dvh, 900px) !important; border-radius: 20px !important; }
+  .comment-dialog-premium__media { height: 35dvh !important; min-height: 180px; border-right: 0; border-bottom: 1px solid var(--border); }
+  .comment-dialog-premium__panel { min-height: 0; }
+  .comment-dialog-premium__header { min-height: 60px; padding: 10px 13px; }
+  .comment-dialog-premium__stats { gap: 11px; padding: 10px 13px 7px; }
+  .comment-dialog-premium__stats > div span:last-child { display: none; }
+  .comment-dialog-premium__composer-wrap { padding: 3px 10px 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .comment-premium, .comment-dialog-premium__save, .comment-dialog-premium__composer { transition: none !important; }
+}
+
+
+/* Comment dialog polish — use the project's active theme tokens. */
+.comment-dialog-premium {
+  background: var(--surface) !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 24px !important;
+  box-shadow: var(--shadow-xl) !important;
+  overflow: hidden;
+}
+.comment-dialog-premium__media {
+  background: var(--background) !important;
+  border-color: var(--border) !important;
+}
+.comment-dialog-premium__panel,
+.comment-dialog-premium__header,
+.comment-dialog-premium__footer {
+  background: var(--surface) !important;
+  color: var(--foreground);
+}
+.comment-dialog-premium__header { border-color: var(--border) !important; }
+.comment-dialog-premium__header .h-9,
+.comment-dialog-premium__caption-avatar .h-8,
+.comment-premium__avatar {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  ring: 0 !important;
+}
+.comment-dialog-premium__panel .rounded-lg.bg-\[var\(--surface-2\)\] {
+  background: transparent !important;
+  border: 0 !important;
+}
+.comment-dialog-premium__caption-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 15px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.comment-dialog-premium__caption-avatar { flex: 0 0 auto; margin-top: 1px; }
+.comment-dialog-premium__caption-text {
+  min-width: 0;
+  margin: 0;
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.comment-dialog-premium__caption-author {
+  color: var(--foreground);
+  font-weight: 700;
+  text-decoration: none;
+  margin-right: 3px;
+}
+.comment-dialog-premium__caption-author:hover { color: var(--primary); }
+.comment-premium { gap: 10px; padding: 7px 15px; border-radius: 0; }
+.comment-premium:hover { background: color-mix(in srgb, var(--foreground) 3%, transparent); }
+.comment-premium__avatar { width: 32px !important; height: 32px !important; }
+.comment-premium__bubble { display: block; max-width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.comment-premium__author { color: var(--foreground); font-size: 12px; font-weight: 700; margin-right: 4px; }
+.comment-premium__text { display: inline; margin: 0; color: var(--foreground); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
+.comment-premium__meta { display: flex; align-items: center; gap: 12px; padding: 5px 2px 0; color: var(--muted-foreground); font-size: 10px; }
+.comment-dialog-premium__stats { border-top: 1px solid var(--border); }
+.comment-dialog-premium__stats button,
+.comment-dialog-premium__stats > div { color: var(--foreground) !important; }
+.comment-dialog-premium__stats > button:first-child svg { color: var(--danger); }
+.comment-dialog-premium__save {
+  color: var(--foreground);
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+}
+.comment-dialog-premium__save.is-saved {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 38%, var(--border));
+}
+.comment-dialog-premium__composer { background: var(--surface-2); border-color: var(--border-strong); }
+.comment-dialog-premium__textarea { color: var(--foreground) !important; }
+.comment-dialog-premium__textarea::placeholder { color: var(--muted-foreground) !important; }
+@media (max-width: 767px) {
+  .comment-dialog-premium { border-radius: 20px !important; }
+  .comment-dialog-premium__caption-row { padding: 12px 13px 10px; }
 }

@@ -8,12 +8,13 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link } from "react-router-dom";
-import { Send, MessageCircle, Loader2, Heart } from "lucide-react";
+import { Send, MessageCircle, Loader2, Heart, Bookmark } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import Comment from "@/components/comments/Comment";
 import axios from "axios";
 import { toast } from "sonner";
 import { setPosts } from "@/redux/postSlice";
+import { updateBookmarks } from "@/redux/authSlice";
 import { Textarea } from "@/components/ui/textarea";
 import { getErrorMessage } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
@@ -52,6 +53,8 @@ const CommentDialog = ({ open, setOpen }) => {
   const [comments, setComments] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [liking, setLiking] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   const dispatch = useDispatch();
 
   /* ============================================================
@@ -64,6 +67,7 @@ const CommentDialog = ({ open, setOpen }) => {
       setText("");
       setLoading(false);
       setLiking(false);
+      setSaving(false);
     }
   }, [open]);
 
@@ -101,6 +105,31 @@ const CommentDialog = ({ open, setOpen }) => {
   }, [open, selectedPost?._id]);
 
   const post = postDetail || selectedPost;
+
+  // Saved state is derived from the authenticated user's bookmarks and kept in sync.
+  useEffect(() => {
+    const saved = user?.bookmarks?.some((item) => (item?._id || item) === post?._id) || false;
+    setIsSaved(saved);
+  }, [user?.bookmarks, post?._id]);
+
+  const handleSaveToggle = async () => {
+    if (!post?._id || !user?._id || saving) return;
+    try {
+      setSaving(true);
+      const response = await axios.get(apiUrl(`/api/v1/post/${post._id}/bookmark`), {
+        withCredentials: true,
+      });
+      if (!response.data.success) throw new Error("Unable to update saved posts.");
+      const savedNow = response.data.type === "saved";
+      setIsSaved(savedNow);
+      dispatch(updateBookmarks({ postId: post._id }));
+      toast.success(response.data.message || (savedNow ? "Post saved" : "Post removed from saved"));
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Unable to update saved posts."));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   /* ---------- COMMENTS — NEWEST FIRST ---------- */
   useEffect(() => {
@@ -194,6 +223,7 @@ const CommentDialog = ({ open, setOpen }) => {
       toast.error(getErrorMessage(error, "Unable to update the like."));
     } finally {
       setLiking(false);
+      setSaving(false);
     }
   };
 
@@ -267,7 +297,7 @@ const CommentDialog = ({ open, setOpen }) => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
-        className="!flex flex-col md:flex-row max-w-[95vw] md:max-w-4xl p-0 h-[90vh] md:h-[80vh] overflow-hidden !gap-0"
+        className="comment-dialog-premium !flex flex-col md:flex-row max-w-[96vw] md:max-w-5xl p-0 h-[91vh] md:h-[82vh] overflow-hidden !gap-0"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <DialogTitle className="sr-only">Comments</DialogTitle>
@@ -276,7 +306,7 @@ const CommentDialog = ({ open, setOpen }) => {
         </DialogDescription>
 
         {/* ============ MEDIA PANEL ============ */}
-        <div className="w-full md:w-1/2 md:h-full h-[32vh] shrink-0 bg-black flex items-center justify-center overflow-hidden border-b md:border-b-0 md:border-r border-[var(--border)]">
+        <div className="comment-dialog-premium__media w-full md:w-[54%] md:h-full h-[34vh] shrink-0 flex items-center justify-center overflow-hidden">
           {post?.image && !showSkeleton ? (
             post.mediaType === "video" ? (
               <video
@@ -304,9 +334,9 @@ const CommentDialog = ({ open, setOpen }) => {
         </div>
 
         {/* ============ COMMENTS PANEL ============ */}
-        <div className="w-full md:w-1/2 flex-1 flex flex-col min-h-0 bg-[var(--surface)]">
+        <div className="comment-dialog-premium__panel w-full md:w-[46%] flex-1 flex flex-col min-h-0 bg-[var(--surface)]">
           {/* ---- Header ---- */}
-          <div className="shrink-0 px-4 py-3 border-b border-[var(--border)]">
+          <div className="comment-dialog-premium__header shrink-0 px-4 py-3 border-b border-[var(--border)]">
             {showSkeleton ? (
               <div className="flex items-center gap-3">
                 <div className="h-9 w-9 rounded-full bg-[var(--surface-2)] animate-pulse shrink-0" />
@@ -318,7 +348,7 @@ const CommentDialog = ({ open, setOpen }) => {
             ) : (
               <div className="flex items-center gap-3">
                 <Link to={`/profile/${author._id}`} className="shrink-0">
-                  <Avatar className="h-9 w-9">
+                  <Avatar className="h-9 w-9 border-0 ring-0 shadow-none">
                     <AvatarImage src={authorAvatar} />
                     <AvatarFallback>
                       {authorName.charAt(0).toUpperCase()}
@@ -346,11 +376,18 @@ const CommentDialog = ({ open, setOpen }) => {
               <>
                 {/* ===== CAPTION ===== */}
                 {post?.caption && (
-                  <div className="mx-4 mt-3 mb-2 px-3.5 py-2.5 rounded-lg bg-[var(--surface-2)]">
-                    <p className="text-[13px] text-[var(--foreground)] leading-relaxed">
-                      {post.caption}
+                  <article className="comment-dialog-premium__caption-row">
+                    <Link to={`/profile/${author._id}`} className="comment-dialog-premium__caption-avatar" aria-label={`${authorName} profile`}>
+                      <Avatar className="h-8 w-8 border-0 ring-0 shadow-none">
+                        <AvatarImage src={authorAvatar} alt={authorName} />
+                        <AvatarFallback>{authorName.charAt(0).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                    </Link>
+                    <p className="comment-dialog-premium__caption-text">
+                      <Link to={`/profile/${author._id}`} className="comment-dialog-premium__caption-author">{authorName}</Link>{" "}
+                      <span>{post.caption}</span>
                     </p>
-                  </div>
+                  </article>
                 )}
 
                 {/* ===== Section label ===== */}
@@ -392,7 +429,7 @@ const CommentDialog = ({ open, setOpen }) => {
           </div>
 
           {/* ---- Stats + Input ---- */}
-          <div className="shrink-0 border-t border-[var(--border)]">
+          <div className="comment-dialog-premium__footer shrink-0 border-t border-[var(--border)]">
             {showSkeleton ? (
               <div className="px-4 pt-3 pb-3 space-y-2">
                 <div className="h-3.5 w-40 rounded bg-[var(--surface-2)] animate-pulse" />
@@ -400,7 +437,7 @@ const CommentDialog = ({ open, setOpen }) => {
               </div>
             ) : (
               <>
-                <div className="flex items-center gap-4 px-4 pt-3 pb-2">
+                <div className="comment-dialog-premium__stats flex items-center gap-4 px-4 pt-3 pb-2">
                   {/* LIKE — interactive */}
                   <button
                     type="button"
@@ -433,23 +470,30 @@ const CommentDialog = ({ open, setOpen }) => {
                   {/* Comment count (static) */}
                   <div className="flex items-center gap-1.5 text-sm text-[var(--muted-foreground)]">
                     <MessageCircle className="h-4 w-4" strokeWidth={1.8} />
-                    <span className="font-semibold text-[var(--foreground)] tabular-nums">
-                      {comments.length}
-                    </span>
-                    <span>
-                      {comments.length === 1 ? "comment" : "comments"}
-                    </span>
+                    <span className="font-semibold text-[var(--foreground)] tabular-nums">{comments.length}</span>
+                    <span>{comments.length === 1 ? "comment" : "comments"}</span>
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveToggle}
+                    disabled={saving || !user?._id || showSkeleton}
+                    aria-label={isSaved ? "Remove post from saved" : "Save post"}
+                    aria-pressed={isSaved}
+                    className={`comment-dialog-premium__save ${isSaved ? "is-saved" : ""}`}
+                  >
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bookmark className="h-4 w-4" fill={isSaved ? "currentColor" : "none"} />}
+                    <span>{isSaved ? "Saved" : "Save"}</span>
+                  </button>
                 </div>
 
-                <div className="px-3 pb-3">
-                  <div className="flex items-end gap-2">
+                <div className="comment-dialog-premium__composer-wrap px-3 pb-3">
+                  <div className="comment-dialog-premium__composer flex items-end gap-2">
                     <Textarea
                       value={text}
                       onChange={(e) => setText(e.target.value)}
                       placeholder="Add a comment..."
                       rows={1}
-                      className="min-h-[40px] max-h-28 resize-none rounded-lg py-2.5"
+                      className="comment-dialog-premium__textarea min-h-[40px] max-h-28 resize-none rounded-lg py-2.5"
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey && !submitting) {
                           e.preventDefault();
@@ -460,7 +504,7 @@ const CommentDialog = ({ open, setOpen }) => {
                     <button
                       onClick={sendMessageHandler}
                       disabled={!text.trim() || submitting}
-                      className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="comment-dialog-premium__send shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                       style={{
                         background: "var(--primary)",
                         color: "var(--primary-foreground)",
