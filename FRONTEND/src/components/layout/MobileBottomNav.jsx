@@ -14,7 +14,11 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import CreatePost from "@/components/feed/CreatePost";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { toast } from "sonner";
 import axios from "axios";
 import { setAuthUser } from "@/redux/authSlice";
@@ -519,7 +523,9 @@ const MobileBottomNav = () => {
                         <AvatarImage src={n.userDetails?.profilePicture} />
 
                         <AvatarFallback>
-                          {getDisplayName(n.userDetails, "U").charAt(0).toUpperCase()}
+                          {getDisplayName(n.userDetails, "U")
+                            .charAt(0)
+                            .toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
 
@@ -675,7 +681,6 @@ const MobileBottomNav = () => {
                   <p className="text-sm font-semibold text-[var(--foreground)] truncate">
                     {getDisplayName(user)}
                   </p>
-
                 </div>
               </div>
             </div>

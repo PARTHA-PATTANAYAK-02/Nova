@@ -20,7 +20,11 @@ import {
   markNotificationsRead,
   removeNotification,
 } from "@/redux/rtnSlice";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { apiUrl } from "@/lib/api";
 import { getDisplayName } from "@/lib/utils";
 
@@ -596,7 +600,9 @@ const LeftSidebar = () => {
                               />
 
                               <AvatarFallback>
-                                {getDisplayName(n.userDetails, "U").charAt(0).toUpperCase()}
+                                {getDisplayName(n.userDetails, "U")
+                                  .charAt(0)
+                                  .toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
 
@@ -801,11 +807,8 @@ const LeftSidebar = () => {
               )}
             </span>
 
-            <span className={`${labelCls} relative`}>
-              Profile
-            </span>
+            <span className={`${labelCls} relative`}>Profile</span>
           </button>
-
         </div>
       </aside>
 
