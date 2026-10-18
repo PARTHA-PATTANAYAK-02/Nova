@@ -1,21 +1,17 @@
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { XIcon } from "lucide-react";
-
 import { cn } from "@/lib/utils";
 
 function Dialog({ ...props }) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;
 }
-
 function DialogTrigger({ ...props }) {
   return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
 }
-
 function DialogPortal({ ...props }) {
   return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
 }
-
 function DialogClose({ ...props }) {
   return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
 }
@@ -25,7 +21,8 @@ function DialogOverlay({ className, ...props }) {
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px]",
+        "fixed inset-0 z-50",
+        "bg-[var(--overlay)] backdrop-blur-[6px]",
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
         "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         className,
@@ -52,10 +49,11 @@ function DialogContent({
           "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
           "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
           "duration-200",
-          "gap-4 rounded-2xl p-5",
+          "gap-4 rounded-3xl p-6",
           "bg-[var(--surface)] border border-[var(--border)]",
           "text-[var(--foreground)]",
-          "shadow-[var(--shadow-xl)]",
+          "shadow-[0_32px_80px_-24px_rgba(0,0,0,.35),0_8px_24px_-12px_var(--glow)]",
+          "outline-none focus:outline-none",
           className,
         )}
         {...props}
@@ -65,11 +63,12 @@ function DialogContent({
           <DialogPrimitive.Close
             data-slot="dialog-close"
             className={cn(
-              "absolute top-3.5 right-3.5 z-10",
+              "absolute top-4 right-4 z-10",
               "w-8 h-8 rounded-full flex items-center justify-center",
-              "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)]",
-              "transition-colors",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30",
+              "text-[var(--muted-foreground)]",
+              "hover:text-[var(--foreground)] hover:bg-[var(--surface-2)]",
+              "transition-colors duration-200 active:scale-[.94]",
+              "outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40",
               "disabled:pointer-events-none",
               "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:w-4 [&_svg]:h-4",
             )}
@@ -114,10 +113,9 @@ function DialogTitle({ className, ...props }) {
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
-        "text-base font-semibold leading-none text-[var(--foreground)]",
+        "font-display text-lg font-semibold leading-none tracking-tight text-[var(--foreground)]",
         className,
       )}
-      style={{ fontFamily: "var(--font-display)" }}
       {...props}
     />
   );

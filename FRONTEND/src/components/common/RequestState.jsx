@@ -1,70 +1,49 @@
 import { AlertCircle, Loader2, RefreshCw, Compass } from "lucide-react";
 
-/* =========================================================
-   LOADING STATE — spinner only (no text)
-   ========================================================= */
+/* ═══════════════════════════════════════════════
+   LOADING
+   ═══════════════════════════════════════════════ */
 export const LoadingState = ({ message, className = "" }) => (
   <div
-    className={`flex flex-col items-center justify-center gap-2 p-8 ${className}`}
+    className={`nv-state nv-state--loading ${className}`}
     role="status"
     aria-label={message || "Loading"}
   >
-    <Loader2
-      className="h-5 w-5 animate-spin text-[var(--muted-foreground)]"
-      strokeWidth={2}
-    />
-    {message && (
-      <span className="text-xs text-[var(--muted-foreground)]">{message}</span>
-    )}
+    <div className="nv-state__loader">
+      <span className="nv-state__loader-ring" aria-hidden />
+      <span className="nv-state__loader-arc" aria-hidden />
+      <span className="nv-state__loader-core" aria-hidden>
+        <Loader2 className="size-3.5 animate-spin" strokeWidth={2.4} />
+      </span>
+    </div>
+    {message && <span className="nv-state__msg">{message}</span>}
   </div>
 );
 
-/* =========================================================
-   ERROR STATE
-   ========================================================= */
+/* ═══════════════════════════════════════════════
+   ERROR
+   ═══════════════════════════════════════════════ */
 export const ErrorState = ({ message, onRetry, className = "" }) => (
-  <div
-    className={`card p-8 flex flex-col items-center justify-center text-center ${className}`}
-    role="alert"
-  >
-    <div className="w-12 h-12 rounded-full bg-[var(--surface-2)] flex items-center justify-center mb-3">
-      <AlertCircle
-        className="h-5 w-5 text-[var(--danger)]"
-        strokeWidth={1.8}
-        aria-hidden="true"
-      />
-    </div>
+  <div className={`nv-state nv-state--error ${className}`} role="alert">
+    <span className="nv-state__orb nv-state__orb--danger" aria-hidden>
+      <AlertCircle className="size-5" strokeWidth={1.9} />
+    </span>
 
-    <p
-      className="text-base font-semibold text-[var(--foreground)]"
-      style={{ fontFamily: "var(--font-display)" }}
-    >
-      Something went wrong
-    </p>
-    <p className="mt-1 text-sm text-[var(--muted-foreground)] max-w-xs">
-      {message}
-    </p>
+    <h3 className="nv-state__title">Something went wrong</h3>
+    <p className="nv-state__sub">{message}</p>
 
     {onRetry && (
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full transition-all active:scale-95"
-        style={{
-          background: "var(--primary)",
-          color: "var(--primary-foreground)",
-        }}
-      >
-        <RefreshCw className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
+      <button type="button" onClick={onRetry} className="nv-state__cta">
+        <RefreshCw className="size-3.5" strokeWidth={2.2} aria-hidden />
         Try again
       </button>
     )}
   </div>
 );
 
-/* =========================================================
-   EMPTY STATE
-   ========================================================= */
+/* ═══════════════════════════════════════════════
+   EMPTY
+   ═══════════════════════════════════════════════ */
 export const EmptyState = ({
   icon,
   title = "Nothing here yet",
@@ -73,26 +52,12 @@ export const EmptyState = ({
 }) => {
   const Icon = icon || Compass;
   return (
-    <div
-      className={`card py-12 px-6 flex flex-col items-center justify-center text-center ${className}`}
-    >
-      <div className="w-12 h-12 rounded-full bg-[var(--surface-2)] flex items-center justify-center mb-3">
-        <Icon
-          className="w-5 h-5 text-[var(--muted-foreground)]"
-          strokeWidth={1.8}
-        />
-      </div>
-      <p
-        className="text-base font-semibold text-[var(--foreground)]"
-        style={{ fontFamily: "var(--font-display)" }}
-      >
-        {title}
-      </p>
-      {description && (
-        <p className="mt-1 text-sm text-[var(--muted-foreground)] max-w-xs">
-          {description}
-        </p>
-      )}
+    <div className={`nv-state nv-state--empty ${className}`}>
+      <span className="nv-state__orb nv-state__orb--neutral" aria-hidden>
+        <Icon className="size-5" strokeWidth={1.9} />
+      </span>
+      <h3 className="nv-state__title">{title}</h3>
+      {description && <p className="nv-state__sub">{description}</p>}
     </div>
   );
 };

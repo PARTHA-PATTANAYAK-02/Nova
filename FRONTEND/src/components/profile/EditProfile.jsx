@@ -1,6 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { ArrowLeft, Camera, KeyRound, Loader2, Save } from "lucide-react";
+import {
+  ArrowLeft,
+  Camera,
+  KeyRound,
+  Loader2,
+  Save,
+  ImagePlus,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
@@ -39,7 +46,6 @@ const EditProfile = () => {
     profilePhoto: null,
   });
 
-  /* ---------- LOGIC (UNCHANGED) ---------- */
   useEffect(() => {
     setInput({
       username: user?.username || "",
@@ -109,7 +115,9 @@ const EditProfile = () => {
       const res = await axios.post(
         apiUrl("/api/v1/user/profile/edit"),
         formData,
-        { withCredentials: true },
+        {
+          withCredentials: true,
+        },
       );
       if (res.data.success) {
         dispatch(setAuthUser({ ...user, ...res.data.user }));
@@ -123,136 +131,92 @@ const EditProfile = () => {
     }
   };
 
-  /* ---------- UI ---------- */
   return (
-    <main className="mx-auto max-w-2xl px-3 sm:px-4 py-5 animate-fade-in">
-      {/* BACK */}
+    <main className="nova-page">
       <button
         type="button"
         onClick={() => navigate(-1)}
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors group"
+        className="nova-edit__back"
       >
-        <ArrowLeft
-          className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform"
-          strokeWidth={1.8}
-        />
+        <ArrowLeft className="size-4" strokeWidth={1.8} />
         Back
       </button>
 
-      {/* FORM CARD */}
-      <form onSubmit={editProfileHandler} className="card overflow-hidden">
-        {/* HEADER */}
-        <div className="px-5 py-5 border-b border-[var(--border)]">
-          <h1
-            className="text-2xl font-bold text-[var(--foreground)]"
-            style={{ fontFamily: "var(--font-display)" }}
+      <form onSubmit={editProfileHandler} className="nova-edit__form">
+        <div className="nova-edit__hero">
+          <button
+            type="button"
+            onClick={() => coverImageRef.current?.click()}
+            className="nova-edit__cover"
+            style={
+              coverPreview
+                ? { backgroundImage: `url(${coverPreview})` }
+                : undefined
+            }
           >
-            Edit profile
-          </h1>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+            <span className="nova-edit__cover-empty">
+              <ImagePlus className="size-5" strokeWidth={1.8} />
+              Cover photo
+            </span>
+            <span className="nova-edit__cover-badge">
+              <Camera className="size-3.5" strokeWidth={2} />
+              Change cover
+            </span>
+          </button>
+
+          <input
+            ref={coverImageRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={coverChangeHandler}
+            className="hidden"
+          />
+
+          <div className="nova-edit__avatar-wrap">
+            <span className="nova-edit__avatar-ring">
+              <Avatar className="nova-edit__avatar">
+                <AvatarImage src={photoPreview} alt={user?.username} />
+                <AvatarFallback>
+                  {user?.username?.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </span>
+            <button
+              type="button"
+              onClick={() => imageRef.current?.click()}
+              className="nova-edit__avatar-btn"
+              aria-label="Change photo"
+            >
+              <Camera className="size-4" strokeWidth={2.2} />
+            </button>
+            <input
+              ref={imageRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={fileChangeHandler}
+              className="hidden"
+            />
+          </div>
+        </div>
+
+        <div className="nova-edit__head">
+          <h1 className="nova-edit__title">Edit profile</h1>
+          <p className="nova-edit__sub">
             Update the details people see on your profile.
           </p>
         </div>
 
-        <div className="p-5 space-y-6">
-          <div>
-            <div
-              className="relative h-32 overflow-hidden rounded-xl border border-[var(--border)] bg-[linear-gradient(120deg,var(--primary),var(--primary-hover),var(--accent))] sm:h-40"
-              style={
-                coverPreview
-                  ? {
-                      backgroundImage: `url(${coverPreview})`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                    }
-                  : undefined
-              }
-            >
-              <input
-                ref={coverImageRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={coverChangeHandler}
-                className="hidden"
-              />
-              <button
-                type="button"
-                onClick={() => coverImageRef.current?.click()}
-                className="absolute bottom-3 right-3 rounded-full border border-white/30 bg-black/40 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm transition-colors hover:bg-black/60"
-              >
-                {coverPreview ? "Change cover photo" : "Add cover photo"}
-              </button>
-            </div>
-            <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
-              Cover photo · JPG, PNG or WEBP · max 5 MB
-            </p>
-          </div>
-
-          {/* PHOTO */}
-          <div className="flex items-center gap-4">
-            <Avatar className="h-20 w-20 shrink-0 border-2 border-[var(--border)]">
-              <AvatarImage src={photoPreview} alt={user?.username} />
-              <AvatarFallback className="text-xl">
-                {user?.username?.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-[var(--foreground)]">
-                {user?.username ? `@${user.username}` : "Choose your username"}
-              </p>
-              <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
-                JPG, PNG or WEBP · max 5 MB
-              </p>
-
-              <input
-                ref={imageRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={fileChangeHandler}
-                className="hidden"
-              />
-
-              <button
-                type="button"
-                onClick={() => imageRef.current?.click()}
-                className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border border-[var(--border-strong)] text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
-              >
-                <Camera className="h-3.5 w-3.5" strokeWidth={1.8} />
-                Change photo
-              </button>
-            </div>
-          </div>
-
-          <div className="divider" />
-
-          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/45 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-[var(--foreground)]">Password & account safety</p>
-                <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">Reset your password or permanently delete your account.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate("/account/security")}
-                className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-strong)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--surface)]"
-              >
-                <KeyRound className="h-3.5 w-3.5" /> Manage
-              </button>
-            </div>
-          </section>
-
-          {/* FIELDS */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <Label htmlFor="username">Username</Label>
+        <div className="nova-edit__body">
+          <div className="nova-edit__grid">
+            <div className="nova-edit__field">
+              <Label htmlFor="username">
+                Username
                 {!user?.username && (
-                  <span className="h-2 w-2 rounded-full bg-[var(--danger)]" title="Username needed" />
+                  <span className="ml-1.5 inline-block size-1.5 rounded-full bg-[var(--danger)]" />
                 )}
-              </div>
+              </Label>
               {!user?.username && (
-                <p className="text-xs text-[var(--danger)]">
+                <p className="nova-edit__hint is-danger">
                   Set a unique username to finish your profile.
                 </p>
               )}
@@ -268,7 +232,7 @@ const EditProfile = () => {
               />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="nova-edit__field">
               <Label htmlFor="fullName">Full name</Label>
               <Input
                 id="fullName"
@@ -280,7 +244,7 @@ const EditProfile = () => {
               />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="nova-edit__field">
               <Label htmlFor="website">Website</Label>
               <Input
                 id="website"
@@ -293,7 +257,7 @@ const EditProfile = () => {
               />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="nova-edit__field">
               <Label htmlFor="dateOfBirth">Date of birth</Label>
               <Input
                 id="dateOfBirth"
@@ -306,7 +270,7 @@ const EditProfile = () => {
               />
             </div>
 
-            <div className="space-y-1.5 sm:col-span-2">
+            <div className="nova-edit__field nova-edit__field--full">
               <Label>Gender</Label>
               <Select
                 value={input.gender}
@@ -325,13 +289,10 @@ const EditProfile = () => {
             </div>
           </div>
 
-          {/* BIO */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
+          <div className="nova-edit__field">
+            <div className="nova-edit__field-head">
               <Label htmlFor="bio">Bio</Label>
-              <span className="text-[11px] text-[var(--muted-foreground)] tabular-nums">
-                {input.bio.length}/300
-              </span>
+              <span className="nova-edit__counter">{input.bio.length}/300</span>
             </div>
             <Textarea
               id="bio"
@@ -340,36 +301,48 @@ const EditProfile = () => {
               onChange={changeHandler}
               placeholder="Tell people a little about yourself"
               maxLength={300}
-              className="min-h-24 resize-none rounded-lg"
+              className="min-h-24 resize-none"
             />
           </div>
 
-          {/* ACTIONS */}
-          <div className="flex items-center justify-end gap-2 pt-4 border-t border-[var(--border)]">
+          <div className="nova-edit__security">
+            <div className="nova-edit__security-orb">
+              <KeyRound className="size-4" strokeWidth={2} />
+            </div>
+            <div className="nova-edit__security-text">
+              <p className="nova-edit__security-title">
+                Password & account safety
+              </p>
+              <p className="nova-edit__security-sub">
+                Reset password or permanently delete your account.
+              </p>
+            </div>
             <button
               type="button"
-              onClick={() => navigate(-1)}
-              className="text-xs font-medium px-4 py-2 rounded-full text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
+              onClick={() => navigate("/account/security")}
+              className="nova-edit__security-btn"
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-5 py-2 rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px]"
-              style={{
-                background: "var(--primary)",
-                color: "var(--primary-foreground)",
-              }}
-            >
-              {loading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Save className="h-3.5 w-3.5" strokeWidth={2} />
-              )}
-              {loading ? "Saving..." : "Save changes"}
+              Manage
             </button>
           </div>
+        </div>
+
+        <div className="nova-edit__actions">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="nova-btn-ghost"
+          >
+            Cancel
+          </button>
+          <button type="submit" disabled={loading} className="nova-btn-primary">
+            {loading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Save className="size-4" strokeWidth={2} />
+            )}
+            {loading ? "Saving…" : "Save changes"}
+          </button>
         </div>
       </form>
     </main>

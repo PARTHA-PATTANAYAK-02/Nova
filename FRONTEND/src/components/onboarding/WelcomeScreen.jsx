@@ -7,13 +7,12 @@ import MainLayout from "@/components/layout/MainLayout";
 
 const WELCOME_DURATION_MS = 5000;
 
-/* heading কে letter-by-letter stagger করে reveal করি */
 const RevealText = ({ text }) => {
   const letters = useMemo(() => Array.from(text), [text]);
   return (
-    <h1 className="nova-welcome-greeting">
+    <h1 className="nv-welcome__greeting">
       {letters.map((ch, i) => (
-        <span key={i} className="reveal" style={{ "--i": i }}>
+        <span key={i} className="nv-welcome__reveal" style={{ "--i": i }}>
           {ch === " " ? "\u00A0" : ch}
         </span>
       ))}
@@ -42,51 +41,51 @@ const WelcomeScreen = ({ greeting }) => {
         <Home />
       </MainLayout>
 
-      {/* inline zIndex — Tailwind বা কোনো library override করতে না পারে */}
       <main
-        className="nova-welcome-overlay"
+        className="nv-welcome"
         style={{ zIndex: 2147483647 }}
         aria-live="polite"
       >
-        <div className="nova-welcome-aurora" aria-hidden />
-        <div className="nova-welcome-vignette" aria-hidden />
+        <div className="nv-welcome__aurora" aria-hidden />
+        <div className="nv-welcome__vignette" aria-hidden />
 
-        <div className="nova-welcome-stage">
-          {/* rings + rotating sweep + orbit dots */}
-          <div className="nova-welcome-rings" aria-hidden>
-            <span className="nova-welcome-ring" />
-            <span className="nova-welcome-ring" />
-            <span className="nova-welcome-ring" />
-            <span className="nova-welcome-sweep" />
-            <div className="nova-welcome-orbit">
-              <i />
-              <i />
-              <i />
-            </div>
-          </div>
+        <div className="nv-welcome__rings" aria-hidden>
+          <span className="nv-welcome__ring nv-welcome__ring--1" />
+          <span className="nv-welcome__ring nv-welcome__ring--2" />
+          <span className="nv-welcome__ring nv-welcome__ring--3" />
+          <span className="nv-welcome__sweep" />
+          <span className="nv-welcome__orbit nv-welcome__orbit--a">
+            <i />
+          </span>
+          <span className="nv-welcome__orbit nv-welcome__orbit--b">
+            <i />
+          </span>
+          <span className="nv-welcome__orbit nv-welcome__orbit--c">
+            <i />
+          </span>
+        </div>
 
-          {/* logo — transparent bg in both themes */}
-          <div className="nova-welcome-logo-wrap">
+        <div className="nv-welcome__stage">
+          <div className="nv-welcome__logo-wrap">
             <img
               src="/logo.gif"
               alt="Nova"
               draggable={false}
-              className="nova-welcome-logo"
+              className="nv-welcome__logo"
             />
+            <span className="nv-welcome__logo-glow" aria-hidden />
           </div>
 
-          {/* message */}
-          <div className="nova-welcome-message">
-            <span className="nova-welcome-kicker">
-              <Sparkles className="h-3.5 w-3.5" />
+          <div className="nv-welcome__message">
+            <span className="nv-welcome__kicker">
+              <Sparkles className="size-3.5" strokeWidth={2.2} />
               Your orbit starts here
             </span>
             <RevealText text={message} />
           </div>
         </div>
 
-        {/* thin theme-colored progress bar */}
-        <div className="nova-welcome-progress" aria-hidden />
+        <div className="nv-welcome__progress" aria-hidden />
       </main>
     </div>
   );

@@ -137,7 +137,7 @@ const Signup = () => {
   };
 
   return (
-    <div className="nv-split">
+    <div className="nv-split nv-split--signup">
       <AuthStage variant="signup" />
 
       <main className="nv-form-side">

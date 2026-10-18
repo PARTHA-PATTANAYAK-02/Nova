@@ -20,6 +20,9 @@ import {
   Volume1,
   Volume2,
   VolumeX,
+  UserMinus,
+  UserPlus,
+  Trash2,
 } from "lucide-react";
 import CommentDialog from "@/components/comments/CommentDialog";
 import { useDispatch, useSelector } from "react-redux";
@@ -33,10 +36,13 @@ import { apiUrl } from "@/lib/api";
 
 const formatTime = (seconds) => {
   if (!Number.isFinite(seconds)) return "0:00";
-  const mins = Math.floor(seconds / 60);
-  const secs = String(Math.floor(seconds % 60)).padStart(2, "0");
-  return `${mins}:${secs}`;
+  const m = Math.floor(seconds / 60);
+  const s = String(Math.floor(seconds % 60)).padStart(2, "0");
+  return `${m}:${s}`;
 };
+
+/* clamp extreme ratios so no post is absurdly tall/wide */
+const clampAspect = (r) => Math.max(0.55, Math.min(2.4, r));
 
 const Post = ({ post }) => {
   const [text, setText] = useState("");
@@ -55,8 +61,12 @@ const Post = ({ post }) => {
   const [heartBurst, setHeartBurst] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
 
-  const { user } = useSelector((store) => store.auth);
-  const { posts, selectedPost } = useSelector((store) => store.post);
+  /* ── ADAPTIVE MEDIA ASPECT ───────────────────── */
+  const [mediaAspect, setMediaAspect] = useState(4 / 5);
+  const [mediaReady, setMediaReady] = useState(false);
+
+  const { user } = useSelector((s) => s.auth);
+  const { posts, selectedPost } = useSelector((s) => s.post);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -66,24 +76,28 @@ const Post = ({ post }) => {
   const videoRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
   const heartTimeoutRef = useRef(null);
+  const lastTouchRef = useRef(0);
 
   const isOwnPost = user?._id === post?.author?._id;
   const isFollowing = user?.following?.some(
-    (item) => (item?._id || item) === post?.author?._id,
+    (i) => (i?._id || i) === post?.author?._id,
   );
 
+  /* reset aspect when post changes */
   useEffect(() => {
-    setLiked(
-      post?.likes?.some((item) => (item?._id || item) === user?._id) || false,
-    );
+    setMediaAspect(4 / 5);
+    setMediaReady(false);
+  }, [post?._id]);
+
+  useEffect(() => {
+    setLiked(post?.likes?.some((i) => (i?._id || i) === user?._id) || false);
     setPostLike(post?.likes?.length || 0);
     setComment(post?.comments || []);
   }, [post?._id, post?.likes, post?.comments, user?._id]);
 
   useEffect(() => {
     setBookmarked(
-      user?.bookmarks?.some((item) => (item?._id || item) === post?._id) ||
-        false,
+      user?.bookmarks?.some((i) => (i?._id || i) === post?._id) || false,
     );
   }, [user?.bookmarks, post?._id]);
 
@@ -91,13 +105,13 @@ const Post = ({ post }) => {
     if (selectedPost?._id === post?._id) setOpen(true);
   }, [selectedPost, post?._id]);
 
-  const triggerAnimation = useCallback((ref, className) => {
-    const element = ref.current;
-    if (!element) return;
-    element.classList.remove(className);
-    void element.offsetWidth;
-    element.classList.add(className);
-    window.setTimeout(() => element.classList.remove(className), 850);
+  const triggerAnimation = useCallback((ref, cls) => {
+    const el = ref.current;
+    if (!el) return;
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
+    window.setTimeout(() => el.classList.remove(cls), 850);
   }, []);
 
   const showControls = useCallback(() => {
@@ -119,53 +133,52 @@ const Post = ({ post }) => {
       const videos = [...document.querySelectorAll("video[data-feed-video]")];
       const center = window.innerHeight / 2;
       let activeVideo = null;
-      let closestDistance = Infinity;
+      let closest = Infinity;
 
-      videos.forEach((candidate) => {
-        const rect = candidate.getBoundingClientRect();
-        const visibleHeight = Math.max(
+      videos.forEach((v) => {
+        const rect = v.getBoundingClientRect();
+        const visible = Math.max(
           0,
           Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0),
         );
-        const visibleRatio = visibleHeight / Math.max(rect.height, 1);
-        const distance = Math.abs(rect.top + rect.height / 2 - center);
+        const ratio = visible / Math.max(rect.height, 1);
+        const dist = Math.abs(rect.top + rect.height / 2 - center);
         if (
-          visibleRatio >= 0.72 &&
-          distance < window.innerHeight * 0.3 &&
-          distance < closestDistance
+          ratio >= 0.72 &&
+          dist < window.innerHeight * 0.3 &&
+          dist < closest
         ) {
-          closestDistance = distance;
-          activeVideo = candidate;
+          closest = dist;
+          activeVideo = v;
         }
       });
 
       const tabVisible = document.visibilityState === "visible";
-      videos.forEach((candidate) => {
+      videos.forEach((v) => {
         const shouldPlay =
-          candidate === activeVideo &&
+          v === activeVideo &&
           tabVisible &&
-          candidate.dataset.userPaused !== "true" &&
-          !candidate.ended;
-        if (shouldPlay && candidate.paused) {
-          candidate.play().catch(() => {});
-        } else if (!shouldPlay && !candidate.paused) {
-          candidate.dataset.autoPause = "true";
-          candidate.pause();
+          v.dataset.userPaused !== "true" &&
+          !v.ended;
+        if (shouldPlay && v.paused) v.play().catch(() => {});
+        else if (!shouldPlay && !v.paused) {
+          v.dataset.autoPause = "true";
+          v.pause();
         }
       });
     };
 
-    const observer = new IntersectionObserver(syncPlayback, {
+    const io = new IntersectionObserver(syncPlayback, {
       threshold: [0, 0.5, 0.72, 0.9, 1],
     });
-    observer.observe(video);
+    io.observe(video);
     window.addEventListener("scroll", syncPlayback, { passive: true });
     window.addEventListener("resize", syncPlayback);
     document.addEventListener("visibilitychange", syncPlayback);
     syncPlayback();
 
     return () => {
-      observer.disconnect();
+      io.disconnect();
       window.removeEventListener("scroll", syncPlayback);
       window.removeEventListener("resize", syncPlayback);
       document.removeEventListener("visibilitychange", syncPlayback);
@@ -181,17 +194,33 @@ const Post = ({ post }) => {
     [],
   );
 
+  /* ── IMAGE ASPECT ON LOAD ────────────────────── */
+  const handleImageLoad = (e) => {
+    const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+    if (w && h) setMediaAspect(clampAspect(w / h));
+    setMediaReady(true);
+  };
+
+  /* ── VIDEO ASPECT ON METADATA ────────────────── */
+  const handleVideoMetadata = (e) => {
+    const { videoWidth: w, videoHeight: h } = e.currentTarget;
+    if (w && h) setMediaAspect(clampAspect(w / h));
+    setVideoDuration(e.currentTarget.duration || 0);
+    e.currentTarget.volume = videoVolume;
+    setMediaReady(true);
+  };
+
   const likeOrDislikeHandler = async () => {
     if (actionLoading === "like" || !user?._id) return;
     const wasLiked = liked;
     const nextLiked = !wasLiked;
-    const previousPosts = posts;
+    const prevPosts = posts;
     const nextCount = Math.max(0, postLike + (nextLiked ? 1 : -1));
 
     setLiked(nextLiked);
     setPostLike(nextCount);
-    triggerAnimation(likeRef, "nova-post-like-pop");
-    const updatedPosts = posts.map((item) =>
+    triggerAnimation(likeRef, "nova-like-pop");
+    const updated = posts.map((item) =>
       item._id === post._id
         ? {
             ...item,
@@ -206,20 +235,20 @@ const Post = ({ post }) => {
           }
         : item,
     );
-    dispatch(setPosts(updatedPosts));
+    dispatch(setPosts(updated));
 
     try {
       setActionLoading("like");
       const action = nextLiked ? "like" : "dislike";
-      const response = await axios.get(
+      const res = await axios.get(
         apiUrl(`/api/v1/post/${post._id}/${action}`),
         { withCredentials: true },
       );
-      if (!response.data.success) throw new Error("Unable to update the like.");
+      if (!res.data.success) throw new Error("Unable to update the like.");
     } catch (error) {
       setLiked(wasLiked);
       setPostLike(postLike);
-      dispatch(setPosts(previousPosts));
+      dispatch(setPosts(prevPosts));
       toast.error(getErrorMessage(error, "Unable to update the like."));
     } finally {
       setActionLoading(null);
@@ -233,26 +262,24 @@ const Post = ({ post }) => {
       () => setHeartBurst(false),
       950,
     );
-    // Always show the Instagram-style burst; only toggle the like if not already liked.
     if (!liked) likeOrDislikeHandler();
   };
 
-  const lastTouchRef = useRef(0);
-  const handleMediaTouchEnd = (event) => {
+  const handleMediaTouchEnd = (e) => {
     const now = Date.now();
     if (now - lastTouchRef.current < 280) {
-      event.preventDefault();
+      e.preventDefault();
       handleMediaDoubleClick();
     }
     lastTouchRef.current = now;
   };
 
-  const commentHandler = async (event) => {
-    event?.preventDefault?.();
+  const commentHandler = async (e) => {
+    e?.preventDefault?.();
     if (!text.trim() || actionLoading) return;
     try {
       setActionLoading("comment");
-      const response = await axios.post(
+      const res = await axios.post(
         apiUrl(`/api/v1/post/${post._id}/comment`),
         { text: text.trim() },
         {
@@ -260,21 +287,19 @@ const Post = ({ post }) => {
           withCredentials: true,
         },
       );
-      if (response.data.success) {
-        triggerAnimation(commentRef, "nova-post-comment-pop");
-        const nextComments = [...comment, response.data.comment];
-        setComment(nextComments);
+      if (res.data.success) {
+        triggerAnimation(commentRef, "nova-pop");
+        const next = [...comment, res.data.comment];
+        setComment(next);
         dispatch(
           setPosts(
-            posts.map((item) =>
-              item._id === post._id
-                ? { ...item, comments: nextComments }
-                : item,
+            posts.map((i) =>
+              i._id === post._id ? { ...i, comments: next } : i,
             ),
           ),
         );
         setText("");
-        toast.success(response.data.message || "Comment added");
+        toast.success(res.data.message || "Comment added");
       }
     } catch (error) {
       toast.error(getErrorMessage(error, "Unable to add your comment."));
@@ -287,20 +312,17 @@ const Post = ({ post }) => {
     if (actionLoading) return;
     try {
       setActionLoading("bookmark");
-      const response = await axios.get(
+      const res = await axios.get(
         apiUrl(`/api/v1/post/${post?._id}/bookmark`),
         { withCredentials: true },
       );
-      if (response.data.success) {
-        const isSaved = response.data.type === "saved";
+      if (res.data.success) {
+        const isSaved = res.data.type === "saved";
         setBookmarked(isSaved);
-        triggerAnimation(
-          bookmarkRef,
-          isSaved ? "nova-post-save-in" : "nova-post-save-out",
-        );
+        triggerAnimation(bookmarkRef, "nova-pop");
         dispatch(updateBookmarks({ postId: post._id }));
         toast.success(
-          response.data.message || (isSaved ? "Post saved" : "Post removed"),
+          res.data.message || (isSaved ? "Post saved" : "Post removed"),
         );
       }
     } catch (error) {
@@ -314,14 +336,14 @@ const Post = ({ post }) => {
     if (actionLoading) return;
     try {
       setActionLoading("follow");
-      const response = await axios.post(
+      const res = await axios.post(
         apiUrl(`/api/v1/user/followorunfollow/${post.author._id}`),
         {},
         { withCredentials: true },
       );
-      if (response.data.success) {
+      if (res.data.success) {
         dispatch(updateFollowing(post.author._id));
-        toast.success(response.data.message);
+        toast.success(res.data.message);
       }
     } catch (error) {
       toast.error(getErrorMessage(error, "Unable to update follow status."));
@@ -334,13 +356,13 @@ const Post = ({ post }) => {
     if (actionLoading) return;
     try {
       setActionLoading("delete");
-      const response = await axios.delete(
+      const res = await axios.delete(
         apiUrl(`/api/v1/post/delete/${post?._id}`),
         { withCredentials: true },
       );
-      if (response.data.success) {
-        dispatch(setPosts(posts.filter((item) => item?._id !== post?._id)));
-        toast.success(response.data.message);
+      if (res.data.success) {
+        dispatch(setPosts(posts.filter((i) => i?._id !== post?._id)));
+        toast.success(res.data.message);
       }
     } catch (error) {
       toast.error(getErrorMessage(error, "Unable to delete this post."));
@@ -349,78 +371,122 @@ const Post = ({ post }) => {
     }
   };
 
-  const openChatWithAuthor = () => {
+  const openChatWithAuthor = () =>
     navigate("/chat", { state: { user: post.author } });
-  };
 
   const openComments = () => {
     dispatch(setSelectedPost(post));
     setOpen(true);
-    triggerAnimation(commentRef, "nova-post-comment-pop");
+    triggerAnimation(commentRef, "nova-pop");
   };
 
   const progressPercent = videoDuration
     ? Math.min(100, (videoTime / videoDuration) * 100)
     : 0;
 
+  const mediaStyle = {
+    aspectRatio: String(mediaAspect),
+    maxHeight: "min(85vh, 880px)",
+  };
+
   return (
-    <article className="nova-post">
-      <header className="nova-post__header">
-        <div className="nova-post__identity">
-          <Link
-            to={`/profile/${post.author._id}`}
-            className="nova-post__avatar-link"
-            aria-label={`${getDisplayName(post.author)} profile`}
-          >
-            <Avatar className="nova-post__avatar">
-              <AvatarImage
-                src={post.author?.profilePicture}
-                alt={getDisplayName(post.author)}
-              />
-              <AvatarFallback>
-                {getDisplayName(post.author, "U").charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-          </Link>
-          <div className="nova-post__author-meta">
-            <div className="nova-post__author-line">
-              <Link
-                to={`/profile/${post.author._id}`}
-                className="nova-post__author-name"
-              >
-                {getDisplayName(post.author)}
-              </Link>
-              {isOwnPost && <span className="nova-post__you">YOU</span>}
-            </div>
-            <span className="nova-post__subtitle">
-              {post.location ||
-                (post.mediaType === "video" ? "Video post" : "Shared a moment")}
-            </span>
+    <article
+      className="
+        nova-post-card
+        relative overflow-hidden rounded-3xl
+        bg-[var(--surface)]/70 backdrop-blur-xl
+        border border-[var(--border)]/60
+        shadow-[0_2px_8px_-2px_rgba(0,0,0,.05),0_12px_40px_-24px_rgba(0,0,0,.18)]
+        transition-all duration-300 ease-[cubic-bezier(.2,.8,.2,1)]
+      "
+    >
+      {/* ── HEADER ─────────────────────────────────── */}
+      <header className="flex items-center gap-3 px-4 py-3">
+        <Link
+          to={`/profile/${post.author._id}`}
+          className="relative shrink-0 size-10 group/av"
+          aria-label={`${getDisplayName(post.author)} profile`}
+        >
+          <span className="absolute -inset-[2px] rounded-full bg-grad-ring opacity-0 group-hover/av:opacity-100 transition-opacity duration-300" />
+          <Avatar className="relative size-10 border-2 border-[var(--background)]">
+            <AvatarImage
+              src={post.author?.profilePicture}
+              alt={getDisplayName(post.author)}
+            />
+            <AvatarFallback>
+              {getDisplayName(post.author, "U").charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        </Link>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <Link
+              to={`/profile/${post.author._id}`}
+              className="text-[13.5px] font-semibold text-[var(--foreground)] truncate hover:text-[var(--primary)] transition-colors duration-200"
+            >
+              {getDisplayName(post.author)}
+            </Link>
+            {isOwnPost && (
+              <span className="shrink-0 text-[9px] font-bold tracking-wider uppercase px-1.5 py-[2px] rounded-md bg-[var(--primary)]/12 text-[var(--primary)]">
+                You
+              </span>
+            )}
           </div>
+          <p className="text-[11.5px] text-[var(--muted-foreground)] truncate mt-0.5">
+            {post.location ||
+              (post.mediaType === "video" ? "Video" : "Shared a moment")}
+          </p>
         </div>
 
         <Dialog>
           <DialogTrigger asChild>
             <button
               type="button"
-              className="nova-post__icon-button nova-post__more"
               aria-label="Post options"
+              className="
+                shrink-0 size-9 rounded-full
+                flex items-center justify-center
+                text-[var(--muted-foreground)]
+                hover:text-[var(--foreground)] hover:bg-[var(--surface-2)]
+                active:scale-90 transition-all duration-200
+                outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40
+              "
             >
-              <EllipsisVertical size={22} strokeWidth={2.1} />
+              <EllipsisVertical size={20} strokeWidth={2} />
             </button>
           </DialogTrigger>
-          <DialogContent className="nova-post__menu-dialog sm:max-w-[360px]">
-            <DialogTitle>Post options</DialogTitle>
-            <DialogDescription>
-              Manage this post and your connection.
+
+          <DialogContent className="sm:max-w-[340px] p-2 rounded-2xl">
+            <DialogTitle className="sr-only">Post options</DialogTitle>
+            <DialogDescription className="sr-only">
+              Manage this post
             </DialogDescription>
-            <div className="nova-post__menu">
+
+            <div className="flex flex-col gap-0.5">
               {!isOwnPost && (
                 <button
                   type="button"
                   onClick={handleFollow}
                   disabled={!!actionLoading}
+                  className="
+                    flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
+                    text-[var(--foreground)] hover:bg-[var(--surface-2)]
+                    active:scale-[.98] transition-all duration-200
+                    outline-none disabled:opacity-50
+                  "
                 >
+                  {isFollowing ? (
+                    <UserMinus
+                      className="size-4 text-[var(--danger)]"
+                      strokeWidth={2}
+                    />
+                  ) : (
+                    <UserPlus
+                      className="size-4 text-[var(--primary)]"
+                      strokeWidth={2}
+                    />
+                  )}
                   {isFollowing ? "Unfollow account" : "Follow account"}
                 </button>
               )}
@@ -428,16 +494,33 @@ const Post = ({ post }) => {
                 type="button"
                 onClick={bookmarkHandler}
                 disabled={!!actionLoading}
+                className="
+                  flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
+                  text-[var(--foreground)] hover:bg-[var(--surface-2)]
+                  active:scale-[.98] transition-all duration-200
+                  outline-none disabled:opacity-50
+                "
               >
+                <Bookmark
+                  className={`size-4 ${bookmarked ? "text-[var(--primary)]" : "text-[var(--muted-foreground)]"}`}
+                  strokeWidth={2}
+                  fill={bookmarked ? "currentColor" : "none"}
+                />
                 {bookmarked ? "Remove from saved" : "Save post"}
               </button>
               {isOwnPost && (
                 <button
                   type="button"
-                  className="is-danger"
                   onClick={deletePostHandler}
                   disabled={!!actionLoading}
+                  className="
+                    flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
+                    text-[var(--danger)] hover:bg-[var(--danger)]/8
+                    active:scale-[.98] transition-all duration-200
+                    outline-none disabled:opacity-50
+                  "
                 >
+                  <Trash2 className="size-4" strokeWidth={2} />
                   Delete post
                 </button>
               )}
@@ -446,8 +529,10 @@ const Post = ({ post }) => {
         </Dialog>
       </header>
 
+      {/* ── MEDIA (adaptive aspect) ─────────────────── */}
       <div
-        className={`nova-post__media ${post.mediaType === "video" ? "is-video" : "is-image"}`}
+        className="relative bg-[var(--surface-2)]/40 overflow-hidden w-full"
+        style={mediaStyle}
         onDoubleClick={handleMediaDoubleClick}
         onTouchEnd={handleMediaTouchEnd}
         onMouseMove={post.mediaType === "video" ? showControls : undefined}
@@ -462,203 +547,222 @@ const Post = ({ post }) => {
           }
         }}
       >
+        {/* shimmer while loading */}
+        {!mediaReady && (
+          <div className="absolute inset-0 skeleton" aria-hidden="true" />
+        )}
+
         {post.mediaType === "video" ? (
           <>
             <video
               ref={videoRef}
               data-feed-video
               src={post.image}
-              className="nova-post__video"
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+                mediaReady ? "opacity-100" : "opacity-0"
+              }`}
               controls={false}
-              muted={false}
               playsInline
               preload="metadata"
               disablePictureInPicture
               controlsList="nodownload noplaybackrate nofullscreen"
               aria-label="Post video"
-              onContextMenu={(event) => event.preventDefault()}
-              onClick={(event) => {
-                event.stopPropagation();
-                const video = event.currentTarget;
-                if (video.ended) {
-                  video.currentTime = 0;
+              onContextMenu={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.stopPropagation();
+                const v = e.currentTarget;
+                if (v.ended) {
+                  v.currentTime = 0;
                   setVideoTime(0);
                   setVideoEnded(false);
                 }
-                if (video.paused) {
-                  video.dataset.userPaused = "false";
-                  video.play().catch(() => {});
+                if (v.paused) {
+                  v.dataset.userPaused = "false";
+                  v.play().catch(() => {});
                   showControls();
                 } else {
-                  video.dataset.userPaused = "true";
-                  video.pause();
+                  v.dataset.userPaused = "true";
+                  v.pause();
                   setControlsVisible(true);
                 }
               }}
-              onLoadedMetadata={(event) => {
-                setVideoDuration(event.currentTarget.duration || 0);
-                event.currentTarget.volume = videoVolume;
-              }}
-              onTimeUpdate={(event) =>
-                setVideoTime(event.currentTarget.currentTime)
-              }
-              onPlay={(event) => {
-                event.currentTarget.dataset.userPaused = "false";
+              onLoadedMetadata={handleVideoMetadata}
+              onTimeUpdate={(e) => setVideoTime(e.currentTarget.currentTime)}
+              onPlay={(e) => {
+                e.currentTarget.dataset.userPaused = "false";
                 setVideoPlaying(true);
                 setVideoEnded(false);
                 showControls();
               }}
-              onEnded={(event) => {
-                event.currentTarget.dataset.userPaused = "true";
+              onEnded={(e) => {
+                e.currentTarget.dataset.userPaused = "true";
                 setVideoPlaying(false);
                 setVideoEnded(true);
                 setControlsVisible(true);
               }}
-              onPause={(event) => {
-                const video = event.currentTarget;
+              onPause={(e) => {
+                const v = e.currentTarget;
                 setVideoPlaying(false);
-                if (video.dataset.autoPause === "true") {
-                  delete video.dataset.autoPause;
-                } else if (!video.ended) {
-                  video.dataset.userPaused = "true";
-                }
+                if (v.dataset.autoPause === "true") delete v.dataset.autoPause;
+                else if (!v.ended) v.dataset.userPaused = "true";
                 setControlsVisible(true);
               }}
-              onDoubleClick={(event) => event.preventDefault()}
+              onDoubleClick={(e) => e.preventDefault()}
             />
 
             {!videoPlaying && (
               <button
                 type="button"
-                className="nova-post__center-play"
                 aria-label={videoEnded ? "Replay video" : "Play video"}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  const video = videoRef.current;
-                  if (!video) return;
-                  if (video.ended || videoEnded) {
-                    video.currentTime = 0;
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const v = videoRef.current;
+                  if (!v) return;
+                  if (v.ended || videoEnded) {
+                    v.currentTime = 0;
                     setVideoTime(0);
                   }
-                  video.dataset.userPaused = "false";
+                  v.dataset.userPaused = "false";
                   setVideoEnded(false);
-                  video.play().catch(() => {});
+                  v.play().catch(() => {});
                   showControls();
                 }}
+                className="
+                  absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10
+                  size-16 rounded-full flex items-center justify-center
+                  bg-white/15 backdrop-blur-xl border border-white/25
+                  text-white shadow-2xl
+                  hover:scale-110 hover:bg-white/25 active:scale-95
+                  transition-all duration-300
+                "
               >
                 {videoEnded ? (
-                  <RotateCcw size={27} />
+                  <RotateCcw size={26} strokeWidth={2} />
                 ) : (
-                  <Play size={28} fill="currentColor" strokeWidth={0} />
+                  <Play
+                    size={26}
+                    fill="currentColor"
+                    strokeWidth={0}
+                    className="ml-1"
+                  />
                 )}
               </button>
             )}
 
+            {/* video controls overlay */}
             <div
-              className={`nova-post__video-controls ${controlsVisible ? "is-visible" : ""}`}
-              onClick={(event) => event.stopPropagation()}
+              className={`
+                absolute left-3 right-3 bottom-3 z-20
+                rounded-2xl px-3 py-2.5
+                bg-black/55 backdrop-blur-xl border border-white/10
+                transition-all duration-300
+                ${controlsVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none"}
+              `}
+              onClick={(e) => e.stopPropagation()}
             >
-              <div className="nova-post__seek-wrap">
-                <div className="nova-post__seek-track">
+              <div className="relative mb-2">
+                <div className="relative h-1 rounded-full bg-white/25 overflow-hidden">
                   <div
-                    className="nova-post__seek-progress"
+                    className="absolute inset-y-0 left-0 bg-grad-btn rounded-full"
                     style={{ width: `${progressPercent}%` }}
-                  />
-                  <span
-                    className="nova-post__seek-thumb"
-                    style={{ left: `${progressPercent}%` }}
                   />
                 </div>
                 <input
-                  className="nova-post__seek-input"
                   type="range"
                   aria-label="Seek video"
                   min="0"
                   max={videoDuration || 1}
                   step="0.1"
                   value={Math.min(videoTime, videoDuration || 0)}
-                  onChange={(event) => {
-                    const time = Number(event.target.value);
-                    setVideoTime(time);
-                    if (videoRef.current) videoRef.current.currentTime = time;
+                  onChange={(e) => {
+                    const t = Number(e.target.value);
+                    setVideoTime(t);
+                    if (videoRef.current) videoRef.current.currentTime = t;
                     showControls();
                   }}
+                  className="absolute inset-0 w-full opacity-0 cursor-pointer"
                 />
               </div>
-              <div className="nova-post__player-row">
+
+              <div className="flex items-center gap-2 text-white">
                 <button
                   type="button"
-                  className="nova-post__player-button"
-                  aria-label={videoPlaying ? "Pause video" : "Play video"}
+                  aria-label={videoPlaying ? "Pause" : "Play"}
                   onClick={() => {
-                    const video = videoRef.current;
-                    if (!video) return;
-                    if (video.ended) {
-                      video.currentTime = 0;
+                    const v = videoRef.current;
+                    if (!v) return;
+                    if (v.ended) {
+                      v.currentTime = 0;
                       setVideoTime(0);
                       setVideoEnded(false);
                     }
-                    if (video.paused) {
-                      video.dataset.userPaused = "false";
-                      video.play().catch(() => {});
+                    if (v.paused) {
+                      v.dataset.userPaused = "false";
+                      v.play().catch(() => {});
                     } else {
-                      video.dataset.userPaused = "true";
-                      video.pause();
+                      v.dataset.userPaused = "true";
+                      v.pause();
                     }
                     showControls();
                   }}
+                  className="size-8 rounded-full flex items-center justify-center hover:bg-white/15 transition-colors outline-none"
                 >
                   {videoPlaying ? (
-                    <Pause size={17} fill="currentColor" />
+                    <Pause size={15} fill="currentColor" />
                   ) : (
-                    <Play size={17} fill="currentColor" />
+                    <Play size={15} fill="currentColor" className="ml-0.5" />
                   )}
                 </button>
-                <span className="nova-post__time">
-                  {formatTime(videoTime)} <span>/</span>{" "}
+
+                <span className="text-[11.5px] tabular-nums font-medium tracking-tight">
+                  {formatTime(videoTime)} <span className="opacity-60">/</span>{" "}
                   {formatTime(videoDuration)}
                 </span>
-                <span className="nova-post__player-spacer" />
+
+                <span className="flex-1" />
+
                 <div
-                  className="nova-post__volume"
+                  className="flex items-center gap-1.5"
                   onMouseEnter={() => setShowVolumeSlider(true)}
                   onMouseLeave={() => setShowVolumeSlider(false)}
                 >
                   <button
                     type="button"
-                    className="nova-post__player-button"
                     aria-label={videoVolume === 0 ? "Unmute" : "Mute"}
                     onClick={() => {
-                      const nextVolume = videoVolume === 0 ? 1 : 0;
-                      setVideoVolume(nextVolume);
-                      if (videoRef.current)
-                        videoRef.current.volume = nextVolume;
+                      const next = videoVolume === 0 ? 1 : 0;
+                      setVideoVolume(next);
+                      if (videoRef.current) videoRef.current.volume = next;
                       showControls();
                     }}
+                    className="size-8 rounded-full flex items-center justify-center hover:bg-white/15 transition-colors outline-none"
                   >
                     {videoVolume === 0 ? (
-                      <VolumeX size={18} />
+                      <VolumeX size={16} />
                     ) : videoVolume < 0.5 ? (
-                      <Volume1 size={18} />
+                      <Volume1 size={16} />
                     ) : (
-                      <Volume2 size={18} />
+                      <Volume2 size={16} />
                     )}
                   </button>
                   <div
-                    className={`nova-post__volume-slider ${showVolumeSlider ? "is-open" : ""}`}
+                    className={`overflow-hidden transition-all duration-300 ${
+                      showVolumeSlider ? "w-20 opacity-100" : "w-0 opacity-0"
+                    }`}
                   >
                     <input
                       type="range"
-                      aria-label="Video volume"
+                      aria-label="Volume"
                       min="0"
                       max="1"
                       step="0.05"
                       value={videoVolume}
-                      onChange={(event) => {
-                        const volume = Number(event.target.value);
-                        setVideoVolume(volume);
-                        if (videoRef.current) videoRef.current.volume = volume;
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        setVideoVolume(v);
+                        if (videoRef.current) videoRef.current.volume = v;
                       }}
+                      className="w-full accent-white"
                     />
                   </div>
                 </div>
@@ -667,137 +771,195 @@ const Post = ({ post }) => {
           </>
         ) : (
           <img
-            className="nova-post__image"
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+              mediaReady ? "opacity-100" : "opacity-0"
+            }`}
             src={post.image}
             alt={post.caption || "Post image"}
             draggable={false}
+            onLoad={handleImageLoad}
           />
         )}
+
+        {/* heart burst */}
         {heartBurst && (
-          <div className="nova-post__heart-burst" aria-hidden="true">
-            <Heart size={120} strokeWidth={2.2} fill="#ff315d" />
+          <div
+            className="nova-heart-burst absolute inset-0 flex items-center justify-center pointer-events-none z-30"
+            aria-hidden="true"
+          >
+            <Heart
+              size={130}
+              strokeWidth={2.2}
+              fill="#ff315d"
+              color="#ff315d"
+            />
           </div>
         )}
       </div>
 
-      <section className="nova-post__body">
-        <div className="nova-post__actions" aria-label="Post actions">
-          <div className="nova-post__action-group">
-            <div className="nova-post__action-unit">
-              <button
-                ref={likeRef}
-                type="button"
-                onClick={likeOrDislikeHandler}
-                disabled={actionLoading === "like"}
-                className={`nova-post__action nova-post__like ${liked ? "is-liked" : ""}`}
-                aria-label={liked ? "Unlike post" : "Like post"}
-              >
-                <Heart
-                  className="nova-post__like-icon"
-                  size={24}
-                  strokeWidth={2.2}
-                  fill={liked ? "currentColor" : "none"}
-                />
-              </button>
-              <span
-                className="nova-post__inline-count"
-                key={`likes-${postLike}`}
-              >
-                {postLike.toLocaleString()}
-              </span>
-            </div>
-            <div className="nova-post__action-unit">
-              <button
-                ref={commentRef}
-                type="button"
-                onClick={openComments}
-                className="nova-post__action"
-                aria-label="Open comments"
-              >
-                <MessageCircle size={23} strokeWidth={2.1} />
-              </button>
-              <span
-                className="nova-post__inline-count"
-                key={`comments-${comment.length}`}
-              >
-                {comment.length.toLocaleString()}
-              </span>
-            </div>
-          </div>
-          <div className="nova-post__action-group nova-post__action-group--right">
+      {/* ── BODY ───────────────────────────────────── */}
+      <section className="px-4 pt-3 pb-3">
+        {/* actions */}
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <button
+              ref={likeRef}
               type="button"
-              onClick={openChatWithAuthor}
-              aria-label={`Message ${getDisplayName(post.author)}`}
-              className="nova-post__action nova-post__share"
+              onClick={likeOrDislikeHandler}
+              disabled={actionLoading === "like"}
+              aria-label={liked ? "Unlike post" : "Like post"}
+              className={`
+                size-10 rounded-full flex items-center justify-center
+                transition-all duration-200 outline-none
+                active:scale-90
+                ${liked ? "text-[#ff315d]" : "text-[var(--foreground)] hover:text-[#ff315d]"}
+                hover:bg-[var(--danger)]/8
+              `}
             >
-              <SendHorizontal size={22} strokeWidth={2.1} />
-            </button>
-            <button
-              ref={bookmarkRef}
-              type="button"
-              onClick={bookmarkHandler}
-              disabled={!!actionLoading}
-              className={`nova-post__action nova-post__bookmark ${bookmarked ? "is-saved" : ""}`}
-              aria-label={bookmarked ? "Remove saved post" : "Save post"}
-            >
-              {bookmarked ? (
-                <Check className="nova-post__saved-check" size={12} />
-              ) : null}
-              <Bookmark
-                size={23}
+              <Heart
+                size={22}
                 strokeWidth={2.1}
-                fill={bookmarked ? "currentColor" : "none"}
+                fill={liked ? "currentColor" : "none"}
               />
             </button>
+            <span className="text-[13px] font-semibold tabular-nums text-[var(--foreground)]">
+              {postLike > 0 ? postLike.toLocaleString() : ""}
+            </span>
           </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              ref={commentRef}
+              type="button"
+              onClick={openComments}
+              aria-label="Comments"
+              className="
+                size-10 rounded-full flex items-center justify-center
+                text-[var(--foreground)] hover:text-[var(--primary)]
+                hover:bg-[var(--primary)]/8
+                active:scale-90 transition-all duration-200 outline-none
+              "
+            >
+              <MessageCircle size={22} strokeWidth={2.1} />
+            </button>
+            <span className="text-[13px] font-semibold tabular-nums text-[var(--foreground)]">
+              {comment.length > 0 ? comment.length.toLocaleString() : ""}
+            </span>
+          </div>
+
+          <span className="flex-1" />
+
+          <button
+            type="button"
+            onClick={openChatWithAuthor}
+            aria-label={`Message ${getDisplayName(post.author)}`}
+            className="
+              size-10 rounded-full flex items-center justify-center
+              text-[var(--foreground)] hover:text-[var(--primary)]
+              hover:bg-[var(--primary)]/8
+              active:scale-90 transition-all duration-200 outline-none
+            "
+          >
+            <SendHorizontal size={21} strokeWidth={2.1} />
+          </button>
+
+          <button
+            ref={bookmarkRef}
+            type="button"
+            onClick={bookmarkHandler}
+            disabled={!!actionLoading}
+            aria-label={bookmarked ? "Remove saved" : "Save"}
+            className={`
+              relative size-10 rounded-full flex items-center justify-center
+              transition-all duration-200 outline-none active:scale-90
+              ${bookmarked ? "text-[var(--primary)]" : "text-[var(--foreground)] hover:text-[var(--primary)]"}
+              hover:bg-[var(--primary)]/8
+            `}
+          >
+            <Bookmark
+              size={21}
+              strokeWidth={2.1}
+              fill={bookmarked ? "currentColor" : "none"}
+            />
+          </button>
         </div>
 
-        <p className="nova-post__caption">
+        {/* caption */}
+        <p className="mt-2 text-[13.5px] leading-relaxed text-[var(--foreground)]">
           <Link
             to={`/profile/${post.author._id}`}
-            className="nova-post__caption-author"
+            className="font-semibold mr-1.5 hover:text-[var(--primary)] transition-colors"
           >
             {getDisplayName(post.author)}
           </Link>
           {post.caption && (
-            <span className="nova-post__caption-text">{post.caption}</span>
+            <span className="text-[var(--foreground)]/85">{post.caption}</span>
           )}
         </p>
 
+        {/* view comments */}
         {comment.length > 0 && (
           <button
             type="button"
-            className="nova-post__view-comments"
             onClick={openComments}
+            className="
+              mt-1.5 text-[13px] text-[var(--muted-foreground)]
+              hover:text-[var(--foreground)] transition-colors outline-none
+            "
           >
             View all {comment.length}{" "}
             {comment.length === 1 ? "comment" : "comments"}
           </button>
         )}
 
-        <form className="nova-post__inline-comment" onSubmit={commentHandler}>
+        {/* inline comment form */}
+        <form
+          className="
+            mt-3 flex items-center gap-2
+            rounded-2xl bg-[var(--surface-2)]/60
+            border border-[var(--border)]/50
+            pl-3.5 pr-1.5 py-1.5
+            transition-all duration-200
+            focus-within:bg-[var(--surface-2)]
+            focus-within:border-[var(--primary)]/40
+            focus-within:ring-2 focus-within:ring-[var(--primary)]/12
+          "
+          onSubmit={commentHandler}
+        >
           <input
             value={text}
-            onChange={(event) => setText(event.target.value)}
+            onChange={(e) => setText(e.target.value)}
             placeholder="Add a comment…"
             aria-label="Write a comment"
             maxLength={1000}
+            className="
+              nova-flat-input
+              flex-1 min-w-0 bg-transparent border-0 outline-none
+              text-[13px] text-[var(--foreground)]
+              placeholder:text-[var(--muted-foreground)]
+            "
           />
           <button
             type="submit"
             disabled={!text.trim() || actionLoading === "comment"}
+            className="
+              shrink-0 h-8 px-3.5 rounded-xl
+              text-[12.5px] font-semibold
+              text-[var(--primary)] hover:bg-[var(--primary)]/10
+              active:scale-95 transition-all duration-200 outline-none
+              disabled:opacity-40 disabled:pointer-events-none
+            "
           >
-            {actionLoading === "comment" ? "Posting…" : "Post"}
+            {actionLoading === "comment" ? "…" : "Post"}
           </button>
         </form>
       </section>
 
       <CommentDialog
         open={open}
-        setOpen={(nextOpen) => {
-          setOpen(nextOpen);
-          if (!nextOpen) dispatch(setSelectedPost(null));
+        setOpen={(next) => {
+          setOpen(next);
+          if (!next) dispatch(setSelectedPost(null));
         }}
       />
     </article>

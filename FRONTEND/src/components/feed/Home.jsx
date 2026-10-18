@@ -1,11 +1,10 @@
 import React, { useEffect } from "react";
 import Feed from "@/components/feed/Feed";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import RightSidebar from "@/components/layout/RightSidebar";
 import MobileSuggested from "@/components/users/MobileSuggested";
 import useGetAllPost from "@/hooks/useGetAllPost";
 import useGetSuggestedUsers from "@/hooks/useGetSuggestedUsers";
-import { useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { setSelectedPost, updatePost } from "@/redux/postSlice";
 import axios from "axios";
@@ -16,9 +15,8 @@ const Home = () => {
   useGetSuggestedUsers();
   const location = useLocation();
   const dispatch = useDispatch();
-  const { posts } = useSelector((store) => store.post);
+  const { posts } = useSelector((s) => s.post);
 
-  /* ---------- LOGIC (UNCHANGED) ---------- */
   useEffect(() => {
     const postId = location.state?.notificationPostId;
     if (!postId) return;
@@ -51,20 +49,15 @@ const Home = () => {
   }, [dispatch, location.state, posts]);
 
   return (
-    <div className="flex min-h-screen w-full">
-      {/* Feed column */}
+    <div className="flex min-h-dvh w-full">
       <div className="flex-1 min-w-0">
         <Feed requestState={postsState} />
-
-        {/* Mobile suggested users — feed er niche (story bar top e jayga free) */}
         <MobileSuggested />
-
         <Outlet />
       </div>
 
-      {/* Right sidebar — desktop only */}
       <aside className="hidden lg:block w-[340px] xl:w-[380px] shrink-0 pr-4 py-4">
-        <div className="sticky top-4 max-h-[calc(100vh-32px)] overflow-y-auto rounded-2xl bg-[var(--surface)] border border-[var(--border)] shadow-[var(--shadow-sm)]">
+        <div className="sticky top-4 max-h-[calc(100dvh-32px)] overflow-y-auto rounded-3xl bg-[var(--surface)]/60 backdrop-blur-xl border border-[var(--border)]/60 shadow-[0_12px_40px_-20px_rgba(0,0,0,.2)]">
           <RightSidebar />
         </div>
       </aside>

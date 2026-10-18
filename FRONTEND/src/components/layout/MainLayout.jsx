@@ -8,23 +8,23 @@ const MainLayout = ({ children }) => {
   const isChatPage = pathname === "/chat";
 
   return (
-    <div className="relative min-h-screen w-full">
-      {/* Desktop dock */}
+    <div className="relative min-h-dvh w-full">
       <LeftSidebar />
 
-      {/* Main content — tight left offset, no wasted gap */}
       <main
-        className={`md:pl-[264px] transition-[padding] duration-300 ${
-          isChatPage
-            ? "h-[calc(100dvh-6rem)] min-h-0 overflow-hidden pb-0 md:h-dvh"
-            : "min-h-screen pb-24 md:pb-3"
-        }`}
+        className={`
+          md:pl-[268px] transition-[padding] duration-300
+          ${
+            isChatPage
+              ? "h-dvh min-h-0 overflow-hidden pb-0"
+              : "min-h-dvh pb-28 md:pb-4"
+          }
+        `}
       >
         {children || <Outlet />}
       </main>
 
-      {/* Mobile dock */}
-      <MobileBottomNav />
+      {!isChatPage && <MobileBottomNav />}
     </div>
   );
 };

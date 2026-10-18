@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -20,23 +20,25 @@ import { getErrorMessage } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
 import { getDisplayName } from "@/lib/utils";
 
-/* ============================================================
+/* ═══════════════════════════════════════════════════════════
    SKELETON
-   ============================================================ */
+   ═══════════════════════════════════════════════════════════ */
 const CommentsPanelSkeleton = () => (
   <>
-    <div className="mx-4 my-3 space-y-2">
-      <div className="h-3.5 w-full max-w-md rounded bg-[var(--surface-2)] animate-pulse" />
-      <div className="h-3.5 w-3/4 max-w-sm rounded bg-[var(--surface-2)] animate-pulse" />
+    <div className="nova-comment-skel-caption">
+      <div className="nova-comment-skel-avatar" />
+      <div className="nova-comment-skel-lines">
+        <div className="nova-comment-skel-line" style={{ width: "60%" }} />
+        <div className="nova-comment-skel-line" style={{ width: "40%" }} />
+      </div>
     </div>
-
-    <div className="px-4 space-y-3 pt-2">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="flex items-start gap-2.5">
-          <div className="h-8 w-8 rounded-full bg-[var(--surface-2)] animate-pulse shrink-0" />
-          <div className="flex-1 space-y-2 pt-0.5">
-            <div className="h-3 w-24 rounded bg-[var(--surface-2)] animate-pulse" />
-            <div className="h-3 w-2/3 rounded bg-[var(--surface-2)] animate-pulse" />
+    <div className="nova-comment-skel-list">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="nova-comment-skel-row">
+          <div className="nova-comment-skel-avatar" />
+          <div className="nova-comment-skel-lines">
+            <div className="nova-comment-skel-line" style={{ width: "50%" }} />
+            <div className="nova-comment-skel-line" style={{ width: "80%" }} />
           </div>
         </div>
       ))}
@@ -55,11 +57,14 @@ const CommentDialog = ({ open, setOpen }) => {
   const [liking, setLiking] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [heartPulse, setHeartPulse] = useState(false);
+  const [mediaBurst, setMediaBurst] = useState(false);
   const dispatch = useDispatch();
 
-  /* ============================================================
-     RESET when dialog closes
-     ============================================================ */
+  const mediaBurstTimeoutRef = useRef(null);
+  const lastTapRef = useRef(0);
+
+  /* ─── RESET ON CLOSE ─── */
   useEffect(() => {
     if (!open) {
       setPostDetail(null);
@@ -68,13 +73,13 @@ const CommentDialog = ({ open, setOpen }) => {
       setLoading(false);
       setLiking(false);
       setSaving(false);
+      setMediaBurst(false);
     }
   }, [open]);
 
-  /* ---------- FETCH FULL POST DETAIL ---------- */
+  /* ─── FETCH FULL POST ─── */
   useEffect(() => {
     if (!open || !selectedPost?._id) return;
-
     let cancelled = false;
     setLoading(true);
     setPostDetail(null);
@@ -106,24 +111,32 @@ const CommentDialog = ({ open, setOpen }) => {
 
   const post = postDetail || selectedPost;
 
-  // Saved state is derived from the authenticated user's bookmarks and kept in sync.
   useEffect(() => {
-    const saved = user?.bookmarks?.some((item) => (item?._id || item) === post?._id) || false;
+    const saved =
+      user?.bookmarks?.some((item) => (item?._id || item) === post?._id) ||
+      false;
     setIsSaved(saved);
   }, [user?.bookmarks, post?._id]);
 
+  useEffect(() => () => window.clearTimeout(mediaBurstTimeoutRef.current), []);
+
+  /* ─── SAVE TOGGLE ─── */
   const handleSaveToggle = async () => {
     if (!post?._id || !user?._id || saving) return;
     try {
       setSaving(true);
-      const response = await axios.get(apiUrl(`/api/v1/post/${post._id}/bookmark`), {
-        withCredentials: true,
-      });
-      if (!response.data.success) throw new Error("Unable to update saved posts.");
+      const response = await axios.get(
+        apiUrl(`/api/v1/post/${post._id}/bookmark`),
+        { withCredentials: true },
+      );
+      if (!response.data.success)
+        throw new Error("Unable to update saved posts.");
       const savedNow = response.data.type === "saved";
       setIsSaved(savedNow);
       dispatch(updateBookmarks({ postId: post._id }));
-      toast.success(response.data.message || (savedNow ? "Post saved" : "Post removed from saved"));
+      toast.success(
+        response.data.message || (savedNow ? "Post saved" : "Removed"),
+      );
     } catch (error) {
       toast.error(getErrorMessage(error, "Unable to update saved posts."));
     } finally {
@@ -131,40 +144,33 @@ const CommentDialog = ({ open, setOpen }) => {
     }
   };
 
-  /* ---------- COMMENTS — NEWEST FIRST ---------- */
+  /* ─── COMMENTS SORT ─── */
   useEffect(() => {
     const raw = Array.isArray(post?.comments) ? post.comments : [];
-
     const valid = raw.filter(
       (c) => c && (c.text || c.comment) && (c.author || c.user),
     );
-
     const sorted = [...valid].sort((a, b) => {
       const da = new Date(a.createdAt || 0).getTime();
       const db = new Date(b.createdAt || 0).getTime();
       return db - da;
     });
-
     setComments(sorted);
   }, [post]);
 
-  /* ============================================================
-     LIKE / UNLIKE — OPTIMISTIC
-     - instant UI update
-     - background API
-     - rollback on error
-     ============================================================ */
+  /* ─── LIKE ─── */
   const likeCount = Array.isArray(post?.likes) ? post.likes.length : 0;
   const isLikedByMe =
     user && Array.isArray(post?.likes) && post.likes.includes(user._id);
 
   const handleLikeToggle = async () => {
     if (!post?._id || !user?._id || liking) return;
+    setHeartPulse(true);
+    window.setTimeout(() => setHeartPulse(false), 700);
 
     const wasLiked = isLikedByMe;
     const nowLiked = !wasLiked;
 
-    // 1) INSTANT — local postDetail update
     setPostDetail((prev) => {
       if (!prev) return prev;
       const currentLikes = Array.isArray(prev.likes) ? prev.likes : [];
@@ -174,7 +180,6 @@ const CommentDialog = ({ open, setOpen }) => {
       return { ...prev, likes: nextLikes };
     });
 
-    // 2) INSTANT — redux posts list update
     const updatedPosts = posts.map((p) =>
       p._id === post._id
         ? {
@@ -187,7 +192,6 @@ const CommentDialog = ({ open, setOpen }) => {
     );
     dispatch(setPosts(updatedPosts));
 
-    // 3) Background API
     try {
       setLiking(true);
       const action = nowLiked ? "like" : "dislike";
@@ -195,22 +199,8 @@ const CommentDialog = ({ open, setOpen }) => {
         apiUrl(`/api/v1/post/${post._id}/${action}`),
         { withCredentials: true },
       );
-
-      if (!res.data.success) {
-        // rollback
-        setPostDetail((prev) => {
-          if (!prev) return prev;
-          const currentLikes = Array.isArray(prev.likes) ? prev.likes : [];
-          const rollbackLikes = wasLiked
-            ? [...currentLikes, user._id]
-            : currentLikes.filter((id) => id !== user._id);
-          return { ...prev, likes: rollbackLikes };
-        });
-        dispatch(setPosts(posts));
-        toast.error("Something went wrong");
-      }
+      if (!res.data.success) throw new Error("Failed");
     } catch (error) {
-      // rollback
       setPostDetail((prev) => {
         if (!prev) return prev;
         const currentLikes = Array.isArray(prev.likes) ? prev.likes : [];
@@ -223,14 +213,36 @@ const CommentDialog = ({ open, setOpen }) => {
       toast.error(getErrorMessage(error, "Unable to update the like."));
     } finally {
       setLiking(false);
-      setSaving(false);
     }
   };
 
-  /* ---------- ADD COMMENT ---------- */
+  /* ─── DOUBLE-TAP MEDIA → LIKE ─── */
+  const triggerMediaBurst = () => {
+    setMediaBurst(true);
+    window.clearTimeout(mediaBurstTimeoutRef.current);
+    mediaBurstTimeoutRef.current = window.setTimeout(
+      () => setMediaBurst(false),
+      950,
+    );
+  };
+
+  const handleMediaDoubleClick = () => {
+    triggerMediaBurst();
+    if (!isLikedByMe) handleLikeToggle();
+  };
+
+  const handleMediaTouchEnd = (e) => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 280) {
+      e.preventDefault();
+      handleMediaDoubleClick();
+    }
+    lastTapRef.current = now;
+  };
+
+  /* ─── ADD COMMENT ─── */
   const sendMessageHandler = async () => {
     if (!text.trim() || !post?._id || submitting) return;
-
     const commentText = text.trim();
 
     try {
@@ -286,18 +298,17 @@ const CommentDialog = ({ open, setOpen }) => {
     }
   };
 
-  /* ---------- Derived ---------- */
+  /* ─── DERIVED ─── */
   const author = post?.author || post?.user || {};
   const authorName = getDisplayName(author, "Unknown");
   const authorAvatar = author.profilePicture || "";
-
+  const authorInitial = authorName.charAt(0).toUpperCase();
   const showSkeleton = loading && !postDetail;
 
-  /* ---------- UI ---------- */
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
-        className="comment-dialog-premium !flex flex-col md:flex-row max-w-[96vw] md:max-w-5xl p-0 h-[91vh] md:h-[82vh] overflow-hidden !gap-0"
+        className="nova-comment-dialog !flex flex-col md:flex-row max-w-[96vw] md:max-w-5xl p-0 h-[92vh] md:h-[84vh] overflow-hidden !gap-0 !rounded-3xl"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <DialogTitle className="sr-only">Comments</DialogTitle>
@@ -305,120 +316,174 @@ const CommentDialog = ({ open, setOpen }) => {
           View and add comments on this post
         </DialogDescription>
 
-        {/* ============ MEDIA PANEL ============ */}
-        <div className="comment-dialog-premium__media w-full md:w-[54%] md:h-full h-[34vh] shrink-0 flex items-center justify-center overflow-hidden">
-          {post?.image && !showSkeleton ? (
-            post.mediaType === "video" ? (
-              <video
-                key={post._id}
-                src={post.image}
-                className="block h-full w-full object-contain"
-                controls
-                playsInline
-                disablePictureInPicture
-                controlsList="nodownload noplaybackrate"
-                preload="metadata"
-                aria-label="Post video"
-                onContextMenu={(event) => event.preventDefault()}
-              />
+        {/* ═══════════ MEDIA PANEL ═══════════ */}
+        <div
+          className="nova-comment-dialog__media"
+          onDoubleClick={handleMediaDoubleClick}
+          onTouchEnd={handleMediaTouchEnd}
+        >
+          <div className="nova-comment-dialog__media-glow" aria-hidden />
+
+          <div className="nova-comment-dialog__media-frame">
+            {post?.image && !showSkeleton ? (
+              post.mediaType === "video" ? (
+                <video
+                  key={post._id}
+                  src={post.image}
+                  className="nova-comment-dialog__video"
+                  controls
+                  playsInline
+                  disablePictureInPicture
+                  controlsList="nodownload noplaybackrate"
+                  preload="metadata"
+                  aria-label="Post video"
+                  onContextMenu={(event) => event.preventDefault()}
+                  onDoubleClick={(event) => event.preventDefault()}
+                />
+              ) : (
+                <img
+                  src={post.image}
+                  alt="Post"
+                  className="nova-comment-dialog__image"
+                  draggable={false}
+                />
+              )
             ) : (
-              <img
-                src={post.image}
-                alt="Post"
-                className="block h-full w-full object-contain"
+              <div className="nova-comment-dialog__media-skeleton" />
+            )}
+          </div>
+
+          {mediaBurst && (
+            <div
+              className="nova-comment-dialog__media-heart"
+              aria-hidden="true"
+            >
+              <Heart
+                size={140}
+                strokeWidth={2}
+                fill="#ff315d"
+                color="#ff315d"
               />
-            )
-          ) : (
-            <div className="w-full h-full bg-[var(--surface-2)] animate-pulse" />
+            </div>
           )}
         </div>
 
-        {/* ============ COMMENTS PANEL ============ */}
-        <div className="comment-dialog-premium__panel w-full md:w-[46%] flex-1 flex flex-col min-h-0 bg-[var(--surface)]">
-          {/* ---- Header ---- */}
-          <div className="comment-dialog-premium__header shrink-0 px-4 py-3 border-b border-[var(--border)]">
+        {/* ═══════════ COMMENTS PANEL ═══════════ */}
+        <div className="nova-comment-dialog__panel">
+          {/* HEADER */}
+          <div className="nova-comment-dialog__header">
             {showSkeleton ? (
-              <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-full bg-[var(--surface-2)] animate-pulse shrink-0" />
-                <div className="flex-1 space-y-1.5">
-                  <div className="h-3.5 w-32 rounded bg-[var(--surface-2)] animate-pulse" />
-                  <div className="h-3 w-20 rounded bg-[var(--surface-2)] animate-pulse" />
+              <div className="nova-comment-dialog__header-skeleton">
+                <div className="nova-comment-skel-avatar" />
+                <div className="nova-comment-skel-lines">
+                  <div
+                    className="nova-comment-skel-line"
+                    style={{ width: "40%" }}
+                  />
+                  <div
+                    className="nova-comment-skel-line"
+                    style={{ width: "25%" }}
+                  />
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-3">
-                <Link to={`/profile/${author._id}`} className="shrink-0">
-                  <Avatar className="h-9 w-9 border-0 ring-0 shadow-none">
+              <div className="nova-comment-dialog__header-inner">
+                <Link
+                  to={`/profile/${author._id}`}
+                  className="nova-comment-dialog__header-avatar"
+                >
+                  <span
+                    className="nova-comment-dialog__header-ring"
+                    aria-hidden
+                  />
+                  <Avatar className="size-9 border-2 border-[var(--background)]">
                     <AvatarImage src={authorAvatar} />
-                    <AvatarFallback>
-                      {authorName.charAt(0).toUpperCase()}
-                    </AvatarFallback>
+                    <AvatarFallback>{authorInitial}</AvatarFallback>
                   </Avatar>
                 </Link>
-
-                <div className="flex-1 min-w-0">
+                <div className="nova-comment-dialog__header-meta">
                   <Link
                     to={`/profile/${author._id}`}
-                    className="font-semibold text-sm text-[var(--foreground)] hover:opacity-80 transition-opacity truncate block"
+                    className="nova-comment-dialog__header-name"
                   >
                     {authorName}
                   </Link>
+                  <span className="nova-comment-dialog__header-sub">
+                    Post author
+                  </span>
                 </div>
               </div>
             )}
           </div>
 
-          {/* ---- Scrollable content ---- */}
-          <div className="flex-1 min-h-0 overflow-y-auto">
+          {/* SCROLL BODY */}
+          <div className="nova-comment-dialog__scroll">
             {showSkeleton ? (
               <CommentsPanelSkeleton />
             ) : (
               <>
-                {/* ===== CAPTION ===== */}
                 {post?.caption && (
-                  <article className="comment-dialog-premium__caption-row">
-                    <Link to={`/profile/${author._id}`} className="comment-dialog-premium__caption-avatar" aria-label={`${authorName} profile`}>
-                      <Avatar className="h-8 w-8 border-0 ring-0 shadow-none">
-                        <AvatarImage src={authorAvatar} alt={authorName} />
-                        <AvatarFallback>{authorName.charAt(0).toUpperCase()}</AvatarFallback>
+                  <article className="nova-comment-caption">
+                    <Link
+                      to={`/profile/${author._id}`}
+                      className="nova-comment-caption__avatar"
+                    >
+                      <span className="nova-comment__avatar-ring" aria-hidden />
+                      <Avatar className="nova-comment__avatar-img">
+                        <AvatarImage src={authorAvatar} />
+                        <AvatarFallback>{authorInitial}</AvatarFallback>
                       </Avatar>
                     </Link>
-                    <p className="comment-dialog-premium__caption-text">
-                      <Link to={`/profile/${author._id}`} className="comment-dialog-premium__caption-author">{authorName}</Link>{" "}
-                      <span>{post.caption}</span>
-                    </p>
+                    <div className="nova-comment-caption__content">
+                      <p className="nova-comment__line">
+                        <Link
+                          to={`/profile/${author._id}`}
+                          className="nova-comment-caption__author"
+                        >
+                          {authorName}
+                        </Link>{" "}
+                        <span className="nova-comment-caption__text">
+                          {post.caption}
+                        </span>
+                      </p>
+                    </div>
                   </article>
                 )}
 
-                {/* ===== Section label ===== */}
                 {comments.length > 0 && (
-                  <div className="px-4 pt-2 pb-1.5 flex items-center gap-2">
-                    <div className="h-px flex-1 bg-[var(--border)]" />
-                    <span className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)]">
-                      Comments
+                  <div className="nova-comment-dialog__section">
+                    <span className="nova-comment-dialog__section-line" />
+                    <span className="nova-comment-dialog__section-text">
+                      {comments.length}{" "}
+                      {comments.length === 1 ? "comment" : "comments"}
                     </span>
-                    <div className="h-px flex-1 bg-[var(--border)]" />
+                    <span className="nova-comment-dialog__section-line" />
                   </div>
                 )}
 
-                {/* ===== Comments list ===== */}
-                <div className="px-2 py-1 space-y-0.5">
+                <div className="nova-comment-dialog__list">
                   {comments.length > 0 ? (
-                    comments.map((comment) => (
-                      <Comment key={comment._id} comment={comment} />
+                    comments.map((comment, i) => (
+                      <div
+                        key={comment._id}
+                        className="nova-comment-dialog__item"
+                        style={{ animationDelay: `${Math.min(i * 30, 300)}ms` }}
+                      >
+                        <Comment comment={comment} />
+                      </div>
                     ))
                   ) : (
-                    <div className="flex flex-col items-center justify-center text-center py-10 px-4">
-                      <div className="w-12 h-12 rounded-full bg-[var(--surface-2)] flex items-center justify-center mb-3">
+                    <div className="nova-comment-dialog__empty">
+                      <div className="nova-comment-dialog__empty-orb">
                         <MessageCircle
-                          className="w-5 h-5 text-[var(--muted-foreground)]"
+                          className="size-5 text-[var(--muted-foreground)]"
                           strokeWidth={1.8}
                         />
                       </div>
-                      <p className="text-sm font-semibold text-[var(--foreground)]">
+                      <p className="nova-comment-dialog__empty-title">
                         No comments yet
                       </p>
-                      <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                      <p className="nova-comment-dialog__empty-sub">
                         Be the first to say something.
                       </p>
                     </div>
@@ -428,92 +493,88 @@ const CommentDialog = ({ open, setOpen }) => {
             )}
           </div>
 
-          {/* ---- Stats + Input ---- */}
-          <div className="comment-dialog-premium__footer shrink-0 border-t border-[var(--border)]">
+          {/* FOOTER */}
+          <div className="nova-comment-dialog__footer">
             {showSkeleton ? (
-              <div className="px-4 pt-3 pb-3 space-y-2">
-                <div className="h-3.5 w-40 rounded bg-[var(--surface-2)] animate-pulse" />
-                <div className="h-10 w-full rounded-lg bg-[var(--surface-2)] animate-pulse" />
+              <div className="nova-comment-dialog__footer-skeleton">
+                <div
+                  className="nova-comment-skel-line"
+                  style={{ width: "45%" }}
+                />
+                <div className="nova-comment-skel-input" />
               </div>
             ) : (
               <>
-                <div className="comment-dialog-premium__stats flex items-center gap-4 px-4 pt-3 pb-2">
-                  {/* LIKE — interactive */}
+                <div className="nova-comment-dialog__stats">
                   <button
                     type="button"
                     onClick={handleLikeToggle}
                     disabled={liking}
                     aria-label={isLikedByMe ? "Unlike" : "Like"}
-                    className="
-                      group inline-flex items-center gap-1.5 text-sm
-                      rounded-full px-1 -mx-1 py-0.5
-                      hover:bg-[var(--surface-2)] transition-colors
-                      active:scale-95 disabled:cursor-not-allowed
-                    "
+                    className={`nova-comment-dialog__stat ${
+                      isLikedByMe ? "is-liked" : ""
+                    } ${heartPulse ? "is-pulsing" : ""}`}
                   >
                     <Heart
-                      className={`h-4 w-4 transition-all duration-200 ${
-                        isLikedByMe
-                          ? "fill-[var(--danger)] text-[var(--danger)]"
-                          : "text-[var(--foreground)] group-hover:text-[var(--danger)]"
-                      } ${liking ? "opacity-60" : ""}`}
-                      strokeWidth={1.8}
+                      className="size-[18px]"
+                      strokeWidth={2}
+                      fill={isLikedByMe ? "currentColor" : "none"}
                     />
-                    <span className="font-semibold text-[var(--foreground)] tabular-nums">
+                    <span className="nova-comment-dialog__stat-count">
                       {likeCount}
-                    </span>
-                    <span className="text-[var(--muted-foreground)]">
-                      {likeCount === 1 ? "like" : "likes"}
                     </span>
                   </button>
 
-                  {/* Comment count (static) */}
-                  <div className="flex items-center gap-1.5 text-sm text-[var(--muted-foreground)]">
-                    <MessageCircle className="h-4 w-4" strokeWidth={1.8} />
-                    <span className="font-semibold text-[var(--foreground)] tabular-nums">{comments.length}</span>
-                    <span>{comments.length === 1 ? "comment" : "comments"}</span>
+                  <div className="nova-comment-dialog__stat is-static">
+                    <MessageCircle className="size-[18px]" strokeWidth={2} />
+                    <span className="nova-comment-dialog__stat-count">
+                      {comments.length}
+                    </span>
                   </div>
+
                   <button
                     type="button"
                     onClick={handleSaveToggle}
-                    disabled={saving || !user?._id || showSkeleton}
-                    aria-label={isSaved ? "Remove post from saved" : "Save post"}
+                    disabled={saving || !user?._id}
+                    aria-label={isSaved ? "Unsave" : "Save"}
                     aria-pressed={isSaved}
-                    className={`comment-dialog-premium__save ${isSaved ? "is-saved" : ""}`}
+                    className={`nova-comment-dialog__save ${
+                      isSaved ? "is-saved" : ""
+                    }`}
                   >
-                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bookmark className="h-4 w-4" fill={isSaved ? "currentColor" : "none"} />}
+                    {saving ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Bookmark
+                        className="size-4"
+                        fill={isSaved ? "currentColor" : "none"}
+                        strokeWidth={2}
+                      />
+                    )}
                     <span>{isSaved ? "Saved" : "Save"}</span>
                   </button>
                 </div>
 
-                <div className="comment-dialog-premium__composer-wrap px-3 pb-3">
-                  <div className="comment-dialog-premium__composer flex items-end gap-2">
+                <div className="nova-comment-dialog__composer-wrap">
+                  <div className="nova-comment-dialog__composer">
                     <Textarea
                       value={text}
                       onChange={(e) => setText(e.target.value)}
-                      placeholder="Add a comment..."
+                      placeholder="Add a comment…"
                       rows={1}
-                      className="comment-dialog-premium__textarea min-h-[40px] max-h-28 resize-none rounded-lg py-2.5"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey && !submitting) {
-                          e.preventDefault();
-                          sendMessageHandler();
-                        }
-                      }}
+                      className="nova-flat-inputvnova-comment-dialog__textarea min-h-[42px] max-h-32 resize-none !rounded-2xl !border-0 !bg-transparent !shadow-none !ring-0 !px-1 focus-visible:!ring-0"
                     />
                     <button
+                      type="button"
                       onClick={sendMessageHandler}
                       disabled={!text.trim() || submitting}
-                      className="comment-dialog-premium__send shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-                      style={{
-                        background: "var(--primary)",
-                        color: "var(--primary-foreground)",
-                      }}
+                      aria-label="Send comment"
+                      className="nova-comment-dialog__send"
                     >
                       {submitting ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="size-4 animate-spin" />
                       ) : (
-                        <Send className="h-4 w-4" strokeWidth={2} />
+                        <Send className="size-4" strokeWidth={2.2} />
                       )}
                     </button>
                   </div>

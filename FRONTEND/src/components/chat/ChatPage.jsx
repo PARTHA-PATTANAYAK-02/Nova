@@ -1,8 +1,7 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { setSelectedUser } from "@/redux/authSlice";
-import { Input } from "@/components/ui/input";
 import {
   MessageCircle,
   Search,
@@ -10,6 +9,9 @@ import {
   Send,
   X,
   Sparkles,
+  Users,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import Messages from "@/components/chat/Messages";
 import axios from "axios";
@@ -30,33 +32,39 @@ const ChatPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [sending, setSending] = useState(false);
 
-  const [showContacts, setShowContacts] = useState(() => {
-    return window.innerWidth < 768;
-  });
+  const [showContacts, setShowContacts] = useState(
+    () => window.innerWidth < 768,
+  );
+  const [collapsed, setCollapsed] = useState(false);
 
   const typingTimeoutRef = useRef(null);
   const messagesRef = useRef([]);
   const inputRef = useRef(null);
   const location = useLocation();
 
-  const { user, suggestedUsers, selectedUser } = useSelector(
-    (store) => store.auth,
+  const isMobileRef = useRef(
+    typeof window !== "undefined" && window.innerWidth < 768,
   );
+  const historyGuardRef = useRef(false);
 
-  const { onlineUsers, messages } = useSelector((store) => store.chat);
+  const { user, suggestedUsers, selectedUser } = useSelector((s) => s.auth);
+  const { onlineUsers, messages } = useSelector((s) => s.chat);
 
   const conversationRequest = useGetConversations();
   const suggestedUserRequest = useGetSuggestedUsers();
   const dispatch = useDispatch();
 
-  /* ---------- SYNC REF ---------- */
   useEffect(() => {
     messagesRef.current = Array.isArray(messages) ? messages : [];
   }, [messages]);
 
-  /* ---------- SELF-FILTERED ONLINE ---------- */
   const othersOnline = (onlineUsers || []).filter((id) => id !== user?._id);
   const othersOnlineCount = othersOnline.length;
+
+  /* ---------- CLOSE CONTACTS (mobile) ---------- */
+  const closeContacts = useCallback(() => {
+    setShowContacts(false);
+  }, []);
 
   /* ---------- LOCATION USER ---------- */
   useEffect(() => {
@@ -66,7 +74,7 @@ const ChatPage = () => {
     }
   }, [dispatch, location.state]);
 
-  /* ---------- AUTO-SELECT LATEST ---------- */
+  /* ---------- AUTO SELECT LATEST ---------- */
   useEffect(() => {
     if (
       !selectedUser &&
@@ -85,7 +93,7 @@ const ChatPage = () => {
     selectedUser,
   ]);
 
-  /* ---------- SEND MESSAGE — OPTIMISTIC ---------- */
+  /* ---------- SEND ---------- */
   const sendMessageHandler = async (receiverId) => {
     const text = textMessage.trim();
     if (!text || !receiverId || !user?._id || sending) return;
@@ -102,9 +110,7 @@ const ChatPage = () => {
     socket?.emit("stopTyping", { receiverId });
     clearTimeout(typingTimeoutRef.current);
 
-    const tempId = `temp-${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2, 7)}`;
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const optimisticMsg = {
       _id: tempId,
       senderId: user._id,
@@ -180,12 +186,12 @@ const ChatPage = () => {
     }, 1200);
   };
 
-  useEffect(() => {
-    return () => clearTimeout(typingTimeoutRef.current);
-  }, [selectedUser]);
+  useEffect(() => () => clearTimeout(typingTimeoutRef.current), [selectedUser]);
 
   useEffect(() => {
-    if (selectedUser && window.innerWidth < 768) setShowContacts(false);
+    if (selectedUser && isMobileRef.current) {
+      setShowContacts(false);
+    }
   }, [selectedUser]);
 
   useEffect(() => {
@@ -215,84 +221,74 @@ const ChatPage = () => {
   const getConversationForUser = (userId) =>
     conversationRequest.conversations.find((c) => c.user?._id === userId);
 
-  const closeContacts = () => setShowContacts(false);
-
-  /* ---------- UI ---------- */
   return (
-    <div className="relative flex h-full min-h-0 w-full overflow-hidden bg-[var(--background)]">
-      {/* ============ CONTACTS PANEL ============ */}
+    <div className="nova-chat">
+      {/* ═══════════ CONTACTS PANEL ═══════════ */}
       <aside
-        className={`
-          ${showContacts ? "flex" : "hidden"}
-          md:flex w-full md:w-[320px] lg:w-[340px]
-          flex-col md:m-3 md:mr-0 md:rounded-2xl
-          bg-[var(--surface)] border border-[var(--border)]
-          overflow-hidden absolute md:relative z-20
-          h-full md:h-auto md:shrink-0 min-h-0
-          ${showContacts ? "animate-contacts-in" : ""}
-        `}
+        className={`nova-chat__contacts ${showContacts ? "is-open" : ""} ${
+          collapsed ? "is-collapsed" : ""
+        }`}
       >
-        {/* Header */}
-        <div className="px-4 pt-4 pb-3 shrink-0 border-b border-[var(--border)]">
-          <div className="flex items-center justify-between gap-2">
-            <h1
-              className="text-xl font-bold text-[var(--foreground)]"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              Messages
+        {/* desktop collapse toggle */}
+        <button
+          type="button"
+          className="nova-chat__collapse"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-label={collapsed ? "Expand contacts" : "Collapse contacts"}
+          title={collapsed ? "Expand" : "Collapse"}
+        >
+          {collapsed ? (
+            <ChevronRight className="size-4" strokeWidth={2.4} />
+          ) : (
+            <ChevronLeft className="size-4" strokeWidth={2.4} />
+          )}
+        </button>
+
+        <div className="nova-chat__contacts-head">
+          <div className="nova-chat__contacts-title-row">
+            <h1 className="nova-chat__contacts-title">
+              <Sparkles className="size-4" strokeWidth={2.2} />
+              <span className="nova-chat__contacts-title-text">Messages</span>
             </h1>
 
-            <div className="flex items-center gap-2">
+            <div className="nova-chat__contacts-actions">
               {othersOnlineCount > 0 ? (
-                <span className="flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]">
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  </span>
-                  {othersOnlineCount} online
+                <span className="nova-chat__online-pill">
+                  <span className="nova-chat__online-dot" />
+                  <span>{othersOnlineCount}</span>
                 </span>
               ) : (
-                <span className="text-[11px] text-[var(--muted-foreground)]">
-                  Only you
-                </span>
+                <span className="nova-chat__solo-pill">Solo</span>
               )}
 
-              {/* Mobile close button */}
               <button
                 type="button"
                 onClick={closeContacts}
-                className="md:hidden w-8 h-8 rounded-full flex items-center justify-center text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
+                className="nova-chat__contacts-close md:hidden"
                 aria-label="Close contacts"
               >
-                <X className="h-4 w-4" strokeWidth={2.2} />
+                <X className="size-4" strokeWidth={2.2} />
               </button>
             </div>
           </div>
-        </div>
 
-        {/* Search */}
-        <div className="px-3 py-3 shrink-0">
-          <div className="relative group">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--muted-foreground)] group-focus-within:text-[var(--primary)] transition-colors pointer-events-none"
-              strokeWidth={1.8}
-            />
-            <Input
+          <div className="nova-chat__search">
+            <Search className="nova-chat__search-icon" strokeWidth={1.9} />
+            <input
               type="text"
-              placeholder="Search people..."
+              placeholder="Search people…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-10"
+              className="nova-chat__search-input"
             />
           </div>
         </div>
 
-        {/* List */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-1.5 pb-2">
+        <div className="nova-chat__contacts-list">
           {conversationRequest.loading &&
             suggestedUserRequest.loading &&
             contacts.length === 0 && (
-              <LoadingState message="Loading conversations..." />
+              <LoadingState message="Loading conversations…" />
             )}
 
           {!conversationRequest.loading &&
@@ -313,14 +309,12 @@ const ChatPage = () => {
           {filteredUsers.length === 0 &&
             !conversationRequest.loading &&
             !suggestedUserRequest.loading && (
-              <div className="py-12 text-center">
-                <Search
-                  className="w-5 h-5 text-[var(--muted-foreground)] mx-auto mb-2"
-                  strokeWidth={1.8}
-                />
-                <p className="text-xs text-[var(--muted-foreground)]">
-                  No one matches
-                </p>
+              <div className="nova-chat__empty">
+                <div className="nova-chat__empty-orb">
+                  <Users className="size-4" strokeWidth={1.8} />
+                </div>
+                <p className="nova-chat__empty-title">No one matches</p>
+                <p className="nova-chat__empty-sub">Try a different search</p>
               </div>
             )}
 
@@ -328,110 +322,88 @@ const ChatPage = () => {
             const isOnline = onlineUsers.includes(u?._id);
             const isSelected = selectedUser?._id === u._id;
             const conversation = getConversationForUser(u._id);
+            const hasConversation = Boolean(conversation);
 
             return (
               <button
                 key={u._id}
                 onClick={() => {
                   dispatch(setSelectedUser(u));
-                  if (window.innerWidth < 768) setShowContacts(false);
+                  if (isMobileRef.current) closeContacts();
                 }}
-                className={`
-                  contact-item
-                  w-full flex items-center gap-3 px-2.5 py-2.5 rounded-xl
-                  transition-all duration-200 text-left
-                  active:scale-[0.98]
-                  ${
-                    isSelected
-                      ? "bg-[var(--surface-2)] shadow-sm"
-                      : "hover:bg-[var(--surface-2)]/60"
-                  }
-                `}
+                className={`nova-chat__contact ${
+                  isSelected ? "is-selected" : ""
+                }`}
                 style={{ animationDelay: `${Math.min(idx * 25, 400)}ms` }}
+                title={getDisplayName(u)}
               >
-                <div className="relative shrink-0">
-                  <Avatar
-                    className={`h-10 w-10 transition-transform duration-300 ${
-                      isSelected ? "scale-105" : ""
-                    }`}
-                  >
+                <span className="nova-chat__contact-avatar">
+                  <Avatar className="size-11">
                     <AvatarImage src={u?.profilePicture} />
                     <AvatarFallback>
                       {getDisplayName(u, "U").charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
+                  {isOnline && <span className="nova-chat__status-dot" />}
+                </span>
 
-                  {isOnline && (
-                    <span className="absolute bottom-0 right-0 flex h-2.5 w-2.5">
-                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-[var(--surface)]" />
-                    </span>
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <p
-                    className={`font-semibold text-sm truncate transition-colors ${
-                      isSelected
-                        ? "text-[var(--foreground)]"
-                        : "text-[var(--foreground)]/90"
-                    }`}
-                  >
+                <span className="nova-chat__contact-meta">
+                  <span className="nova-chat__contact-name">
                     {getDisplayName(u)}
-                  </p>
-                  <p
-                    className={`text-[11px] truncate mt-0.5 ${
-                      isOnline
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-[var(--muted-foreground)]"
+                  </span>
+                  <span
+                    className={`nova-chat__contact-sub ${
+                      isOnline ? "is-online" : ""
                     }`}
                   >
-                    {isOnline ? "Active now" : "Offline"}
-                  </p>
-                </div>
+                    {isOnline
+                      ? "Active now"
+                      : hasConversation
+                        ? "Tap to chat"
+                        : "Suggested"}
+                  </span>
+                </span>
 
                 {conversation?.unreadCount > 0 && !isSelected && (
-                  <span
-                    className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold animate-pulse-subtle"
-                    style={{
-                      background: "var(--primary)",
-                      color: "var(--primary-foreground)",
-                    }}
-                  >
+                  <span className="nova-chat__unread">
                     {conversation.unreadCount > 99
                       ? "99+"
                       : conversation.unreadCount}
                   </span>
                 )}
+
+                {!conversation?.unreadCount &&
+                  !isSelected &&
+                  hasConversation && (
+                    <span className="nova-chat__contact-chevron" aria-hidden>
+                      ›
+                    </span>
+                  )}
               </button>
             );
           })}
         </div>
       </aside>
 
-      {/* ============ CHAT AREA ============ */}
+      {/* ═══════════ CHAT AREA ═══════════ */}
       {selectedUser ? (
         <section
-          className={`
-            flex-1 min-h-0 flex flex-col w-full
-            md:m-3 md:rounded-2xl bg-[var(--surface)]
-            border border-[var(--border)] overflow-hidden
-            ${!showContacts ? "animate-chat-in" : ""}
-          `}
+          className={`nova-chat__window ${!showContacts ? "is-visible" : ""}`}
         >
-          {/* Chat header */}
-          <div className="flex items-center gap-3 px-3 md:px-4 py-2.5 border-b border-[var(--border)] shrink-0 bg-[var(--surface)]">
+          <div className="nova-chat__window-head">
             <button
-              className="md:hidden w-8 h-8 rounded-full flex items-center justify-center text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-all active:scale-90 shrink-0"
+              className="nova-chat__back md:hidden"
               onClick={() => setShowContacts(true)}
               aria-label="Back to contacts"
+              title="Back"
             >
-              <ArrowLeft className="h-4 w-4" strokeWidth={2} />
+              <ArrowLeft className="size-[18px]" strokeWidth={2.4} />
             </button>
 
             <ChatUserMenu user={selectedUser}>
-              <span className="flex min-w-0 flex-1 items-center gap-3">
-                <span className="relative shrink-0">
-                  <Avatar className="h-9 w-9">
+              <span className="nova-chat__window-user">
+                <span className="nova-chat__window-avatar">
+                  <Avatar className="size-10">
                     <AvatarImage src={selectedUser?.profilePicture} />
                     <AvatarFallback>
                       {getDisplayName(selectedUser, "U")
@@ -440,20 +412,16 @@ const ChatPage = () => {
                     </AvatarFallback>
                   </Avatar>
                   {onlineUsers.includes(selectedUser?._id) && (
-                    <span className="absolute bottom-0 right-0 flex h-2.5 w-2.5">
-                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-[var(--surface)]" />
-                    </span>
+                    <span className="nova-chat__status-dot" />
                   )}
                 </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-[var(--foreground)]">
+                <span className="nova-chat__window-meta">
+                  <span className="nova-chat__window-name">
                     {getDisplayName(selectedUser)}
                   </span>
                   <span
-                    className={`block truncate text-[11px] ${
-                      onlineUsers.includes(selectedUser?._id)
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-[var(--muted-foreground)]"
+                    className={`nova-chat__window-sub ${
+                      onlineUsers.includes(selectedUser?._id) ? "is-online" : ""
                     }`}
                   >
                     {onlineUsers.includes(selectedUser?._id)
@@ -465,114 +433,85 @@ const ChatPage = () => {
             </ChatUserMenu>
           </div>
 
-          {/* Messages */}
-          <div className="flex-1 min-h-0 overflow-hidden">
+          <div className="nova-chat__messages">
             <Messages
               selectedUser={selectedUser}
               onReplyMessage={setReplyingTo}
             />
           </div>
 
-          {/* Input bar */}
-          <div className="border-t border-[var(--border)] px-3 py-3 shrink-0 bg-[var(--surface)]">
+          <div className="nova-chat__composer">
             {replyingTo && (
-              <div className="mb-2 flex items-center gap-2 rounded-xl border-l-2 border-[var(--primary)] bg-[var(--surface-2)] px-3 py-2 animate-reply-slide-in">
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-[var(--primary)]">
+              <div className="nova-chat__reply">
+                <span className="nova-chat__reply-bar" aria-hidden />
+                <div className="nova-chat__reply-body">
+                  <p className="nova-chat__reply-label">
                     Replying to{" "}
                     {replyingTo.senderId?.toString() === user?._id?.toString()
                       ? "yourself"
                       : getDisplayName(selectedUser, "User")}
                   </p>
-                  <p className="truncate text-xs text-[var(--muted-foreground)] mt-0.5">
-                    {replyingTo.message}
-                  </p>
+                  <p className="nova-chat__reply-text">{replyingTo.message}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setReplyingTo(null)}
                   aria-label="Cancel reply"
-                  className="rounded-full p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--surface)] hover:text-[var(--foreground)] transition-all active:scale-90 shrink-0"
+                  className="nova-chat__reply-close"
                 >
-                  <X className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  <X className="size-3.5" strokeWidth={2.4} />
                 </button>
               </div>
             )}
 
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1 group">
-                <Input
+            <div className="nova-chat__composer-row">
+              <div className="nova-chat__input-wrap">
+                <input
                   ref={inputRef}
+                  type="text"
+                  name="chat-message"
+                  autoComplete="off"
+                  autoCorrect="on"
+                  spellCheck="true"
+                  data-form-type="other"
                   value={textMessage}
                   onChange={messageChangeHandler}
-                  placeholder="Write a message..."
-                  onKeyPress={(e) => {
+                  placeholder="Write a message…"
+                  onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
                       sendMessageHandler(selectedUser?._id);
                     }
                   }}
-                  className="flex-1 pr-12 transition-all duration-200"
+                  className="nova-chat__input"
                 />
-                {textMessage.trim() && (
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--muted-foreground)]/60 font-medium pointer-events-none animate-fade-in">
-                    ⏎
-                  </span>
-                )}
               </div>
+
               <button
                 onClick={() => sendMessageHandler(selectedUser?._id)}
                 disabled={!textMessage.trim() || sending}
                 aria-label="Send message"
-                className={`
-                  shrink-0 w-11 h-11 rounded-full
-                  flex items-center justify-center
-                  transition-all duration-300
-                  active:scale-90
-                  disabled:cursor-not-allowed
-                  ${
-                    textMessage.trim() && !sending
-                      ? "scale-100 shadow-[0_4px_16px_rgba(34,64,138,0.35)]"
-                      : "scale-95 opacity-40"
-                  }
-                `}
-                style={{
-                  background: "var(--primary)",
-                  color: "var(--primary-foreground)",
-                }}
+                className="nova-chat__send"
               >
                 <Send
-                  className={`h-4 w-4 transition-transform duration-300 ${
+                  className={`size-4 transition-transform duration-300 ${
                     sending ? "translate-x-1 -translate-y-1 opacity-70" : ""
                   }`}
-                  strokeWidth={2}
+                  strokeWidth={2.2}
                 />
               </button>
             </div>
           </div>
         </section>
       ) : (
-        /* ============ EMPTY STATE ============ */
-        <section className="hidden md:flex flex-1 flex-col items-center justify-center m-3 rounded-2xl bg-[var(--surface)] border border-[var(--border)] p-8">
-          <div className="relative mb-4">
-            <span className="absolute inset-0 rounded-full bg-[var(--primary)]/15 blur-2xl animate-pulse" />
-            <div className="relative w-16 h-16 rounded-full bg-[var(--surface-2)] flex items-center justify-center">
-              <MessageCircle
-                className="w-6 h-6 text-[var(--muted-foreground)]"
-                strokeWidth={1.8}
-              />
-            </div>
+        <section className="nova-chat__empty-window">
+          <div className="nova-chat__empty-window-orb">
+            <MessageCircle className="size-6" strokeWidth={1.8} />
+            <span className="nova-chat__empty-window-glow" aria-hidden />
           </div>
-          <h2
-            className="text-xl font-bold text-[var(--foreground)] mb-1.5 inline-flex items-center gap-2"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Your messages
-            <Sparkles className="h-3.5 w-3.5 text-[var(--primary)]" />
-          </h2>
-          <p className="text-sm text-[var(--muted-foreground)] max-w-sm text-center leading-relaxed">
-            Choose someone from the list to start a conversation. Your messages
-            stay in the moment — fast, private, and alive.
+          <h2 className="nova-chat__empty-window-title">Your messages</h2>
+          <p className="nova-chat__empty-window-sub">
+            Pick a conversation to start chatting. Fast, private, and alive.
           </p>
         </section>
       )}

@@ -1,17 +1,14 @@
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
-
 import { cn } from "@/lib/utils";
 
 function Select({ ...props }) {
   return <SelectPrimitive.Root data-slot="select" {...props} />;
 }
-
 function SelectGroup({ ...props }) {
   return <SelectPrimitive.Group data-slot="select-group" {...props} />;
 }
-
 function SelectValue({ ...props }) {
   return <SelectPrimitive.Value data-slot="select-value" {...props} />;
 }
@@ -22,12 +19,15 @@ function SelectTrigger({ className, size = "default", children, ...props }) {
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "flex w-fit items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-sm text-[var(--foreground)] whitespace-nowrap",
-        "transition-colors duration-200 outline-none",
+        "flex w-fit items-center justify-between gap-2 rounded-xl",
+        "border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2",
+        "text-sm text-[var(--foreground)] whitespace-nowrap",
+        "transition-[border-color,box-shadow,background-color] duration-200",
+        "outline-none focus:outline-none focus-visible:outline-none",
         "data-[placeholder]:text-[var(--muted-foreground)]",
         "[&_svg:not([class*='text-'])]:text-[var(--muted-foreground)] [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        "hover:border-[var(--border-strong)]",
-        "focus-visible:border-[var(--primary)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]/15",
+        "hover:border-[var(--border-strong)] hover:bg-[var(--surface-2)]/40",
+        "focus-visible:border-[var(--primary)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]/20",
         "aria-invalid:border-[var(--danger)]/50 aria-invalid:ring-2 aria-invalid:ring-[var(--danger)]/15",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "data-[size=default]:h-11 data-[size=sm]:h-9",
@@ -58,9 +58,9 @@ function SelectContent({ className, children, position = "popper", ...props }) {
           "data-[side=left]:slide-in-from-right-2",
           "data-[side=right]:slide-in-from-left-2",
           "data-[side=top]:slide-in-from-bottom-2",
-          "rounded-xl p-0 text-[var(--foreground)]",
+          "rounded-2xl p-0 text-[var(--foreground)]",
           "bg-[var(--surface)] border border-[var(--border)]",
-          "shadow-[var(--shadow-lg)]",
+          "shadow-[0_24px_64px_-16px_rgba(0,0,0,.28),0_8px_24px_-12px_var(--glow)]",
           position === "popper" &&
             "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
           className,
@@ -71,7 +71,7 @@ function SelectContent({ className, children, position = "popper", ...props }) {
         <SelectScrollUpButton />
         <SelectPrimitive.Viewport
           className={cn(
-            "p-1",
+            "p-1.5",
             position === "popper" &&
               "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1",
           )}
@@ -89,7 +89,7 @@ function SelectLabel({ className, ...props }) {
     <SelectPrimitive.Label
       data-slot="select-label"
       className={cn(
-        "text-[var(--muted-foreground)] px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider",
+        "text-[var(--muted-foreground)] px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider",
         className,
       )}
       {...props}
@@ -102,9 +102,10 @@ function SelectItem({ className, children, ...props }) {
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "relative flex w-full cursor-pointer items-center gap-2 rounded-lg py-2 pr-8 pl-2.5 text-sm text-[var(--foreground)] outline-hidden select-none",
+        "relative flex w-full cursor-pointer items-center gap-2 rounded-lg py-2 pr-8 pl-2.5 text-sm",
+        "text-[var(--foreground)] outline-none select-none",
         "transition-colors duration-150",
-        "focus:bg-[var(--surface-2)]",
+        "focus:bg-[var(--surface-2)] data-[highlighted]:bg-[var(--surface-2)]",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         "[&_svg:not([class*='text-'])]:text-[var(--muted-foreground)]",
         "data-[disabled]:pointer-events-none data-[disabled]:opacity-40",

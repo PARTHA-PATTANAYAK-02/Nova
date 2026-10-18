@@ -305,8 +305,8 @@ function App() {
       sessionState.status === "checking"
     ) {
       return (
-        <main className="flex min-h-screen items-center justify-center bg-[var(--background)] px-5 text-center">
-          <p className="text-sm text-[var(--muted-foreground)]">
+        <main className="flex min-h-dvh items-center justify-center bg-background px-5 text-center">
+          <p className="text-sm text-muted-foreground animate-pulse">
             Verifying your Nova session…
           </p>
         </main>
@@ -315,19 +315,15 @@ function App() {
 
     if (sessionState.status === "error") {
       return (
-        <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[var(--background)] px-5 text-center">
-          <p className="max-w-md text-sm text-[var(--muted-foreground)]">
+        <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background px-5 text-center">
+          <p className="max-w-md text-sm text-muted-foreground">
             We couldn't verify your session because Nova's server could not be
             reached. Check your connection and try again.
           </p>
           <button
             type="button"
             onClick={() => setSessionAttempt((attempt) => attempt + 1)}
-            className="rounded-full px-5 py-2.5 text-sm font-semibold"
-            style={{
-              background: "var(--primary)",
-              color: "var(--primary-foreground)",
-            }}
+            className="btn-base bg-primary text-primary-foreground hover:bg-primary-hover shadow-glow-sm"
           >
             Try again
           </button>

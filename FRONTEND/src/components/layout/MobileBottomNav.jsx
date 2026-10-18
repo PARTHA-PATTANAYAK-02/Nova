@@ -1,32 +1,18 @@
 import React, { useEffect, useState } from "react";
 import {
-  Heart,
-  Home,
-  MessageCircle,
-  PlusSquare,
-  LogOut,
-  Search,
-  X,
-  User,
-  Trash2,
+  Heart, Home, MessageCircle, PlusSquare, LogOut, Search, X, User, Trash2,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import CreatePost from "@/components/feed/CreatePost";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import axios from "axios";
 import { setAuthUser } from "@/redux/authSlice";
 import { setPosts, setSelectedPost } from "@/redux/postSlice";
 import {
-  markNotificationsRead,
-  removeNotification,
-  clearNotifications,
+  markNotificationsRead, removeNotification, clearNotifications,
 } from "@/redux/rtnSlice";
 import { getDisplayName, getErrorMessage } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
@@ -34,108 +20,126 @@ import { apiUrl } from "@/lib/api";
 const MobileBottomNav = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-
   const { user } = useSelector((store) => store.auth);
   const { likeNotification, unreadCount } = useSelector(
     (store) => store.realTimeNotification,
   );
-
   const location = useLocation();
-
   const [open, setOpen] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-
   const [profileMenuMounted, setProfileMenuMounted] = useState(false);
 
-  /* ---------- PROFILE MENU ANIMATION ---------- */
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // Detect virtual keyboard via VisualViewport API
+    const handleViewportChange = () => {
+      if (window.visualViewport) {
+        // If visualViewport height is substantially smaller than window.innerHeight, keyboard is open
+        const isKeyboard =
+          window.visualViewport.height < window.innerHeight * 0.75;
+        setKeyboardOpen(isKeyboard);
+      }
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", handleViewportChange);
+      window.visualViewport.addEventListener("scroll", handleViewportChange);
+    }
+
+    // Also listen to focusin/focusout for input elements on mobile
+    const onFocusIn = (e) => {
+      if (
+        e.target &&
+        (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")
+      ) {
+        setKeyboardOpen(true);
+      }
+    };
+    const onFocusOut = () => {
+      // Small timeout to allow keyboard dismiss transition
+      setTimeout(() => {
+        if (
+          !document.activeElement ||
+          (document.activeElement.tagName !== "INPUT" &&
+            document.activeElement.tagName !== "TEXTAREA")
+        ) {
+          setKeyboardOpen(false);
+        }
+      }, 150);
+    };
+
+    window.addEventListener("focusin", onFocusIn);
+    window.addEventListener("focusout", onFocusOut);
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", handleViewportChange);
+        window.visualViewport.removeEventListener("scroll", handleViewportChange);
+      }
+      window.removeEventListener("focusin", onFocusIn);
+      window.removeEventListener("focusout", onFocusOut);
+    };
+  }, []);
 
   useEffect(() => {
     if (showProfileMenu) {
-      requestAnimationFrame(() => {
-        setProfileMenuMounted(true);
-      });
+      requestAnimationFrame(() => setProfileMenuMounted(true));
     } else {
       setProfileMenuMounted(false);
     }
   }, [showProfileMenu]);
 
-  /* ---------- NOTIFICATION TEXT ---------- */
-
-  const getNotificationText = (notification) =>
-    notification.type === "comment"
+  const getNotificationText = (n) =>
+    n.type === "comment"
       ? "commented on your post"
-      : notification.type === "message"
+      : n.type === "message"
         ? "sent you a message"
-        : notification.type === "follow"
+        : n.type === "follow"
           ? "started following you"
           : "liked your post";
 
-  /* ---------- NOTIFICATION CLICK ---------- */
-
-  const handleNotificationClick = (notification) => {
-    if (notification.type === "message") {
-      navigate("/chat", {
-        state: { user: notification.userDetails },
-      });
-    } else if (notification.type === "comment") {
-      navigate("/", {
-        state: { notificationPostId: notification.postId },
-      });
+  const handleNotificationClick = (n) => {
+    if (n.type === "message") {
+      navigate("/chat", { state: { user: n.userDetails } });
+    } else if (n.type === "comment") {
+      navigate("/", { state: { notificationPostId: n.postId } });
     } else {
       navigate("/");
     }
   };
 
-  /* ---------- REMOVE ONE NOTIFICATION ---------- */
-
-  const handleRemoveNotification = (notificationId) => {
-    dispatch(removeNotification(notificationId));
-
+  const handleRemoveNotification = (id) => {
+    dispatch(removeNotification(id));
     axios
-      .delete(apiUrl(`/api/v1/user/notifications/${notificationId}`), {
-        withCredentials: true,
-      })
+      .delete(apiUrl(`/api/v1/user/notifications/${id}`), { withCredentials: true })
       .catch(() => undefined);
   };
-
-  /* ---------- CLEAR ALL NOTIFICATIONS ---------- */
 
   const handleClearAllNotifications = () => {
     if (likeNotification.length === 0) return;
-
     dispatch(clearNotifications());
-
     axios
-      .delete(apiUrl("/api/v1/user/notifications/clear"), {
-        withCredentials: true,
-      })
+      .delete(apiUrl("/api/v1/user/notifications/clear"), { withCredentials: true })
       .catch(() => undefined);
   };
-
-  /* ---------- NOTIFICATION OPEN ---------- */
 
   const handleNotificationsOpen = (isOpen) => {
     if (isOpen) {
       dispatch(markNotificationsRead());
-
       axios
-        .patch(
-          apiUrl("/api/v1/user/notifications/read"),
-          {},
-          { withCredentials: true },
-        )
+        .patch(apiUrl("/api/v1/user/notifications/read"), {}, { withCredentials: true })
         .catch(() => undefined);
     }
   };
-
-  /* ---------- LOGOUT ---------- */
 
   const handleLogout = async () => {
     try {
       const res = await axios.get(apiUrl("/api/v1/user/logout"), {
         withCredentials: true,
       });
-
       if (res.data.success) {
         dispatch(setAuthUser(null));
         dispatch(setSelectedPost(null));
@@ -144,224 +148,110 @@ const MobileBottomNav = () => {
         toast.success(res.data.message);
       }
     } catch (error) {
-      toast.error(
-        getErrorMessage(error, "Unable to log out. Please try again."),
-      );
+      toast.error(getErrorMessage(error, "Unable to log out. Please try again."));
     }
   };
 
-  /* ---------- ACTIVE ---------- */
-
   const isActive = (path) => location.pathname === path;
-
-  /* ---------- NAV ITEM ---------- */
-
-  const itemCls = (active) =>
-    `
-      relative flex-1 flex items-center justify-center
-      py-2.5 rounded-xl
-      transition-all duration-300 ease-out
-      active:scale-90
-      ${active ? "text-[var(--primary)]" : "text-[var(--muted-foreground)]"}
-    `;
+  const initial = getDisplayName(user, "U").charAt(0).toUpperCase();
 
   return (
     <>
-      {/* =========================================================
-          MOBILE BOTTOM NAV
-      ========================================================= */}
-
+      {/* ── FLOATING PILL NAV ─────────────────── */}
       <nav
-        className="
+        className={`
           md:hidden fixed bottom-3 left-3 right-3 z-50
-          bg-[var(--surface)]/95 backdrop-blur-xl
-          border border-[var(--border)]
-          rounded-[22px]
-          shadow-[0_12px_40px_rgba(0,0,0,0.16)]
-          px-2 py-1.5
-          transition-all duration-300
-        "
+          rounded-[26px]
+          bg-[var(--surface)]/80 backdrop-blur-2xl
+          border border-[var(--border)]/60
+          shadow-[0_20px_60px_-20px_rgba(0,0,0,.35),0_4px_12px_-4px_rgba(0,0,0,.1)]
+          px-1.5 py-2
+          transition-all duration-200
+          ${
+            keyboardOpen
+              ? "opacity-0 pointer-events-none translate-y-10"
+              : "opacity-100 translate-y-0"
+          }
+        `}
+        style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
       >
-        <div className="flex items-center justify-between gap-1">
+        <div className="flex items-center justify-between gap-0.5">
           {/* HOME */}
-
-          <Link
+          <NavBtn
             to="/"
+            active={isActive("/")}
+            icon={<Home className="size-[20px]" strokeWidth={isActive("/") ? 2.3 : 1.8} />}
+            label="Home"
             onClick={() => dispatch(setSelectedPost(null))}
-            className={itemCls(isActive("/"))}
-          >
-            {isActive("/") && (
-              <span
-                className="
-                  absolute inset-x-2 inset-y-1
-                  rounded-xl
-                  bg-[var(--primary)]/10
-                  scale-100
-                  transition-transform duration-300
-                "
-              />
-            )}
-
-            <Home
-              className={`
-                relative z-10 h-5 w-5
-                transition-all duration-300
-                ${isActive("/") ? "scale-110 -translate-y-0.5" : ""}
-              `}
-              strokeWidth={isActive("/") ? 2.2 : 1.8}
-            />
-          </Link>
+          />
 
           {/* SEARCH */}
+          <NavBtn
+            to="/search"
+            active={isActive("/search")}
+            icon={<Search className="size-[20px]" strokeWidth={isActive("/search") ? 2.3 : 1.8} />}
+            label="Search"
+          />
 
-          <Link to="/search" className={itemCls(isActive("/search"))}>
-            {isActive("/search") && (
-              <span
-                className="
-                  absolute inset-x-2 inset-y-1
-                  rounded-xl
-                  bg-[var(--primary)]/10
-                "
-              />
-            )}
-
-            <Search
-              className={`
-                relative z-10 h-5 w-5
-                transition-all duration-300
-                ${isActive("/search") ? "scale-110 -translate-y-0.5" : ""}
-              `}
-              strokeWidth={isActive("/search") ? 2.2 : 1.8}
-            />
-          </Link>
-
-          {/* CREATE */}
-
+          {/* CREATE — balanced button */}
           <button
             onClick={() => setOpen(true)}
             aria-label="Create post"
             className="
-              relative
-              w-11 h-11
-              rounded-full
+              relative shrink-0
+              w-[42px] h-[42px] mx-1
+              rounded-[14px]
+              bg-grad-btn text-white
               flex items-center justify-center
-              shrink-0
-              text-[var(--primary-foreground)]
-              active:scale-90
-              transition-all duration-300
-              hover:scale-105
+              shadow-[0_8px_18px_-6px_var(--glow-strong)]
+              active:scale-[.92]
+              hover:brightness-[1.08]
+              transition-all duration-200 ease-[cubic-bezier(.2,.8,.2,1)]
+              outline-none
             "
-            style={{
-              background: "var(--primary)",
-              boxShadow:
-                "0 6px 18px color-mix(in srgb, var(--primary) 35%, transparent)",
-            }}
           >
-            {/* outer glow */}
-
-            <span
-              className="
-                absolute inset-0
-                rounded-full
-                bg-[var(--primary)]
-                opacity-20
-                blur-md
-                scale-110
-              "
-            />
-
-            <PlusSquare
-              className="
-                relative z-10
-                h-5 w-5
-                transition-transform duration-300
-                hover:rotate-90
-              "
-              strokeWidth={2}
-            />
+            <PlusSquare className="size-[20px]" strokeWidth={2.2} />
           </button>
 
           {/* CHAT */}
+          <NavBtn
+            to="/chat"
+            active={isActive("/chat")}
+            icon={<MessageCircle className="size-[20px]" strokeWidth={isActive("/chat") ? 2.3 : 1.8} />}
+            label="Chat"
+          />
 
-          <Link to="/chat" className={itemCls(isActive("/chat"))}>
-            {isActive("/chat") && (
-              <span
-                className="
-                  absolute inset-x-2 inset-y-1
-                  rounded-xl
-                  bg-[var(--primary)]/10
-                "
-              />
-            )}
-
-            <MessageCircle
-              className={`
-                relative z-10 h-5 w-5
-                transition-all duration-300
-                ${isActive("/chat") ? "scale-110 -translate-y-0.5" : ""}
-              `}
-              strokeWidth={isActive("/chat") ? 2.2 : 1.8}
-            />
-          </Link>
-
-          {/* =====================================================
-              NOTIFICATIONS
-          ===================================================== */}
-
+          {/* NOTIFICATIONS */}
           <Popover onOpenChange={handleNotificationsOpen}>
             <PopoverTrigger asChild>
               <button
                 aria-label="Notifications"
                 className="
-                  relative
-                  flex-1 flex items-center justify-center
-                  py-2.5 rounded-xl
+                  relative flex-1 flex items-center justify-center
+                  py-2 rounded-xl
                   text-[var(--muted-foreground)]
                   hover:text-[var(--foreground)]
                   active:scale-90
-                  transition-all duration-300
+                  transition-all duration-250
+                  outline-none
                 "
               >
                 <div className="relative">
                   <Heart
-                    className={`
-                      h-5 w-5
-                      transition-all duration-300
-                      ${unreadCount > 0 ? "scale-105" : ""}
-                    `}
+                    className={`size-[20px] transition-transform duration-250 ${
+                      unreadCount > 0 ? "scale-105" : ""
+                    }`}
                     strokeWidth={1.8}
                   />
-
-                  {/* notification pulse */}
-
                   {unreadCount > 0 && (
                     <>
-                      <span
-                        className="
-                          absolute -top-1 -right-1
-                          h-3.5 w-3.5
-                          rounded-full
-                          bg-[var(--accent)]
-                          opacity-30
-                          animate-ping
-                        "
-                      />
-
-                      <span
-                        className="
-                          absolute -top-1 -right-1
-                          flex h-3.5 min-w-3.5
-                          items-center justify-center
-                          rounded-full
-                          px-1
-                          text-[8px]
-                          font-bold
-                          bg-[var(--accent)]
-                          text-[var(--accent-foreground)]
-                          border-2 border-[var(--surface)]
-                          animate-[bounce_1.8s_ease-in-out_infinite]
-                        "
-                      >
+                      <span className="absolute -top-1 -right-1 size-3.5 rounded-full bg-[var(--accent)] opacity-40 animate-ping" />
+                      <span className="
+                        absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center
+                        rounded-full px-1 text-[8px] font-bold
+                        bg-[var(--accent)] text-[var(--accent-foreground)]
+                        border-2 border-[var(--surface)]
+                      ">
                         {unreadCount > 9 ? "9+" : unreadCount}
                       </span>
                     </>
@@ -373,125 +263,52 @@ const MobileBottomNav = () => {
             <PopoverContent
               side="top"
               align="center"
-              sideOffset={12}
+              sideOffset={14}
               className="
-                w-[calc(100vw-24px)]
-                max-w-[380px]
-                p-0
-                mb-1
-                overflow-hidden
-                rounded-2xl
-                border-[var(--border)]
-                bg-[var(--surface)]/95
-                backdrop-blur-xl
-                shadow-[0_20px_60px_rgba(0,0,0,0.18)]
-                animate-in
-                fade-in-0
-                zoom-in-95
-                slide-in-from-bottom-2
-                duration-200
+                w-[calc(100vw-24px)] max-w-[380px] p-0 mb-1 overflow-hidden
+                rounded-2xl border-[var(--border)]
+                bg-[var(--surface)]/95 backdrop-blur-xl
+                shadow-[0_24px_64px_-16px_rgba(0,0,0,.28),0_8px_24px_-12px_var(--glow)]
+                animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 duration-200
               "
             >
-              {/* HEADER */}
-
-              <div
-                className="
-                  flex items-center justify-between
-                  px-4 py-3
-                  border-b border-[var(--border)]
-                "
-              >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
                 <div>
-                  <h3
-                    className="
-                      text-sm font-semibold
-                      text-[var(--foreground)]
-                    "
-                    style={{
-                      fontFamily: "var(--font-display)",
-                    }}
-                  >
+                  <h3 className="font-display text-sm font-semibold text-[var(--foreground)]">
                     Notifications
                   </h3>
-
                   {likeNotification.length > 0 && (
                     <p className="text-[10px] mt-0.5 text-[var(--muted-foreground)]">
                       {likeNotification.length}{" "}
-                      {likeNotification.length === 1
-                        ? "notification"
-                        : "notifications"}
+                      {likeNotification.length === 1 ? "notification" : "notifications"}
                     </p>
                   )}
                 </div>
-
-                {/* CLEAR ALL */}
-
                 {likeNotification.length > 0 && (
                   <button
                     onClick={handleClearAllNotifications}
                     className="
-                      group
-                      inline-flex items-center gap-1.5
-                      px-2.5 py-1.5
-                      rounded-lg
-                      text-[11px]
-                      font-medium
-                      text-[var(--muted-foreground)]
-                      hover:text-[var(--danger)]
-                      hover:bg-[var(--danger)]/8
-                      active:scale-95
-                      transition-all duration-200
+                      inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg
+                      text-[11px] font-medium text-[var(--muted-foreground)]
+                      hover:text-[var(--danger)] hover:bg-[var(--danger)]/8
+                      active:scale-95 transition-all duration-200 outline-none
                     "
                   >
-                    <Trash2
-                      className="
-                        h-3.5 w-3.5
-                        transition-transform duration-200
-                        group-hover:scale-110
-                      "
-                      strokeWidth={1.8}
-                    />
+                    <Trash2 className="h-3.5 w-3.5" strokeWidth={1.8} />
                     Clear all
                   </button>
                 )}
               </div>
 
-              {/* NOTIFICATION LIST */}
-
               <div className="max-h-[55vh] overflow-y-auto">
                 {likeNotification.length === 0 ? (
-                  <div
-                    className="
-                      py-10 px-5
-                      flex flex-col items-center
-                      text-center
-                      animate-in
-                      fade-in-0
-                      duration-200
-                    "
-                  >
-                    <div
-                      className="
-                        h-11 w-11
-                        rounded-full
-                        bg-[var(--surface-2)]
-                        flex items-center justify-center
-                        mb-3
-                      "
-                    >
-                      <Heart
-                        className="
-                          h-5 w-5
-                          text-[var(--muted-foreground)]
-                        "
-                        strokeWidth={1.6}
-                      />
+                  <div className="py-10 px-5 flex flex-col items-center text-center">
+                    <div className="size-11 rounded-full bg-[var(--surface-2)] flex items-center justify-center mb-3">
+                      <Heart className="size-5 text-[var(--muted-foreground)]" strokeWidth={1.6} />
                     </div>
-
                     <p className="text-sm font-medium text-[var(--foreground)]">
                       All caught up
                     </p>
-
                     <p className="text-xs mt-1 text-[var(--muted-foreground)]">
                       No notifications yet
                     </p>
@@ -502,43 +319,20 @@ const MobileBottomNav = () => {
                       key={n._id}
                       onClick={() => handleNotificationClick(n)}
                       className="
-                        group
-                        flex items-center gap-3
-                        px-4 py-3
-                        cursor-pointer
-                        hover:bg-[var(--surface-2)]
-                        active:bg-[var(--surface-2)]
-                        transition-all duration-200
-                        animate-in
-                        fade-in-0
-                        slide-in-from-bottom-1
+                        group flex items-center gap-3 px-4 py-3 cursor-pointer
+                        hover:bg-[var(--surface-2)] transition-all duration-200
+                        animate-in fade-in-0 slide-in-from-bottom-1
                       "
-                      style={{
-                        animationDelay: `${index * 35}ms`,
-                      }}
+                      style={{ animationDelay: `${index * 35}ms` }}
                     >
-                      {/* AVATAR */}
-
                       <Avatar className="h-9 w-9 shrink-0">
                         <AvatarImage src={n.userDetails?.profilePicture} />
-
                         <AvatarFallback>
-                          {getDisplayName(n.userDetails, "U")
-                            .charAt(0)
-                            .toUpperCase()}
+                          {getDisplayName(n.userDetails, "U").charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-
-                      {/* TEXT */}
-
                       <div className="flex-1 min-w-0">
-                        <p
-                          className="
-                            text-xs
-                            text-[var(--foreground)]
-                            leading-relaxed
-                          "
-                        >
+                        <p className="text-xs text-[var(--foreground)] leading-relaxed">
                           <span className="font-semibold">
                             {getDisplayName(n.userDetails, "A user")}
                           </span>{" "}
@@ -547,9 +341,6 @@ const MobileBottomNav = () => {
                           </span>
                         </p>
                       </div>
-
-                      {/* REMOVE */}
-
                       <button
                         aria-label="Remove notification"
                         onClick={(e) => {
@@ -557,17 +348,11 @@ const MobileBottomNav = () => {
                           handleRemoveNotification(n._id);
                         }}
                         className="
-                          shrink-0
-                          h-7 w-7
-                          rounded-full
+                          shrink-0 h-7 w-7 rounded-full
                           flex items-center justify-center
-                          text-[var(--muted-foreground)]
-                          opacity-0
-                          group-hover:opacity-100
-                          hover:text-[var(--danger)]
-                          hover:bg-[var(--danger)]/8
-                          active:scale-90
-                          transition-all duration-200
+                          text-[var(--muted-foreground)] opacity-0 group-hover:opacity-100
+                          hover:text-[var(--danger)] hover:bg-[var(--danger)]/8
+                          active:scale-90 transition-all duration-200 outline-none
                         "
                       >
                         <X className="h-3.5 w-3.5" strokeWidth={2} />
@@ -579,80 +364,45 @@ const MobileBottomNav = () => {
             </PopoverContent>
           </Popover>
 
-          {/* =====================================================
-              PROFILE
-          ===================================================== */}
-
+          {/* PROFILE */}
           <button
-            onClick={() => setShowProfileMenu((current) => !current)}
+            onClick={() => setShowProfileMenu((v) => !v)}
             aria-label="Profile menu"
             className={`
-              flex-1 flex items-center justify-center
-              py-1.5 rounded-xl
-              transition-all duration-300
-              active:scale-90
+              relative flex-1 flex items-center justify-center
+              py-1.5 rounded-xl transition-all duration-250
+              active:scale-90 outline-none
               ${showProfileMenu ? "bg-[var(--surface-2)]" : ""}
             `}
           >
-            <Avatar
-              className={`
-                h-7 w-7
-                transition-all duration-300
-                ${
-                  showProfileMenu
-                    ? "scale-110 ring-2 ring-[var(--primary)]/30"
-                    : ""
-                }
-              `}
-            >
-              <AvatarImage src={user?.profilePicture} />
-
-              <AvatarFallback>
-                {getDisplayName(user, "U").charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+            <span className="relative size-7">
+              <span className="absolute -inset-[2px] rounded-full bg-grad-ring opacity-90" />
+              <Avatar className="relative size-7 border-2 border-[var(--background)]">
+                <AvatarImage src={user?.profilePicture} />
+                <AvatarFallback>{initial}</AvatarFallback>
+              </Avatar>
+            </span>
           </button>
         </div>
       </nav>
 
-      {/* =========================================================
-          PROFILE MENU BACKDROP
-      ========================================================= */}
-
+      {/* ── PROFILE FLOATING MENU ─────────────── */}
       {showProfileMenu && (
         <>
           <div
-            className="
-              md:hidden
-              fixed inset-0 z-40
-              bg-black/10
-              backdrop-blur-[2px]
-              transition-opacity duration-300
-            "
+            className="md:hidden fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]"
             onClick={() => setShowProfileMenu(false)}
           />
 
-          {/* =====================================================
-              PROFILE FLOATING MENU
-          ===================================================== */}
-
           <div
             className={`
-              md:hidden
-              fixed
-              bottom-[78px]
-              right-3
-              z-50
-              w-[210px]
-              overflow-hidden
-              rounded-[20px]
-              border border-[var(--border)]
-              bg-[var(--surface)]/95
-              backdrop-blur-xl
-              shadow-[0_20px_60px_rgba(0,0,0,0.22)]
+              md:hidden fixed bottom-[92px] right-3 z-50
+              w-[220px] overflow-hidden rounded-[22px]
+              border border-[var(--border)]/60
+              bg-[var(--surface)]/90 backdrop-blur-2xl
+              shadow-[0_24px_64px_-16px_rgba(0,0,0,.3),0_8px_24px_-12px_var(--glow)]
               origin-bottom-right
-              transition-all duration-300
-              ease-[cubic-bezier(0.34,1.56,0.64,1)]
+              transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]
               ${
                 profileMenuMounted
                   ? "opacity-100 scale-100 translate-y-0"
@@ -660,32 +410,22 @@ const MobileBottomNav = () => {
               }
             `}
           >
-            {/* USER HEADER */}
-
-            <div
-              className="
-                px-4 py-3.5
-                border-b border-[var(--border)]
-              "
-            >
+            <div className="px-4 py-3.5 border-b border-[var(--border)]/60">
               <div className="flex items-center gap-3">
-                <Avatar className="h-10 w-10 shrink-0">
+                <Avatar className="size-10">
                   <AvatarImage src={user?.profilePicture} />
-
-                  <AvatarFallback>
-                    {getDisplayName(user, "U").charAt(0).toUpperCase()}
-                  </AvatarFallback>
+                  <AvatarFallback>{initial}</AvatarFallback>
                 </Avatar>
-
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-[var(--foreground)] truncate">
                     {getDisplayName(user)}
                   </p>
+                  <p className="text-[11px] text-[var(--muted-foreground)] truncate">
+                    {user?.username ? `@${user.username}` : "Set username"}
+                  </p>
                 </div>
               </div>
             </div>
-
-            {/* PROFILE */}
 
             <button
               onClick={() => {
@@ -693,85 +433,38 @@ const MobileBottomNav = () => {
                 setShowProfileMenu(false);
               }}
               className="
-                group
-                w-full
-                flex items-center gap-3
-                px-4 py-3
-                text-sm
-                text-[var(--foreground)]
-                hover:bg-[var(--surface-2)]
-                transition-all duration-200
+                group w-full flex items-center gap-3 px-4 py-3
+                text-sm text-[var(--foreground)]
+                hover:bg-[var(--surface-2)] transition-all duration-200 outline-none
               "
             >
-              <span
-                className="
-                  h-8 w-8
-                  rounded-lg
-                  flex items-center justify-center
-                  bg-[var(--surface-2)]
-                  group-hover:bg-[var(--primary)]/10
-                  transition-colors duration-200
-                "
-              >
-                <User
-                  className="
-                    h-4 w-4
-                    group-hover:scale-110
-                    transition-transform duration-200
-                  "
-                  strokeWidth={1.8}
-                />
+              <span className="size-8 rounded-lg flex items-center justify-center bg-[var(--surface-2)] group-hover:bg-[var(--primary)]/12 transition-colors duration-200">
+                <User className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" strokeWidth={1.8} />
               </span>
-
               <span className="flex-1 text-left font-medium">
                 {user?.username ? "View profile" : "Complete your profile"}
               </span>
               {!user?.username && (
-                <span className="h-2 w-2 rounded-full bg-[var(--danger)]" />
+                <span className="size-2 rounded-full bg-[var(--danger)]" />
               )}
             </button>
 
-            {/* LOGOUT */}
-
-            <div className="border-t border-[var(--border)] p-1.5">
+            <div className="border-t border-[var(--border)]/60 p-1.5">
               <button
                 onClick={() => {
                   setShowProfileMenu(false);
                   handleLogout();
                 }}
                 className="
-                  group
-                  w-full
-                  flex items-center gap-3
-                  px-3 py-2.5
-                  rounded-xl
-                  text-sm
-                  text-[var(--danger)]
+                  group w-full flex items-center gap-3 px-3 py-2.5
+                  rounded-xl text-sm text-[var(--danger)]
                   hover:bg-[var(--danger)]/8
-                  transition-all duration-200
-                  active:scale-[0.98]
+                  transition-all duration-200 active:scale-[.98] outline-none
                 "
               >
-                <span
-                  className="
-                    h-8 w-8
-                    rounded-lg
-                    flex items-center justify-center
-                    bg-[var(--danger)]/8
-                    group-hover:bg-[var(--danger)]/12
-                    transition-colors duration-200
-                  "
-                >
-                  <LogOut
-                    className="
-                      h-4 w-4
-                      group-hover:translate-x-0.5
-                      transition-transform duration-200
-                    "
-                    strokeWidth={1.8}
-                  />
+                <span className="size-8 rounded-lg flex items-center justify-center bg-[var(--danger)]/8 group-hover:bg-[var(--danger)]/12 transition-colors duration-200">
+                  <LogOut className="h-4 w-4 group-hover:translate-x-0.5 transition-transform duration-200" strokeWidth={1.8} />
                 </span>
-
                 <span className="font-medium">Logout</span>
               </button>
             </div>
@@ -781,6 +474,33 @@ const MobileBottomNav = () => {
 
       <CreatePost open={open} setOpen={setOpen} />
     </>
+  );
+};
+
+/* ── Small nav button helper ───────────────────── */
+const NavBtn = ({ to, active, icon, label, onClick }) => {
+  return (
+    <Link
+      to={to}
+      onClick={onClick}
+      aria-label={label}
+      className={`
+        relative flex-1 flex flex-col items-center justify-center gap-0.5
+        py-1.5 rounded-xl transition-all duration-250 active:scale-90
+        outline-none
+        ${active ? "text-[var(--primary)]" : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"}
+      `}
+    >
+      <span className={`relative transition-transform duration-250 ${active ? "scale-110 -translate-y-0.5" : ""}`}>
+        {icon}
+      </span>
+      <span className={`text-[9px] font-medium transition-opacity duration-250 ${active ? "opacity-100" : "opacity-70"}`}>
+        {label}
+      </span>
+      {active && (
+        <span className="absolute -bottom-0.5 h-[3px] w-4 rounded-full bg-grad-btn" />
+      )}
+    </Link>
   );
 };
 

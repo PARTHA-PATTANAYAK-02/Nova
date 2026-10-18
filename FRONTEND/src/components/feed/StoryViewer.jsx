@@ -9,7 +9,7 @@ import { useSelector } from "react-redux";
 import { getSocketInstance } from "@/redux/socketSlice";
 import { getDisplayName } from "@/lib/utils";
 
-const STORY_DURATION = 5000; // 5s per item
+const IMAGE_DURATION = 10000; // 10s for images
 const STORY_REACTIONS = ["❤️", "🥰", "😂", "😮", "😢", "🔥"];
 
 const formatTime = (iso) => {
@@ -34,7 +34,7 @@ const StoryViewer = ({
   const [userIndex, setUserIndex] = useState(initialUserIndex);
   const [itemIndex, setItemIndex] = useState(initialItemIndex);
   const [paused, setPaused] = useState(false);
-  const [itemDuration, setItemDuration] = useState(STORY_DURATION);
+  const [itemDuration, setItemDuration] = useState(IMAGE_DURATION);
   const [reactionByMe, setReactionByMe] = useState({});
   const [reactionDetailsByItem, setReactionDetailsByItem] = useState({});
   const [showReactions, setShowReactions] = useState(false);
@@ -51,7 +51,8 @@ const StoryViewer = ({
   const currentItem = currentStory?.items?.[itemIndex];
 
   useEffect(() => {
-    setItemDuration(STORY_DURATION);
+    // reset to image default; video will override on loadedmetadata
+    setItemDuration(IMAGE_DURATION);
     setPaused(false);
     setShowReactions(false);
   }, [currentItem?._id]);
@@ -97,7 +98,9 @@ const StoryViewer = ({
     const handleStoryReaction = (update) => {
       if (!update.reactionDetails || !currentStory?.user?._id) return;
       const storyId = update.storyId?.toString();
-      const itemExists = currentStory.items.some((item) => item._id.toString() === storyId);
+      const itemExists = currentStory.items.some(
+        (item) => item._id.toString() === storyId,
+      );
       if (!itemExists) return;
       setReactionDetailsByItem((previous) => ({
         ...previous,
@@ -105,7 +108,8 @@ const StoryViewer = ({
       }));
       onReactionChangeRef.current?.(
         storyId,
-        currentStory.items.find((item) => item._id.toString() === storyId)?.reactionByMe || null,
+        currentStory.items.find((item) => item._id.toString() === storyId)
+          ?.reactionByMe || null,
         update.reactionDetails,
       );
     };
@@ -152,7 +156,6 @@ const StoryViewer = ({
       return;
     }
 
-    // Tap → navigate
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const third = rect.width / 3;
@@ -179,9 +182,12 @@ const StoryViewer = ({
 
   const handleStoryReaction = async (emoji) => {
     if (!currentItem || reacting) return;
-    const currentReaction = Object.prototype.hasOwnProperty.call(reactionByMe, currentItem._id)
+    const currentReaction = Object.prototype.hasOwnProperty.call(
+      reactionByMe,
+      currentItem._id,
+    )
       ? reactionByMe[currentItem._id]
-      : currentItem.reactionByMe ?? null;
+      : (currentItem.reactionByMe ?? null);
     const nextReaction = currentReaction === emoji ? null : emoji;
     try {
       setReacting(true);
@@ -190,14 +196,21 @@ const StoryViewer = ({
         { emoji: nextReaction },
         { withCredentials: true },
       );
-      setReactionByMe((previous) => ({ ...previous, [currentItem._id]: nextReaction }));
+      setReactionByMe((previous) => ({
+        ...previous,
+        [currentItem._id]: nextReaction,
+      }));
       if (response.data?.reactionDetails) {
         setReactionDetailsByItem((previous) => ({
           ...previous,
           [currentItem._id]: response.data.reactionDetails,
         }));
       }
-      onReactionChange?.(currentItem._id, nextReaction, response.data?.reactionDetails);
+      onReactionChange?.(
+        currentItem._id,
+        nextReaction,
+        response.data?.reactionDetails,
+      );
     } catch (error) {
       toast.error(error.response?.data?.message || "Unable to react to story.");
     } finally {
@@ -209,16 +222,15 @@ const StoryViewer = ({
 
   const viewer = (
     <div
-      className="fixed inset-0 z-[9999] flex select-none items-center justify-center bg-black/65 p-0 backdrop-blur-md animate-fade-in md:p-5"
+      className="fixed inset-0 z-[9999] flex select-none items-center justify-center bg-black/75 p-0 backdrop-blur-lg animate-fade-in md:p-5"
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       onPointerDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      {/* Viewer shell — fullscreen on mobile, centered card on desktop */}
       <div
-        className="relative h-full w-full overflow-hidden bg-[var(--surface)] shadow-2xl md:h-[88vh] md:w-[420px] md:rounded-2xl"
+        className="relative h-full w-full overflow-hidden bg-[var(--background)] shadow-[0_32px_80px_-24px_rgba(0,0,0,.6)] md:h-[88vh] md:w-[420px] md:rounded-3xl"
         onPointerDown={(event) => event.stopPropagation()}
       >
         {currentItem.mediaType === "video" ? (
@@ -231,16 +243,20 @@ const StoryViewer = ({
             playsInline
             disablePictureInPicture
             controlsList="nodownload noplaybackrate nofullscreen"
-            className="absolute inset-0 h-full w-full object-contain bg-black"
+            className="absolute inset-0 h-full w-full bg-black object-contain"
             onClick={(event) => {
-              const video = event.currentTarget;
-              if (video.paused) video.play().catch(() => {});
-              else video.pause();
+              const v = event.currentTarget;
+              if (v.paused) v.play().catch(() => {});
+              else v.pause();
             }}
             onContextMenu={(event) => event.preventDefault()}
-            onLoadedMetadata={(event) =>
-              setItemDuration(Math.min(event.currentTarget.duration * 1000, 30000))
-            }
+            onLoadedMetadata={(event) => {
+              // 🎯 full video duration — no cap
+              const dur = event.currentTarget.duration;
+              if (Number.isFinite(dur) && dur > 0) {
+                setItemDuration(dur * 1000);
+              }
+            }}
             onEnded={goNext}
             onDoubleClick={(event) => event.stopPropagation()}
           />
@@ -249,60 +265,69 @@ const StoryViewer = ({
             src={currentItem.image}
             alt=""
             draggable={false}
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-0 h-full w-full object-cover"
           />
         )}
 
-        {/* Dark gradient top + bottom for readability */}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/40" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/70 via-transparent to-black/55" />
 
-        {/* Tap zones */}
         <div
           className="absolute inset-0 z-10 cursor-pointer"
-          style={currentItem.mediaType === "video" ? { pointerEvents: "none" } : undefined}
+          style={
+            currentItem.mediaType === "video"
+              ? { pointerEvents: "none" }
+              : undefined
+          }
           onPointerDown={handlePointerDown}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerCancel}
           onPointerLeave={handlePointerCancel}
         />
 
-        {/* Progress bars */}
+        {/* PROGRESS BARS */}
         <div className="absolute top-2 left-2 right-2 z-20 flex gap-1">
           {currentStory.items.map((item, i) => (
             <div
               key={item._id}
-              className="flex-1 h-[2px] bg-white/30 rounded-full overflow-hidden"
+              className="h-[2.5px] flex-1 overflow-hidden rounded-full bg-white/25"
             >
-              {i < itemIndex && <div className="h-full w-full bg-white/90" />}
+              {i < itemIndex && <div className="h-full w-full bg-white/95" />}
               {i === itemIndex && (
                 <div
                   key={`${userIndex}-${itemIndex}`}
-                  className="h-full bg-white origin-left"
+                  className="h-full origin-left bg-white"
                   style={{
                     animation: `storyProgress ${itemDuration}ms linear forwards`,
                     animationPlayState: paused ? "paused" : "running",
                   }}
-                  onAnimationEnd={currentItem.mediaType === "video" ? undefined : goNext}
+                  onAnimationEnd={
+                    currentItem.mediaType === "video" ? undefined : goNext
+                  }
                 />
               )}
             </div>
           ))}
         </div>
 
-        {/* Header */}
+        {/* HEADER */}
         <div className="absolute top-5 left-3 right-3 z-20 flex items-center gap-3">
           <button
             type="button"
             onClick={() => onOpenProfile?.(currentStory.user)}
-            className="flex min-w-0 flex-1 items-center gap-3 text-left text-white"
+            className="flex min-w-0 flex-1 items-center gap-3 text-left text-white outline-none"
             aria-label={`Open ${getDisplayName(currentStory.user)}'s profile`}
           >
-            <Avatar className="h-9 w-9 ring-2 ring-white/40">
-              <AvatarImage src={currentStory.user.profilePicture} />
-              <AvatarFallback>
-                {getDisplayName(currentStory.user, "U").charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+            <span className="relative size-9 shrink-0">
+              <span className="absolute -inset-[2px] rounded-full bg-grad-ring" />
+              <Avatar className="relative size-9 border-2 border-white/30">
+                <AvatarImage src={currentStory.user.profilePicture} />
+                <AvatarFallback>
+                  {getDisplayName(currentStory.user, "U")
+                    .charAt(0)
+                    .toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold leading-tight hover:underline">
                 {getDisplayName(currentStory.user)}
@@ -316,28 +341,31 @@ const StoryViewer = ({
           <button
             onClick={onClose}
             aria-label="Close story"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-white/90 hover:text-white hover:bg-white/10 transition-colors"
+            className="size-8 rounded-full flex items-center justify-center bg-white/10 text-white/95 backdrop-blur-md hover:bg-white/20 active:scale-95 transition-all duration-200 outline-none"
           >
-            <X className="h-5 w-5" strokeWidth={2} />
+            <X className="size-4" strokeWidth={2.2} />
           </button>
         </div>
 
-        {/* Pause hint */}
         {paused && (
-          <div className="absolute top-16 left-3 z-20 text-white/70 text-[10px] uppercase tracking-wider font-medium">
+          <div className="absolute left-3 top-16 z-20 text-[10px] font-semibold uppercase tracking-widest text-white/70">
             Paused
           </div>
         )}
 
         {currentItem.caption && (
-          <div className={`absolute ${currentItem.mediaType === "video" ? "bottom-20" : "bottom-16"} left-4 right-4 z-20 text-center text-sm leading-relaxed text-white drop-shadow-md`}>
+          <div className="absolute bottom-24 left-4 right-4 z-20 text-center text-sm leading-relaxed text-white drop-shadow-lg">
             {currentItem.caption}
           </div>
         )}
 
-        <div className="absolute bottom-4 left-3 right-3 z-30 flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-black/40 px-2 py-2 backdrop-blur-md">
+        {/* REACTION BAR */}
+        <div className="absolute bottom-4 left-3 right-3 z-30 flex items-center justify-center gap-1.5 rounded-2xl border border-white/15 bg-black/50 px-2 py-2 backdrop-blur-xl">
           {STORY_REACTIONS.map((emoji) => {
-            const selectedReaction = Object.prototype.hasOwnProperty.call(reactionByMe, currentItem._id)
+            const selectedReaction = Object.prototype.hasOwnProperty.call(
+              reactionByMe,
+              currentItem._id,
+            )
               ? reactionByMe[currentItem._id]
               : currentItem.reactionByMe;
             return (
@@ -349,43 +377,66 @@ const StoryViewer = ({
                 onPointerDown={(event) => event.stopPropagation()}
                 aria-label={`React ${emoji}`}
                 aria-pressed={selectedReaction === emoji}
-                className={`rounded-full px-1.5 py-1 text-xl transition-transform hover:scale-125 disabled:opacity-50 ${selectedReaction === emoji ? "bg-white/25 scale-110 animate-reaction-pop" : ""}`}
+                className={`
+                  rounded-full px-1.5 py-1 text-xl
+                  transition-all duration-200
+                  hover:scale-125 active:scale-95
+                  disabled:opacity-50 outline-none
+                  ${
+                    selectedReaction === emoji
+                      ? "bg-white/25 scale-110 animate-reaction-pop"
+                      : ""
+                  }
+                `}
               >
                 {emoji}
               </button>
             );
           })}
         </div>
-        {currentStory.user?._id === user?._id && (() => {
-          const details = reactionDetailsByItem[currentItem._id] ?? currentItem.reactionDetails ?? [];
-          if (!details.length) return null;
-          return (
-            <div className="absolute bottom-[4.5rem] left-3 right-3 z-30 flex justify-center">
-              <button
-                type="button"
-                onClick={() => setShowReactions((value) => !value)}
-                onPointerDown={(event) => event.stopPropagation()}
-                className="rounded-full border border-white/20 bg-black/55 px-3 py-1 text-xs font-medium text-white backdrop-blur-md transition hover:bg-black/75"
-                aria-expanded={showReactions}
-              >
-                {details.length} {details.length === 1 ? "reaction" : "reactions"}
-              </button>
-              {showReactions && (
-                <div
-                  className="absolute bottom-9 max-h-40 w-full max-w-sm overflow-y-auto rounded-xl border border-white/15 bg-black/80 p-2 text-white shadow-xl backdrop-blur-md"
+
+        {currentStory.user?._id === user?._id &&
+          (() => {
+            const details =
+              reactionDetailsByItem[currentItem._id] ??
+              currentItem.reactionDetails ??
+              [];
+            if (!details.length) return null;
+            return (
+              <div className="absolute bottom-[4.5rem] left-3 right-3 z-30 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowReactions((v) => !v)}
                   onPointerDown={(event) => event.stopPropagation()}
+                  className="rounded-full border border-white/20 bg-black/60 px-3 py-1 text-xs font-medium text-white backdrop-blur-md transition hover:bg-black/80 active:scale-95 outline-none"
+                  aria-expanded={showReactions}
                 >
-                  {details.map((reaction, index) => (
-                    <div key={`${reaction.user?._id || reaction.emoji}-${index}`} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm">
-                      <span className="text-xl animate-reaction-pop">{reaction.emoji}</span>
-                      <span className="truncate">{getDisplayName(reaction.user)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })()}
+                  {details.length}{" "}
+                  {details.length === 1 ? "reaction" : "reactions"}
+                </button>
+                {showReactions && (
+                  <div
+                    className="absolute bottom-9 max-h-40 w-full max-w-sm overflow-y-auto rounded-2xl border border-white/15 bg-black/85 p-2 text-white shadow-2xl backdrop-blur-xl"
+                    onPointerDown={(event) => event.stopPropagation()}
+                  >
+                    {details.map((reaction, index) => (
+                      <div
+                        key={`${reaction.user?._id || reaction.emoji}-${index}`}
+                        className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm"
+                      >
+                        <span className="animate-reaction-pop text-xl">
+                          {reaction.emoji}
+                        </span>
+                        <span className="truncate">
+                          {getDisplayName(reaction.user)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
       </div>
     </div>
   );

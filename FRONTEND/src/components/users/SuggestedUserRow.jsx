@@ -1,41 +1,81 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Check, Plus } from "lucide-react";
 import { getDisplayName } from "@/lib/utils";
 
-const SuggestedUserRow = ({ user, isFollowing, onFollow, story, seen, onOpenStory, onOpenProfile }) => {
+const SuggestedUserRow = ({
+  user,
+  isFollowing,
+  onFollow,
+  story,
+  seen,
+  onOpenStory,
+  onOpenProfile,
+}) => {
   const displayName = getDisplayName(user);
+  const initial = displayName.charAt(0).toUpperCase();
 
   return (
-    <div className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 transition-colors hover:bg-[var(--surface-2)]">
+    <div className="nova-user-row">
+      {/* avatar / story ring */}
       <button
         type="button"
         onClick={() => (story ? onOpenStory(story) : onOpenProfile(user._id))}
-        aria-label={story ? `View ${displayName}'s story` : `Open ${displayName}'s profile`}
-        className="shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+        aria-label={
+          story
+            ? `View ${displayName}'s story`
+            : `Open ${displayName}'s profile`
+        }
+        className="nova-user-row__avatar-btn"
       >
-        <div className={`rounded-full p-[2px] ${story ? (seen ? "bg-[var(--border-strong)]" : "bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600") : ""}`}>
-          <Avatar className="h-10 w-10 border-2 border-[var(--background)]">
+        {story ? (
+          <span className={`nova-user-row__ring ${seen ? "is-seen" : ""}`}>
+            <span className="nova-user-row__ring-inner">
+              <Avatar className="size-10">
+                <AvatarImage src={user.profilePicture} alt={displayName} />
+                <AvatarFallback>{initial}</AvatarFallback>
+              </Avatar>
+            </span>
+          </span>
+        ) : (
+          <Avatar className="size-10 border-2 border-[var(--background)]">
             <AvatarImage src={user.profilePicture} alt={displayName} />
-            <AvatarFallback>{displayName.charAt(0).toUpperCase()}</AvatarFallback>
+            <AvatarFallback>{initial}</AvatarFallback>
           </Avatar>
-        </div>
+        )}
       </button>
 
-      <button type="button" onClick={() => onOpenProfile(user._id)} className="min-w-0 flex-1 text-left">
-        <p className="truncate text-sm font-semibold leading-tight text-[var(--foreground)] hover:opacity-75">
-          {displayName}
-        </p>
-        <p className="mt-0.5 truncate text-xs leading-tight text-[var(--muted-foreground)]">
-          {story ? "Story available" : "Suggested for you"}
+      {/* name + subtitle */}
+      <button
+        type="button"
+        onClick={() => onOpenProfile(user._id)}
+        className="nova-user-row__meta"
+      >
+        <p className="nova-user-row__name">{displayName}</p>
+        <p className="nova-user-row__sub">
+          {story ? "New story" : "Suggested for you"}
         </p>
       </button>
 
+      {/* follow button */}
       <button
         type="button"
         onClick={() => onFollow(user._id)}
-        className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all active:scale-95 ${isFollowing ? "border border-[var(--border-strong)] text-[var(--foreground)] hover:bg-[var(--surface-2)]" : ""}`}
-        style={!isFollowing ? { background: "var(--primary)", color: "var(--primary-foreground)" } : undefined}
+        aria-pressed={isFollowing}
+        className={`nova-user-row__follow ${
+          isFollowing ? "is-following" : "is-follow"
+        }`}
       >
-        {isFollowing ? "Following" : "Follow"}
+        {isFollowing ? (
+          <>
+            <Check className="size-3" strokeWidth={2.6} />
+            Following
+          </>
+        ) : (
+          <>
+            <Plus className="size-3" strokeWidth={2.6} />
+            Follow
+          </>
+        )}
       </button>
     </div>
   );

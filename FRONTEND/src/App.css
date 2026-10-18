@@ -1,23 +1,15 @@
-/* Nova — app level */
+/* ═══════════════════════════════════════════════════════════
+   NOVA · App.css
+   শুধু app-specific overrides — সব reusable token/utility
+   index.css-এ থাকে। এখানে নতুন global rule add করো না।
+   ═══════════════════════════════════════════════════════════ */
 
+/* route transition wrapper (React Router) */
+.route-fade {
+  animation: var(--animate-fade-in);
+}
+
+/* Nova app shell — full viewport, respects dynamic mobile bar */
 .App {
   min-height: 100dvh;
-}
-
-.route-fade {
-  animation: fadeIn 0.4s ease both;
-}
-
-/* Focus outline — skip when inside neon-focus or has outline-none class */
-:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-
-/* Remove outline for inputs that handle their own focus styling */
-input:focus-visible,
-textarea:focus-visible,
-.neon-focus input:focus-visible,
-.neon-focus textarea:focus-visible {
-  outline: none !important;
 }

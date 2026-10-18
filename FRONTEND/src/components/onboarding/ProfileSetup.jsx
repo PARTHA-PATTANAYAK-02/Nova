@@ -8,6 +8,7 @@ import {
   Loader2,
   Sparkles,
   UserRound,
+  XCircle,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -16,8 +17,6 @@ import { setAuthUser } from "@/redux/authSlice";
 import { apiUrl } from "@/lib/api";
 import { getErrorMessage } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import WelcomeScreen from "@/components/onboarding/WelcomeScreen";
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -31,6 +30,7 @@ const ProfileSetup = () => {
   const navigate = useNavigate();
   const profileInputRef = useRef(null);
   const coverInputRef = useRef(null);
+
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
@@ -67,11 +67,8 @@ const ProfileSetup = () => {
   useEffect(() => {
     if (screen === "setup") return undefined;
     const timeout = setTimeout(() => {
-      if (screen === "intro") {
-        setScreen("setup");
-      } else {
-        navigate("/", { replace: true });
-      }
+      if (screen === "intro") setScreen("setup");
+      else navigate("/", { replace: true });
     }, WELCOME_DURATION_MS);
     return () => clearTimeout(timeout);
   }, [navigate, screen]);
@@ -101,7 +98,6 @@ const ProfileSetup = () => {
       setUsernameState("invalid");
       return;
     }
-
     setUsernameState("checking");
     try {
       const response = await axios.get(
@@ -117,12 +113,17 @@ const ProfileSetup = () => {
   const finishSetup = async (event) => {
     event?.preventDefault();
     const normalizedUsername = username.trim();
-    if (normalizedUsername && (normalizedUsername.length < 3 || normalizedUsername.length > 30)) {
+    if (
+      normalizedUsername &&
+      (normalizedUsername.length < 3 || normalizedUsername.length > 30)
+    ) {
       toast.error("Username must be 3–30 characters.");
       return;
     }
     if (normalizedUsername && !/^[a-zA-Z0-9._]+$/.test(normalizedUsername)) {
-      toast.error("Use only letters, numbers, dots, and underscores in your username.");
+      toast.error(
+        "Use only letters, numbers, dots, and underscores in your username.",
+      );
       return;
     }
 
@@ -151,12 +152,15 @@ const ProfileSetup = () => {
       }
       setScreen("complete");
     } catch (error) {
-      toast.error(getErrorMessage(error, "Unable to save your profile details."));
+      toast.error(
+        getErrorMessage(error, "Unable to save your profile details."),
+      );
     } finally {
       setSaving(false);
     }
   };
 
+  /* ═══════ INTRO / COMPLETE ═══════ */
   if (screen !== "setup") {
     if (screen === "complete") {
       return (
@@ -167,213 +171,223 @@ const ProfileSetup = () => {
     }
 
     return (
-      <main className="fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden bg-[#050914] text-center">
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(circle at center, rgba(34,64,138,0.38), transparent 62%)",
-          }}
-        />
-        <div className="relative z-10 flex flex-col items-center px-5">
-          <img
-            src="/logo.gif"
-            alt="Nova"
-            className="nova-welcome-logo h-auto max-h-[62vh] w-[min(82vw,620px)] object-contain"
-            style={{
-              animation:
-                "nova-welcome-zoom 4.4s cubic-bezier(0.2,0.7,0.25,1) forwards",
-            }}
-          />
-          <div className="nova-welcome-message mt-1 text-white">
-            <p className="flex items-center justify-center gap-2 text-xs font-medium tracking-[0.18em] text-white/65 sm:text-sm">
-              <Sparkles className="h-4 w-4" /> YOUR ORBIT STARTS HERE
+      <main className="nv-intro">
+        <span className="nv-intro__aurora" aria-hidden />
+        <div className="nv-intro__stage">
+          <div className="nv-intro__logo-wrap">
+            <img src="/logo.gif" alt="Nova" className="nv-intro__logo" />
+            <span className="nv-intro__logo-glow" aria-hidden />
+          </div>
+          <div className="nv-intro__message">
+            <p className="nv-intro__kicker">
+              <Sparkles className="size-3.5" strokeWidth={2.2} />
+              YOUR ORBIT STARTS HERE
             </p>
-            <h1 className="mt-2 text-2xl font-bold sm:text-3xl" style={{ fontFamily: "var(--font-display)" }}>
+            <h1 className="nv-intro__title">
               Welcome to Nova, {user?.fullName?.split(/\s+/)[0] || "friend"}
             </h1>
           </div>
         </div>
+        <div className="nv-intro__progress" aria-hidden />
       </main>
     );
   }
 
-  return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[var(--background)] px-4 py-8">
-      <div className="pointer-events-none absolute -left-20 top-10 h-64 w-64 rounded-full bg-[var(--primary)]/10 blur-3xl" />
-      <div className="pointer-events-none absolute -right-16 bottom-0 h-72 w-72 rounded-full bg-[var(--accent)]/10 blur-3xl" />
+  const firstName = user?.fullName?.split(/\s+/)[0] || "there";
 
-      <section className="card relative z-10 w-full max-w-2xl overflow-hidden animate-fade-in">
-        <div className="border-b border-[var(--border)] px-5 py-5 sm:px-7">
-          <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--primary)]">
-            <Sparkles className="h-4 w-4" /> One last thing
+  /* ═══════ SETUP SCREEN ═══════ */
+  return (
+    <main className="nv-onboard">
+      <section className="nv-onboard__card">
+        {/* ── HERO ── */}
+        <div className="nv-onboard__hero">
+          <button
+            type="button"
+            onClick={() => coverInputRef.current?.click()}
+            className="nv-onboard__cover"
+            style={
+              coverPreview
+                ? { backgroundImage: `url(${coverPreview})` }
+                : undefined
+            }
+            aria-label="Change cover photo"
+          >
+            <span className="nv-onboard__cover-scrim" aria-hidden />
+            <span className="nv-onboard__cover-cta">
+              <ImagePlus className="size-3.5" strokeWidth={2.2} />
+              {coverPreview ? "Change cover" : "Add cover"}
+            </span>
+          </button>
+
+          <div className="nv-onboard__identity">
+            <button
+              type="button"
+              onClick={() => profileInputRef.current?.click()}
+              className="nv-onboard__avatar-btn"
+              aria-label="Choose profile photo"
+            >
+              <span className="nv-onboard__avatar-ring" aria-hidden />
+              <Avatar className="nv-onboard__avatar">
+                <AvatarImage src={profilePreview} className="object-cover" />
+                <AvatarFallback className="nv-onboard__avatar-fallback">
+                  <UserRound className="size-9" strokeWidth={1.6} />
+                </AvatarFallback>
+              </Avatar>
+              <span className="nv-onboard__avatar-badge">
+                <ImagePlus className="size-3.5" strokeWidth={2.4} />
+              </span>
+            </button>
+            <div className="nv-onboard__identity-meta">
+              <h2 className="nv-onboard__name">
+                {user?.fullName || "Your name"}
+              </h2>
+              <p className="nv-onboard__email">{user?.email || ""}</p>
+            </div>
           </div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)] sm:text-3xl" style={{ fontFamily: "var(--font-display)" }}>
-            Make Nova feel like you
+        </div>
+
+        {/* ── HEADINGS ── */}
+        <div className="nv-onboard__intro">
+          <span className="nv-onboard__eyebrow">
+            <Sparkles className="size-3.5" strokeWidth={2.2} />
+            One last thing, {firstName}
+          </span>
+          <h1 className="nv-onboard__title">
+            Make Nova <em>feel like you.</em>
           </h1>
-          <p className="mt-1.5 text-sm text-[var(--muted-foreground)]">
-            Add a few details to your profile. Everything here is optional, and you can update it later.
+          <p className="nv-onboard__sub">
+            Everything below is optional — you can change it any time.
           </p>
         </div>
 
-        <form onSubmit={finishSetup} className="space-y-6 p-5 sm:p-7">
-          <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]">
-            <button
-              type="button"
-              onClick={() => coverInputRef.current?.click()}
-              className="group relative flex h-36 w-full items-center justify-center overflow-hidden sm:h-44"
-              style={
-                coverPreview
-                  ? { backgroundImage: `url(${coverPreview})`, backgroundSize: "cover", backgroundPosition: "center" }
-                  : { background: "linear-gradient(125deg, var(--primary) 0%, var(--primary-hover) 55%, var(--accent) 100%)" }
-              }
-            >
-              <div className="absolute inset-0 bg-black/20 transition-colors group-hover:bg-black/35" />
-              <span className="relative inline-flex items-center gap-2 rounded-full border border-white/30 bg-black/30 px-3.5 py-2 text-xs font-semibold text-white backdrop-blur-sm">
-                <ImagePlus className="h-4 w-4" />
-                {coverPreview ? "Change cover photo" : "Add a cover photo"}
-              </span>
-            </button>
-            <div className="flex items-center gap-4 px-4 py-4">
-              <button
-                type="button"
-                onClick={() => profileInputRef.current?.click()}
-                className="relative -mt-12 shrink-0 rounded-full ring-4 ring-[var(--surface)]"
-                aria-label="Choose profile photo"
-              >
-                <Avatar className="h-20 w-20 border border-[var(--border)] sm:h-24 sm:w-24">
-                  <AvatarImage src={profilePreview} className="object-cover" />
-                  <AvatarFallback className="bg-[var(--primary)]/10 text-[var(--primary)]">
-                    <UserRound className="h-8 w-8" />
-                  </AvatarFallback>
-                </Avatar>
-                <span className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--surface)] bg-[var(--primary)] text-white">
-                  <ImagePlus className="h-3.5 w-3.5" />
-                </span>
-              </button>
-              <div className="min-w-0 pt-1">
-                <p className="truncate text-sm font-semibold text-[var(--foreground)]">{user?.fullName}</p>
-                <p className="text-xs text-[var(--muted-foreground)]">Add a profile photo</p>
-              </div>
-            </div>
-            <input
-              ref={coverInputRef}
-              type="file"
-              accept="image/*"
-              onChange={(event) => selectImage(event, setCoverPhoto)}
-              className="hidden"
-            />
-            <input
-              ref={profileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={(event) => selectImage(event, setProfilePhoto)}
-              className="hidden"
-            />
-            <p className="px-4 pb-3 text-[11px] text-[var(--muted-foreground)]">
-              Profile and cover photos · JPG, PNG or WEBP · max 5 MB each
-            </p>
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <label htmlFor="setup-username" className="text-xs font-medium text-[var(--foreground)]">
-                Username <span className="text-[var(--muted-foreground)]">(optional)</span>
+        {/* ── FIELDS ── */}
+        <form onSubmit={finishSetup} className="nv-onboard__body">
+          <div className="nv-onboard__grid">
+            {/* username */}
+            <div className="nv-field">
+              <label htmlFor="setup-username" className="nv-field__label">
+                Username <span className="nv-field__opt">· optional</span>
               </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--muted-foreground)]">@</span>
-                <Input
+              <div className="nv-field__control">
+                <span className="nv-field__at" aria-hidden>
+                  @
+                </span>
+                <input
                   id="setup-username"
                   value={username}
-                  onChange={(event) => {
-                    setUsername(event.target.value.toLowerCase());
+                  onChange={(e) => {
+                    setUsername(e.target.value.toLowerCase());
                     setUsernameState("idle");
                   }}
                   onBlur={checkUsername}
                   placeholder="yourname"
                   minLength={3}
                   maxLength={30}
-                  className="pl-8"
                   autoComplete="username"
+                  className="nv-field__input nv-field__input--at"
                 />
+                {usernameState === "checking" && (
+                  <Loader2 className="nv-field__spinner size-4 animate-spin" />
+                )}
+                {usernameState === "available" && (
+                  <CheckCircle2
+                    className="nv-field__check size-5"
+                    strokeWidth={2.6}
+                  />
+                )}
+                {(usernameState === "taken" || usernameState === "invalid") && (
+                  <XCircle className="nv-field__x size-5" strokeWidth={2.6} />
+                )}
               </div>
-              {usernameState !== "idle" && (
-                <p className={`flex items-center gap-1 text-[11px] ${
-                  usernameState === "available"
-                    ? "text-[var(--success)]"
-                    : usernameState === "checking"
-                      ? "text-[var(--muted-foreground)]"
-                      : "text-[var(--danger)]"
-                }`}>
-                  {usernameState === "available" && <CheckCircle2 className="h-3 w-3" />}
-                  {usernameState === "checking"
-                    ? "Checking username…"
-                    : usernameState === "available"
-                      ? "Username is available"
-                      : usernameState === "taken"
-                        ? "That username is already taken"
-                        : usernameState === "invalid"
-                          ? "Username must be 3–30 characters"
-                          : "Couldn't check right now. It will be checked when you save."}
-                </p>
-              )}
             </div>
 
-            <div className="space-y-1.5">
-              <label htmlFor="setup-dob" className="text-xs font-medium text-[var(--foreground)]">
-                Date of birth <span className="text-[var(--muted-foreground)]">(optional)</span>
+            {/* dob */}
+            <div className="nv-field">
+              <label htmlFor="setup-dob" className="nv-field__label">
+                Birthday <span className="nv-field__opt">· optional</span>
               </label>
-              <div className="relative">
-                <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-                <Input
+              <div className="nv-field__control">
+                <CalendarDays
+                  className="nv-field__icon size-4"
+                  strokeWidth={1.9}
+                />
+                <input
                   id="setup-dob"
                   type="date"
                   value={dateOfBirth}
                   max={todayDate}
-                  onChange={(event) => setDateOfBirth(event.target.value)}
-                  className="pl-10"
+                  onChange={(e) => setDateOfBirth(e.target.value)}
+                  className="nv-field__input nv-field__input--icon"
                 />
               </div>
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label htmlFor="setup-bio" className="text-xs font-medium text-[var(--foreground)]">
-              About you <span className="text-[var(--muted-foreground)]">(optional)</span>
-            </label>
-            <Textarea
-              id="setup-bio"
-              value={bio}
-              onChange={(event) => setBio(event.target.value)}
-              placeholder="A little about yourself…"
-              maxLength={300}
-              rows={3}
-              className="resize-none"
-            />
-            <p className="text-right text-[11px] text-[var(--muted-foreground)]">{bio.length}/300</p>
+          {/* bio */}
+          <div className="nv-field">
+            <div className="nv-field__label-row">
+              <label htmlFor="setup-bio" className="nv-field__label">
+                About you <span className="nv-field__opt">· optional</span>
+              </label>
+              <span className="nv-field__count">{bio.length}/300</span>
+            </div>
+            <div className="nv-field__control nv-field__control--area">
+              <textarea
+                id="setup-bio"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="A little about yourself…"
+                maxLength={300}
+                rows={4}
+                className="nv-field__textarea"
+              />
+            </div>
           </div>
 
-          <div className="flex flex-col-reverse gap-3 border-t border-[var(--border)] pt-5 sm:flex-row sm:justify-between">
+          {/* footer */}
+          <footer className="nv-onboard__foot">
             <button
               type="button"
               onClick={() => setScreen("complete")}
               disabled={saving}
-              className="rounded-full px-4 py-2.5 text-sm font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--foreground)] disabled:opacity-50"
+              className="nv-onboard__skip"
             >
               Skip for now
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
+              className="nv-onboard__continue"
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {saving ? "Saving…" : "Continue to Nova"}
-              {!saving && <ArrowRight className="h-4 w-4" />}
+              {saving ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                <>
+                  Continue
+                  <ArrowRight className="size-4" strokeWidth={2.2} />
+                </>
+              )}
             </button>
-          </div>
+          </footer>
         </form>
+
+        <input
+          ref={coverInputRef}
+          type="file"
+          accept="image/*"
+          onChange={(e) => selectImage(e, setCoverPhoto)}
+          className="hidden"
+        />
+        <input
+          ref={profileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={(e) => selectImage(e, setProfilePhoto)}
+          className="hidden"
+        />
       </section>
     </main>
   );

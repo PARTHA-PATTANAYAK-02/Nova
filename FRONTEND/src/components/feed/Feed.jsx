@@ -1,42 +1,42 @@
 import React from "react";
+import { useSelector } from "react-redux";
 import StoriesBar from "@/components/feed/StoriesBar";
 import Posts from "@/components/feed/Posts";
+import { getDisplayName } from "@/lib/utils";
+
+/* time-based greeting */
+const getGreeting = () => {
+  const h = new Date().getHours();
+  if (h < 5) return "Good night";
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  if (h < 21) return "Good evening";
+  return "Good night";
+};
+
+/* "Wednesday · 9 October" style date */
+const getDateLine = () =>
+  new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
 
 const Feed = ({ requestState }) => {
+  const { user } = useSelector((s) => s.auth);
+  const firstName = getDisplayName(user, "there").split(" ")[0];
+
   return (
-    <div className="max-w-[600px] mx-auto px-3 sm:px-4 py-4 animate-fade-in">
-      {/* Stories */}
+    <div className="max-w-[640px] mx-auto px-3 sm:px-4 py-4 sm:py-6 animate-fade-in">
       <StoriesBar />
 
-      {/* Header */}
-      <header className="mb-5 flex items-end justify-between">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
-            Your feed
-          </p>
-          <h1
-            className="mt-1 text-2xl md:text-3xl font-bold tracking-tight text-[var(--foreground)]"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Today's stories
-          </h1>
-        </div>
-
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--surface)] border border-[var(--border)]">
-          <span className="relative flex h-1.5 w-1.5">
-            <span
-              className="absolute inline-flex h-full w-full rounded-full opacity-60 animate-ping"
-              style={{ background: "var(--success)" }}
-            />
-            <span
-              className="relative inline-flex h-1.5 w-1.5 rounded-full"
-              style={{ background: "var(--success)" }}
-            />
-          </span>
-          <span className="text-[11px] font-medium text-[var(--muted-foreground)]">
-            Live
-          </span>
-        </div>
+      <header className="mb-6 mt-4 px-1">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]/70">
+          {getDateLine()}
+        </p>
+        <h1 className="mt-2 font-display text-[26px] sm:text-[30px] font-semibold tracking-[-.025em] text-[var(--foreground)] leading-tight">
+          {getGreeting()}, <span className="text-grad">{firstName}</span>
+        </h1>
       </header>
 
       <Posts requestState={requestState} />

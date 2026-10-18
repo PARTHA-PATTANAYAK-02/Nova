@@ -24,12 +24,36 @@ const formatRelativeTime = (value) => {
   for (const [limit, candidate] of units) {
     unit = candidate;
     if (abs < limit) break;
-    valueInUnit = Math.round(seconds / (limit === 60 ? 60 : limit === 3600 ? 3600 : limit === 86400 ? 86400 : limit === 604800 ? 604800 : limit === 2629800 ? 2629800 : 31557600));
+    valueInUnit = Math.round(
+      seconds /
+        (limit === 60
+          ? 60
+          : limit === 3600
+            ? 3600
+            : limit === 86400
+              ? 86400
+              : limit === 604800
+                ? 604800
+                : limit === 2629800
+                  ? 2629800
+                  : 31557600),
+    );
   }
-  const divisor = { second: 1, minute: 60, hour: 3600, day: 86400, week: 604800, month: 2629800, year: 31557600 }[unit];
+  const divisor = {
+    second: 1,
+    minute: 60,
+    hour: 3600,
+    day: 86400,
+    week: 604800,
+    month: 2629800,
+    year: 31557600,
+  }[unit];
   valueInUnit = Math.round(seconds / divisor);
   if (unit === "second" && abs < 10) return "now";
-  return new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(valueInUnit, unit);
+  return new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(
+    valueInUnit,
+    unit,
+  );
 };
 
 const Comment = ({ comment }) => {
@@ -39,22 +63,35 @@ const Comment = ({ comment }) => {
   const createdAt = formatRelativeTime(comment?.createdAt);
   if (!commentText) return null;
 
+  const initial = authorName.charAt(0).toUpperCase();
+
   return (
-    <article className="comment-premium">
-      <Link to={`/profile/${author._id}`} className="comment-premium__avatar-link" aria-label={`${authorName} profile`}>
-        <Avatar className="comment-premium__avatar">
+    <article className="nova-comment">
+      <Link
+        to={`/profile/${author._id}`}
+        className="nova-comment__avatar"
+        aria-label={`${authorName} profile`}
+      >
+        <span className="nova-comment__avatar-ring" aria-hidden />
+        <Avatar className="nova-comment__avatar-img">
           <AvatarImage src={author.profilePicture} alt={authorName} />
-          <AvatarFallback>{authorName.charAt(0).toUpperCase()}</AvatarFallback>
+          <AvatarFallback>{initial}</AvatarFallback>
         </Avatar>
       </Link>
-      <div className="comment-premium__content">
-        <div className="comment-premium__bubble">
-          <Link to={`/profile/${author._id}`} className="comment-premium__author">{authorName}</Link>{" "}
-          <span className="comment-premium__text">{commentText}</span>
-        </div>
-        <div className="comment-premium__meta">
-          {createdAt && <time dateTime={comment.createdAt}>{createdAt}</time>}
-        </div>
+
+      <div className="nova-comment__content">
+        <p className="nova-comment__line">
+          <Link to={`/profile/${author._id}`} className="nova-comment__author">
+            {authorName}
+          </Link>{" "}
+          <span className="nova-comment__text">{commentText}</span>
+        </p>
+
+        {createdAt && (
+          <div className="nova-comment__meta">
+            <time dateTime={comment.createdAt}>{createdAt}</time>
+          </div>
+        )}
       </div>
     </article>
   );
