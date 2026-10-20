@@ -24,6 +24,7 @@ import useGetSuggestedUsers from "@/hooks/useGetSuggestedUsers";
 import { ErrorState, LoadingState } from "@/components/common/RequestState";
 import { useLocation } from "react-router-dom";
 import { apiUrl } from "@/lib/api";
+import { playMessageSound } from "@/lib/sound";
 import ChatUserMenu from "@/components/chat/ChatUserMenu";
 
 const ChatPage = () => {
@@ -205,6 +206,7 @@ const ChatPage = () => {
     const nextList = [...(messagesRef.current || []), optimisticMsg];
     messagesRef.current = nextList;
     dispatch(setMessages(nextList));
+    playMessageSound();
 
     setTextMessage("");
     setReplyingTo(null);

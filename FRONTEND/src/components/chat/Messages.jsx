@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { updateMessageReactions, clearReactionNotice } from "@/redux/chatSlice";
 import { apiUrl } from "@/lib/api";
 import { getDisplayName } from "@/lib/utils";
+import { playReactionSound } from "@/lib/sound";
 import useGetAllMessage from "@/hooks/useGetAllMessage";
 import useGetRTM from "@/hooks/useGetRTM";
 import { ErrorState, LoadingState } from "@/components/common/RequestState";
@@ -195,6 +196,7 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
 
     setReactionPopup(reactionNotice.emoji);
     dispatch(clearReactionNotice());
+    playReactionSound();
     const timer = setTimeout(() => setReactionPopup(null), 2600);
 
     return () => clearTimeout(timer);
@@ -229,6 +231,7 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
 
     setJustReacted({ messageId: message._id, emoji });
     setTimeout(() => setJustReacted(null), 800);
+    playReactionSound();
 
     try {
       setReactingMessageId(message._id);

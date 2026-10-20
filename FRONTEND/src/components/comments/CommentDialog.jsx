@@ -16,9 +16,9 @@ import { toast } from "sonner";
 import { setPosts } from "@/redux/postSlice";
 import { updateBookmarks } from "@/redux/authSlice";
 import { Textarea } from "@/components/ui/textarea";
-import { getErrorMessage } from "@/lib/utils";
+import { getErrorMessage, getDisplayName } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
-import { getDisplayName } from "@/lib/utils";
+import { playLikeSound, playCommentSound } from "@/lib/sound";
 
 /* ═══════════════════════════════════════════════════════════
    SKELETON
@@ -170,6 +170,7 @@ const CommentDialog = ({ open, setOpen }) => {
 
     const wasLiked = isLikedByMe;
     const nowLiked = !wasLiked;
+    playLikeSound(nowLiked);
 
     setPostDetail((prev) => {
       if (!prev) return prev;
@@ -278,6 +279,7 @@ const CommentDialog = ({ open, setOpen }) => {
         dispatch(setPosts(updatedPosts));
 
         toast.success("Comment added");
+        playCommentSound();
         setText("");
 
         axios
@@ -511,15 +513,23 @@ const CommentDialog = ({ open, setOpen }) => {
                     onClick={handleLikeToggle}
                     disabled={liking}
                     aria-label={isLikedByMe ? "Unlike" : "Like"}
-                    className={`nova-comment-dialog__stat ${
+                    className={`nova-comment-dialog__stat relative ${
                       isLikedByMe ? "is-liked" : ""
-                    } ${heartPulse ? "is-pulsing" : ""}`}
+                    } ${heartPulse ? "is-pulsing nova-like-pop" : ""}`}
                   >
                     <Heart
-                      className="size-[18px]"
+                      className={`size-[18px] transition-transform duration-200 ${
+                        heartPulse ? "scale-125" : ""
+                      }`}
                       strokeWidth={2}
                       fill={isLikedByMe ? "currentColor" : "none"}
                     />
+                    {heartPulse && (
+                      <span
+                        className="absolute inset-0 rounded-full border-2 border-[#ff315d] animate-ping opacity-75 pointer-events-none"
+                        aria-hidden
+                      />
+                    )}
                     <span className="nova-comment-dialog__stat-count">
                       {likeCount}
                     </span>

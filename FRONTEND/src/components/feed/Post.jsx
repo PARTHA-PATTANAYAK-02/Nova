@@ -33,6 +33,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { updateBookmarks, updateFollowing } from "@/redux/authSlice";
 import { getDisplayName, getErrorMessage } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
+import { playLikeSound, playCommentSound } from "@/lib/sound";
 
 const formatTime = (seconds) => {
   if (!Number.isFinite(seconds)) return "0:00";
@@ -59,6 +60,7 @@ const Post = ({ post }) => {
   const [videoVolume, setVideoVolume] = useState(1);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [heartBurst, setHeartBurst] = useState(false);
+  const [isLikeAnimating, setIsLikeAnimating] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
 
   /* ── ADAPTIVE MEDIA ASPECT ───────────────────── */
@@ -76,6 +78,7 @@ const Post = ({ post }) => {
   const videoRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
   const heartTimeoutRef = useRef(null);
+  const likeAnimTimeoutRef = useRef(null);
   const lastTouchRef = useRef(0);
 
   const isOwnPost = user?._id === post?.author?._id;
@@ -190,6 +193,7 @@ const Post = ({ post }) => {
     () => () => {
       window.clearTimeout(controlsTimeoutRef.current);
       window.clearTimeout(heartTimeoutRef.current);
+      window.clearTimeout(likeAnimTimeoutRef.current);
     },
     [],
   );
@@ -219,7 +223,13 @@ const Post = ({ post }) => {
 
     setLiked(nextLiked);
     setPostLike(nextCount);
-    triggerAnimation(likeRef, "nova-like-pop");
+    setIsLikeAnimating(true);
+    window.clearTimeout(likeAnimTimeoutRef.current);
+    likeAnimTimeoutRef.current = window.setTimeout(
+      () => setIsLikeAnimating(false),
+      650,
+    );
+    playLikeSound(nextLiked);
     const updated = posts.map((item) =>
       item._id === post._id
         ? {
@@ -289,6 +299,7 @@ const Post = ({ post }) => {
       );
       if (res.data.success) {
         triggerAnimation(commentRef, "nova-pop");
+        playCommentSound();
         const next = [...comment, res.data.comment];
         setComment(next);
         dispatch(
@@ -809,18 +820,28 @@ const Post = ({ post }) => {
               disabled={actionLoading === "like"}
               aria-label={liked ? "Unlike post" : "Like post"}
               className={`
-                size-10 rounded-full flex items-center justify-center
+                relative size-10 rounded-full flex items-center justify-center
                 transition-all duration-200 outline-none
                 active:scale-90
                 ${liked ? "text-[#ff315d]" : "text-[var(--foreground)] hover:text-[#ff315d]"}
                 hover:bg-[var(--danger)]/8
+                ${isLikeAnimating ? "nova-like-pop" : ""}
               `}
             >
               <Heart
                 size={22}
                 strokeWidth={2.1}
                 fill={liked ? "currentColor" : "none"}
+                className={`transition-transform duration-200 ${
+                  isLikeAnimating ? "scale-125" : ""
+                }`}
               />
+              {isLikeAnimating && (
+                <span
+                  className="absolute inset-0 rounded-full border-2 border-[#ff315d] animate-ping opacity-75 pointer-events-none"
+                  aria-hidden
+                />
+              )}
             </button>
             <span className="text-[13px] font-semibold tabular-nums text-[var(--foreground)]">
               {postLike > 0 ? postLike.toLocaleString() : ""}

@@ -27,6 +27,7 @@ import axios from "axios";
 import { removePost, setSelectedPost, updatePost } from "./redux/postSlice";
 import ProtectedRoutes from "@/components/common/ProtectedRoutes";
 import { API_BASE_URL, apiUrl } from "./lib/api";
+import { playMessageSound, playReactionSound } from "./lib/sound";
 
 const browserRouter = createBrowserRouter([
   {
@@ -249,6 +250,9 @@ function App() {
 
       socketio.on("newMessage", (message) => {
         dispatch(appendMessage(message));
+        if (message.senderId !== user?._id) {
+          playMessageSound();
+        }
       });
 
       socketio.on("notification", (notification) => {
@@ -280,6 +284,25 @@ function App() {
 
       socketio.on("postUpdated", (post) => {
         if (post?._id) dispatch(updatePost(post));
+      });
+
+      socketio.on("messageReactionUpdated", (update) => {
+        const otherId =
+          update?.senderId === user?._id
+            ? update?.receiverId
+            : update?.senderId;
+        const isCurrentChatOpen =
+          window.location.pathname === "/chat" &&
+          selectedUserRef.current?._id === otherId;
+
+        if (
+          !isCurrentChatOpen &&
+          update?.actorId &&
+          update.actorId !== user?._id &&
+          update?.emoji
+        ) {
+          playReactionSound();
+        }
       });
 
       socketio.on("postDeleted", (postId) => {
