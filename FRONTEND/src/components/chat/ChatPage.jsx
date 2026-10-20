@@ -5,7 +5,7 @@ import { setSelectedUser } from "@/redux/authSlice";
 import {
   MessageCircle,
   Search,
-  ArrowLeft,
+  Menu,
   Send,
   X,
   Sparkles,
@@ -32,20 +32,24 @@ const ChatPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [sending, setSending] = useState(false);
 
-  const [showContacts, setShowContacts] = useState(
-    () => window.innerWidth < 768,
-  );
+  const location = useLocation();
+
+  // On mobile: always show contacts side panel first unless explicitly opened for a specific user
+  const [showContacts, setShowContacts] = useState(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      return !location.state?.user?._id;
+    }
+    return true;
+  });
   const [collapsed, setCollapsed] = useState(false);
 
   const typingTimeoutRef = useRef(null);
   const messagesRef = useRef([]);
   const inputRef = useRef(null);
-  const location = useLocation();
 
   const isMobileRef = useRef(
     typeof window !== "undefined" && window.innerWidth < 768,
   );
-  const historyGuardRef = useRef(false);
 
   const { user, suggestedUsers, selectedUser } = useSelector((s) => s.auth);
   const { onlineUsers, messages } = useSelector((s) => s.chat);
@@ -61,22 +65,52 @@ const ChatPage = () => {
   const othersOnline = (onlineUsers || []).filter((id) => id !== user?._id);
   const othersOnlineCount = othersOnline.length;
 
+  /* ---------- RESIZE LISTENER ---------- */
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      isMobileRef.current = mobile;
+      if (!mobile) {
+        setShowContacts(true);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  /* ---------- ROUTE CHANGE: ON MOBILE SHOW CONTACTS FIRST ---------- */
+  useEffect(() => {
+    const isMobile = window.innerWidth < 768;
+    if (isMobile) {
+      if (location.state?.user?._id) {
+        setShowContacts(false);
+      } else {
+        setShowContacts(true);
+      }
+    }
+  }, [location.pathname, location.key, location.state]);
+
   /* ---------- CLOSE CONTACTS (mobile) ---------- */
   const closeContacts = useCallback(() => {
-    setShowContacts(false);
-  }, []);
+    if (selectedUser) {
+      setShowContacts(false);
+    }
+  }, [selectedUser]);
 
   /* ---------- LOCATION USER ---------- */
   useEffect(() => {
     if (location.state?.user?._id) {
       dispatch(setSelectedUser(location.state.user));
+      setShowContacts(false);
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, [dispatch, location.state]);
 
-  /* ---------- AUTO SELECT LATEST ---------- */
+  /* ---------- AUTO SELECT LATEST (desktop only) ---------- */
   useEffect(() => {
+    const isMobile = window.innerWidth < 768;
     if (
+      !isMobile &&
       !selectedUser &&
       !location.state?.user?._id &&
       !conversationRequest.loading &&
@@ -189,12 +223,6 @@ const ChatPage = () => {
   useEffect(() => () => clearTimeout(typingTimeoutRef.current), [selectedUser]);
 
   useEffect(() => {
-    if (selectedUser && isMobileRef.current) {
-      setShowContacts(false);
-    }
-  }, [selectedUser]);
-
-  useEffect(() => {
     setReplyingTo(null);
   }, [selectedUser?._id]);
 
@@ -261,14 +289,17 @@ const ChatPage = () => {
                 <span className="nova-chat__solo-pill">Solo</span>
               )}
 
-              <button
-                type="button"
-                onClick={closeContacts}
-                className="nova-chat__contacts-close md:hidden"
-                aria-label="Close contacts"
-              >
-                <X className="size-4" strokeWidth={2.2} />
-              </button>
+              {selectedUser && (
+                <button
+                  type="button"
+                  onClick={closeContacts}
+                  className="nova-chat__contacts-close md:hidden"
+                  aria-label="Close contacts"
+                  title="Close"
+                >
+                  <X className="size-4" strokeWidth={2.2} />
+                </button>
+              )}
             </div>
           </div>
 
@@ -329,7 +360,9 @@ const ChatPage = () => {
                 key={u._id}
                 onClick={() => {
                   dispatch(setSelectedUser(u));
-                  if (isMobileRef.current) closeContacts();
+                  if (window.innerWidth < 768) {
+                    setShowContacts(false);
+                  }
                 }}
                 className={`nova-chat__contact ${
                   isSelected ? "is-selected" : ""
@@ -392,12 +425,13 @@ const ChatPage = () => {
         >
           <div className="nova-chat__window-head">
             <button
-              className="nova-chat__back md:hidden"
+              type="button"
+              className="nova-chat__menu-btn md:hidden"
               onClick={() => setShowContacts(true)}
-              aria-label="Back to contacts"
-              title="Back"
+              aria-label="Open chats menu"
+              title="Menu"
             >
-              <ArrowLeft className="size-[18px]" strokeWidth={2.4} />
+              <Menu className="size-5" strokeWidth={2.2} />
             </button>
 
             <ChatUserMenu user={selectedUser}>
