@@ -11,7 +11,7 @@ import {
 import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
 import { toast } from "sonner";
-import { updateMessageReactions } from "@/redux/chatSlice";
+import { updateMessageReactions, clearReactionNotice } from "@/redux/chatSlice";
 import { apiUrl } from "@/lib/api";
 import { getDisplayName } from "@/lib/utils";
 import useGetAllMessage from "@/hooks/useGetAllMessage";
@@ -194,41 +194,8 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
       return undefined;
 
     setReactionPopup(reactionNotice.emoji);
+    dispatch(clearReactionNotice());
     const timer = setTimeout(() => setReactionPopup(null), 2600);
-
-    try {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (AC) {
-        const ctx = new AC();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sine";
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.onended = () => ctx.close();
-        ctx
-          .resume()
-          .then(() => {
-            const t = ctx.currentTime;
-            osc.frequency.setValueAtTime(660, t);
-            osc.frequency.setValueAtTime(880, t + 0.09);
-            gain.gain.setValueAtTime(0.0001, t);
-            gain.gain.exponentialRampToValueAtTime(0.08, t + 0.025);
-            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
-            osc.start(t);
-            osc.stop(t + 0.25);
-          })
-          .catch(() => {
-            try {
-              ctx.close();
-            } catch {
-              /* noop */
-            }
-          });
-      }
-    } catch {
-      /* silent */
-    }
 
     return () => clearTimeout(timer);
   }, [

@@ -43,6 +43,9 @@ const chatSlice = createSlice({
         };
       }
     },
+    clearReactionNotice: (state) => {
+      state.reactionNotice = null;
+    },
   },
 });
 export const {
@@ -51,5 +54,6 @@ export const {
   appendMessage,
   updateMessageStatus,
   updateMessageReactions,
+  clearReactionNotice,
 } = chatSlice.actions;
 export default chatSlice.reducer;

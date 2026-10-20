@@ -50,6 +50,7 @@ const ChatPage = () => {
   const isMobileRef = useRef(
     typeof window !== "undefined" && window.innerWidth < 768,
   );
+  const isConversationPushedRef = useRef(false);
 
   const { user, suggestedUsers, selectedUser } = useSelector((s) => s.auth);
   const { onlineUsers, messages } = useSelector((s) => s.chat);
@@ -78,6 +79,39 @@ const ChatPage = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  /* ---------- POPSTATE: MOBILE BACK NAVIGATION ---------- */
+  useEffect(() => {
+    const handlePopState = () => {
+      const isMobile = window.innerWidth < 768;
+      if (isMobile) {
+        if (!showContacts) {
+          // If in conversation view on mobile, pressing device back goes to side panel
+          setShowContacts(true);
+          isConversationPushedRef.current = false;
+        }
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [showContacts]);
+
+  /* ---------- OPEN CONVERSATION (mobile-history-aware) ---------- */
+  const openConversation = useCallback(
+    (targetUser) => {
+      dispatch(setSelectedUser(targetUser));
+      const isMobile = window.innerWidth < 768;
+      if (isMobile) {
+        if (!isConversationPushedRef.current) {
+          window.history.pushState({ novaChatView: "conversation" }, "");
+          isConversationPushedRef.current = true;
+        }
+        setShowContacts(false);
+      }
+    },
+    [dispatch],
+  );
+
   /* ---------- ROUTE CHANGE: ON MOBILE SHOW CONTACTS FIRST ---------- */
   useEffect(() => {
     const isMobile = window.innerWidth < 768;
@@ -93,6 +127,11 @@ const ChatPage = () => {
   /* ---------- CLOSE CONTACTS (mobile) ---------- */
   const closeContacts = useCallback(() => {
     if (selectedUser) {
+      const isMobile = window.innerWidth < 768;
+      if (isMobile && !isConversationPushedRef.current) {
+        window.history.pushState({ novaChatView: "conversation" }, "");
+        isConversationPushedRef.current = true;
+      }
       setShowContacts(false);
     }
   }, [selectedUser]);
@@ -101,7 +140,14 @@ const ChatPage = () => {
   useEffect(() => {
     if (location.state?.user?._id) {
       dispatch(setSelectedUser(location.state.user));
-      setShowContacts(false);
+      const isMobile = window.innerWidth < 768;
+      if (isMobile) {
+        if (!isConversationPushedRef.current) {
+          window.history.pushState({ novaChatView: "conversation" }, "");
+          isConversationPushedRef.current = true;
+        }
+        setShowContacts(false);
+      }
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, [dispatch, location.state]);
@@ -358,12 +404,7 @@ const ChatPage = () => {
             return (
               <button
                 key={u._id}
-                onClick={() => {
-                  dispatch(setSelectedUser(u));
-                  if (window.innerWidth < 768) {
-                    setShowContacts(false);
-                  }
-                }}
+                onClick={() => openConversation(u)}
                 className={`nova-chat__contact ${
                   isSelected ? "is-selected" : ""
                 }`}
@@ -427,7 +468,13 @@ const ChatPage = () => {
             <button
               type="button"
               className="nova-chat__menu-btn md:hidden"
-              onClick={() => setShowContacts(true)}
+              onClick={() => {
+                if (isConversationPushedRef.current) {
+                  window.history.back();
+                } else {
+                  setShowContacts(true);
+                }
+              }}
               aria-label="Open chats menu"
               title="Menu"
             >
