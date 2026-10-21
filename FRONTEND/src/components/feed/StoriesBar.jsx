@@ -128,7 +128,7 @@ const StoriesBar = () => {
   return (
     <>
       <div className="mb-2">
-        <div className="flex gap-3.5 overflow-x-auto px-2 pt-2 pb-2.5 scroll-hide items-center">
+        <div className="-mx-3 sm:mx-0 px-3 sm:px-2 flex gap-3.5 overflow-x-auto pt-2 pb-2.5 scroll-hide items-center">
           {/* YOUR STORY */}
           <div className="relative flex w-[76px] shrink-0 flex-col items-center gap-2">
             <button

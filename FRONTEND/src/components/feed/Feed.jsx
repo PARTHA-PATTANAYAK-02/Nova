@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSelector } from "react-redux";
+import { Link } from "react-router-dom";
 import StoriesBar from "@/components/feed/StoriesBar";
 import Posts from "@/components/feed/Posts";
+import MobileSuggested from "@/components/users/MobileSuggested";
 import { getDisplayName } from "@/lib/utils";
-import { ArrowDown, Loader2, RefreshCw } from "lucide-react";
+import { ArrowDown, Loader2, MessageCircle, RefreshCw } from "lucide-react";
 import { playCommentSound } from "@/lib/sound";
 
 /* time-based greeting */
@@ -34,6 +36,7 @@ const Feed = ({ requestState }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const startYRef = useRef(0);
   const isPullingRef = useRef(false);
+  const rafRef = useRef(null);
   const containerRef = useRef(null);
 
   const handleTouchStart = (e) => {
@@ -46,15 +49,23 @@ const Feed = ({ requestState }) => {
     if (!isPullingRef.current || isRefreshing || window.scrollY > 4) return;
     const currentY = e.touches[0].clientY;
     const diff = currentY - startYRef.current;
-    if (diff > 0) {
-      // Elastic rubber-band resistance
-      const distance = Math.min(diff * 0.45, 95);
-      setPullY(distance);
-    } else {
-      setPullY(0);
+    if (diff > 10) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        const distance = Math.min((diff - 10) * 0.42, 90);
+        setPullY(distance);
+      });
+    } else if (diff < 0) {
       isPullingRef.current = false;
+      if (pullY !== 0) setPullY(0);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
 
   const handleTouchEnd = async () => {
     if (!isPullingRef.current) return;
@@ -118,6 +129,27 @@ const Feed = ({ requestState }) => {
         </div>
       </div>
 
+      {/* ── Mobile Top Brand Header ── */}
+      <div className="md:hidden flex items-center justify-between pb-3.5 pt-0.5 px-1">
+        <Link to="/" className="flex items-center gap-2.5 outline-none group">
+          <span className="nvs2-logo-orb size-8 shrink-0">
+            <span className="nvs2-logo-halo" aria-hidden="true" />
+            <img src="/logo.gif" alt="Nova" className="nvs2-logo-img size-7 object-contain" />
+          </span>
+          <span className="text-grad font-display text-[22px] font-semibold tracking-[-.02em] leading-none">
+            Nova
+          </span>
+        </Link>
+
+        <Link
+          to="/chat"
+          className="size-9 rounded-full bg-[var(--surface)]/80 backdrop-blur-xl border border-[var(--border)]/70 flex items-center justify-center text-[var(--foreground)]/80 hover:text-[var(--primary)] active:scale-95 transition-all shadow-sm outline-none"
+          aria-label="Direct messages"
+        >
+          <MessageCircle className="size-4.5" strokeWidth={1.9} />
+        </Link>
+      </div>
+
       <StoriesBar />
 
       <header className="mb-6 mt-4 px-1">
@@ -130,6 +162,11 @@ const Feed = ({ requestState }) => {
       </header>
 
       <Posts requestState={requestState} />
+
+      {/* ── Suggested Users (Mobile/Tablet — placed neatly under posts) ── */}
+      <div className="lg:hidden mt-8 mb-4">
+        <MobileSuggested />
+      </div>
     </div>
   );
 };

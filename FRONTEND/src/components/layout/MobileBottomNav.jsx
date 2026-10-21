@@ -160,12 +160,13 @@ const MobileBottomNav = () => {
       {/* ── FLOATING PILL NAV ─────────────────── */}
       <nav
         className={`
-          md:hidden fixed bottom-3 left-3 right-3 z-50
+          md:hidden fixed bottom-3 left-1/2 -translate-x-1/2
+          w-[calc(100%-24px)] max-w-[460px] z-50
           rounded-[26px]
-          bg-[var(--surface)]/80 backdrop-blur-2xl
-          border border-[var(--border)]/60
+          bg-[var(--surface)]/85 backdrop-blur-2xl
+          border border-[var(--border)]/65
           shadow-[0_20px_60px_-20px_rgba(0,0,0,.35),0_4px_12px_-4px_rgba(0,0,0,.1)]
-          px-1.5 py-2
+          px-2 py-2
           transition-all duration-200
           ${
             keyboardOpen
@@ -401,7 +402,7 @@ const MobileBottomNav = () => {
 
           <div
             className={`
-              md:hidden fixed bottom-[92px] right-3 z-50
+              md:hidden fixed bottom-[88px] right-3 sm:right-auto sm:left-1/2 sm:translate-x-[6px] z-50
               w-[220px] overflow-hidden rounded-[22px]
               border border-[var(--border)]/60
               bg-[var(--surface)]/90 backdrop-blur-2xl

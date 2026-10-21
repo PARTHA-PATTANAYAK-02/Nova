@@ -144,59 +144,41 @@ const Post = ({ post }) => {
     const video = videoRef.current;
     if (!video || post?.mediaType !== "video") return undefined;
 
-    const syncPlayback = () => {
-      const videos = [...document.querySelectorAll("video[data-feed-video]")];
-      const center = window.innerHeight / 2;
-      let activeVideo = null;
-      let closest = Infinity;
-
-      videos.forEach((v) => {
-        const rect = v.getBoundingClientRect();
-        const visible = Math.max(
-          0,
-          Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0),
-        );
-        const ratio = visible / Math.max(rect.height, 1);
-        const dist = Math.abs(rect.top + rect.height / 2 - center);
-        if (
-          ratio >= 0.72 &&
-          dist < window.innerHeight * 0.3 &&
-          dist < closest
-        ) {
-          closest = dist;
-          activeVideo = v;
+    const handleVisibility = () => {
+      if (document.visibilityState !== "visible") {
+        if (!video.paused) {
+          video.dataset.autoPause = "true";
+          video.pause();
         }
-      });
-
-      const tabVisible = document.visibilityState === "visible";
-      videos.forEach((v) => {
-        const shouldPlay =
-          v === activeVideo &&
-          tabVisible &&
-          v.dataset.userPaused !== "true" &&
-          !v.ended;
-        if (shouldPlay && v.paused) v.play().catch(() => {});
-        else if (!shouldPlay && !v.paused) {
-          v.dataset.autoPause = "true";
-          v.pause();
-        }
-      });
+      }
     };
 
-    const io = new IntersectionObserver(syncPlayback, {
-      threshold: [0, 0.5, 0.72, 0.9, 1],
-    });
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.65) {
+          if (
+            document.visibilityState === "visible" &&
+            video.dataset.userPaused !== "true" &&
+            !video.ended
+          ) {
+            video.play().catch(() => {});
+          }
+        } else {
+          if (!video.paused) {
+            video.dataset.autoPause = "true";
+            video.pause();
+          }
+        }
+      },
+      { threshold: [0, 0.65] },
+    );
+
     io.observe(video);
-    window.addEventListener("scroll", syncPlayback, { passive: true });
-    window.addEventListener("resize", syncPlayback);
-    document.addEventListener("visibilitychange", syncPlayback);
-    syncPlayback();
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       io.disconnect();
-      window.removeEventListener("scroll", syncPlayback);
-      window.removeEventListener("resize", syncPlayback);
-      document.removeEventListener("visibilitychange", syncPlayback);
+      document.removeEventListener("visibilitychange", handleVisibility);
       video.pause();
     };
   }, [post?._id, post?.mediaType]);
@@ -423,7 +405,7 @@ const Post = ({ post }) => {
       className="
         nova-post-card
         relative overflow-hidden rounded-3xl
-        bg-[var(--surface)]/70 backdrop-blur-xl
+        bg-[var(--surface)] md:bg-[var(--surface)]/75 md:backdrop-blur-xl
         border border-[var(--border)]/60
         shadow-[0_2px_8px_-2px_rgba(0,0,0,.05),0_12px_40px_-24px_rgba(0,0,0,.18)]
         transition-all duration-300 ease-[cubic-bezier(.2,.8,.2,1)]

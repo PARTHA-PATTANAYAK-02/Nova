@@ -2,7 +2,6 @@ import React, { useEffect } from "react";
 import Feed from "@/components/feed/Feed";
 import { Outlet, useLocation } from "react-router-dom";
 import RightSidebar from "@/components/layout/RightSidebar";
-import MobileSuggested from "@/components/users/MobileSuggested";
 import useGetAllPost from "@/hooks/useGetAllPost";
 import useGetSuggestedUsers from "@/hooks/useGetSuggestedUsers";
 import { useDispatch, useSelector } from "react-redux";
@@ -52,7 +51,6 @@ const Home = () => {
     <div className="flex min-h-dvh w-full">
       <div className="flex-1 min-w-0">
         <Feed requestState={postsState} />
-        <MobileSuggested />
         <Outlet />
       </div>
 
