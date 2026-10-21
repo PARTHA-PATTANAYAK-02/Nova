@@ -28,7 +28,21 @@ if (typeof window !== "undefined") {
   );
 }
 
+export const isSoundEnabled = () => {
+  if (typeof window === "undefined") return true;
+  return localStorage.getItem("nova_sound_enabled") !== "false";
+};
+
+export const setSoundEnabled = (enabled) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem("nova_sound_enabled", enabled ? "true" : "false");
+  window.dispatchEvent(
+    new CustomEvent("nova:sound-changed", { detail: { enabled: !!enabled } }),
+  );
+};
+
 const ensureCtx = async () => {
+  if (!isSoundEnabled()) return null;
   const ctx = getCtx();
   if (!ctx) return null;
   if (ctx.state === "suspended") {
@@ -48,6 +62,7 @@ const ensureCtx = async () => {
  */
 export const playMessageSound = async () => {
   try {
+    if (!isSoundEnabled()) return;
     const ctx = await ensureCtx();
     if (!ctx) return;
 
@@ -97,6 +112,7 @@ export const playMessageSound = async () => {
  */
 export const playLikeSound = async (isLike = true) => {
   try {
+    if (!isSoundEnabled()) return;
     const ctx = await ensureCtx();
     if (!ctx) return;
 
@@ -168,6 +184,7 @@ export const playLikeSound = async (isLike = true) => {
  */
 export const playReactionSound = async () => {
   try {
+    if (!isSoundEnabled()) return;
     const ctx = await ensureCtx();
     if (!ctx) return;
 
@@ -234,6 +251,7 @@ export const playReactionSound = async () => {
  */
 export const playCommentSound = async () => {
   try {
+    if (!isSoundEnabled()) return;
     const ctx = await ensureCtx();
     if (!ctx) return;
 

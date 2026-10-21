@@ -25,6 +25,7 @@ import {
   Trash2,
 } from "lucide-react";
 import CommentDialog from "@/components/comments/CommentDialog";
+import ShareDialog from "@/components/feed/ShareDialog";
 import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
 import { toast } from "sonner";
@@ -34,6 +35,14 @@ import { updateBookmarks, updateFollowing } from "@/redux/authSlice";
 import { getDisplayName, getErrorMessage } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
 import { playLikeSound, playCommentSound } from "@/lib/sound";
+
+const MINI_HEARTS = [
+  { id: 1, tx: "-26px", ty: "-70px", scale: 0.9, rot: "-18deg", delay: "0ms" },
+  { id: 2, tx: "0px", ty: "-84px", scale: 1.15, rot: "8deg", delay: "35ms" },
+  { id: 3, tx: "24px", ty: "-66px", scale: 0.85, rot: "22deg", delay: "70ms" },
+  { id: 4, tx: "-12px", ty: "-52px", scale: 0.75, rot: "-12deg", delay: "105ms" },
+  { id: 5, tx: "16px", ty: "-56px", scale: 0.8, rot: "15deg", delay: "140ms" },
+];
 
 const formatTime = (seconds) => {
   if (!Number.isFinite(seconds)) return "0:00";
@@ -61,6 +70,8 @@ const Post = ({ post }) => {
   const [controlsVisible, setControlsVisible] = useState(true);
   const [heartBurst, setHeartBurst] = useState(false);
   const [isLikeAnimating, setIsLikeAnimating] = useState(false);
+  const [isBookmarkAnimating, setIsBookmarkAnimating] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
 
   /* ── ADAPTIVE MEDIA ASPECT ───────────────────── */
@@ -79,6 +90,7 @@ const Post = ({ post }) => {
   const controlsTimeoutRef = useRef(null);
   const heartTimeoutRef = useRef(null);
   const likeAnimTimeoutRef = useRef(null);
+  const bookmarkAnimTimeoutRef = useRef(null);
   const lastTouchRef = useRef(0);
 
   const isOwnPost = user?._id === post?.author?._id;
@@ -194,6 +206,7 @@ const Post = ({ post }) => {
       window.clearTimeout(controlsTimeoutRef.current);
       window.clearTimeout(heartTimeoutRef.current);
       window.clearTimeout(likeAnimTimeoutRef.current);
+      window.clearTimeout(bookmarkAnimTimeoutRef.current);
     },
     [],
   );
@@ -330,7 +343,12 @@ const Post = ({ post }) => {
       if (res.data.success) {
         const isSaved = res.data.type === "saved";
         setBookmarked(isSaved);
-        triggerAnimation(bookmarkRef, "nova-pop");
+        setIsBookmarkAnimating(true);
+        window.clearTimeout(bookmarkAnimTimeoutRef.current);
+        bookmarkAnimTimeoutRef.current = window.setTimeout(
+          () => setIsBookmarkAnimating(false),
+          650,
+        );
         dispatch(updateBookmarks({ postId: post._id }));
         toast.success(
           res.data.message || (isSaved ? "Post saved" : "Post removed"),
@@ -812,7 +830,7 @@ const Post = ({ post }) => {
       <section className="px-4 pt-3 pb-3">
         {/* actions */}
         <div className="flex items-center gap-1.5">
-          <div className="flex items-center gap-1">
+          <div className="relative flex items-center gap-1">
             <button
               ref={likeRef}
               type="button"
@@ -843,6 +861,28 @@ const Post = ({ post }) => {
                 />
               )}
             </button>
+
+            {/* Floating mini hearts particle burst */}
+            {isLikeAnimating && liked && (
+              <div className="pointer-events-none absolute -top-1 left-1/2 -translate-x-1/2 z-20">
+                {MINI_HEARTS.map((h) => (
+                  <span
+                    key={h.id}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 animate-floating-heart text-[#ff315d]"
+                    style={{
+                      "--tx": h.tx,
+                      "--ty": h.ty,
+                      "--scale": h.scale,
+                      "--rot": h.rot,
+                      animationDelay: h.delay,
+                    }}
+                  >
+                    <Heart size={14} fill="currentColor" stroke="none" />
+                  </span>
+                ))}
+              </div>
+            )}
+
             <span className="text-[13px] font-semibold tabular-nums text-[var(--foreground)]">
               {postLike > 0 ? postLike.toLocaleString() : ""}
             </span>
@@ -870,10 +910,11 @@ const Post = ({ post }) => {
 
           <span className="flex-1" />
 
+          {/* Share post */}
           <button
             type="button"
-            onClick={openChatWithAuthor}
-            aria-label={`Message ${getDisplayName(post.author)}`}
+            onClick={() => setShareOpen(true)}
+            aria-label="Share post"
             className="
               size-10 rounded-full flex items-center justify-center
               text-[var(--foreground)] hover:text-[var(--primary)]
@@ -884,6 +925,7 @@ const Post = ({ post }) => {
             <SendHorizontal size={21} strokeWidth={2.1} />
           </button>
 
+          {/* Bookmark */}
           <button
             ref={bookmarkRef}
             type="button"
@@ -895,13 +937,23 @@ const Post = ({ post }) => {
               transition-all duration-200 outline-none active:scale-90
               ${bookmarked ? "text-[var(--primary)]" : "text-[var(--foreground)] hover:text-[var(--primary)]"}
               hover:bg-[var(--primary)]/8
+              ${isBookmarkAnimating ? "nova-bookmark-spring" : ""}
             `}
           >
             <Bookmark
               size={21}
               strokeWidth={2.1}
               fill={bookmarked ? "currentColor" : "none"}
+              className={`transition-transform duration-200 ${
+                isBookmarkAnimating ? "scale-125" : ""
+              }`}
             />
+            {isBookmarkAnimating && (
+              <span
+                className="absolute inset-0 rounded-full border-2 border-[var(--primary)] animate-ping opacity-75 pointer-events-none"
+                aria-hidden
+              />
+            )}
           </button>
         </div>
 
@@ -982,6 +1034,12 @@ const Post = ({ post }) => {
           setOpen(next);
           if (!next) dispatch(setSelectedPost(null));
         }}
+      />
+
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        post={post}
       />
     </article>
   );

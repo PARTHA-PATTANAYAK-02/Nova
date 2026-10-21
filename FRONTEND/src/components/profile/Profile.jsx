@@ -25,6 +25,8 @@ import {
   Trash2,
   Home,
   Maximize2,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import {
   Dialog,
@@ -43,6 +45,7 @@ import { useTheme } from "@/hooks/useTheme";
 import axios from "axios";
 import { toast } from "sonner";
 import { ErrorState } from "@/components/common/RequestState";
+import { isSoundEnabled, setSoundEnabled } from "@/lib/sound";
 import { getErrorMessage } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
 import StoryViewer from "@/components/feed/StoryViewer";
@@ -800,6 +803,7 @@ const SettingsMenu = ({
   needsUsername,
 }) => {
   const [open, setOpen] = useState(false);
+  const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
   const close = () => setOpen(false);
 
   return (
@@ -872,6 +876,61 @@ const SettingsMenu = ({
                 />
               ) : (
                 <Sun className="size-3 text-amber-500" strokeWidth={2.5} />
+              )}
+            </span>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const next = !soundOn;
+            setSoundOn(next);
+            setSoundEnabled(next);
+            toast.success(next ? "Sound FX enabled" : "Sound FX muted");
+          }}
+          aria-label={soundOn ? "Mute sound effects" : "Enable sound effects"}
+          className="nova-settings-theme-row mt-1"
+        >
+          <span className="flex items-center gap-2.5">
+            <span className="nova-settings-theme-orb">
+              {soundOn ? (
+                <Volume2
+                  className="size-[17px] text-[var(--primary)]"
+                  strokeWidth={2}
+                />
+              ) : (
+                <VolumeX
+                  className="size-[17px] text-[var(--muted-foreground)]"
+                  strokeWidth={2}
+                />
+              )}
+            </span>
+            <span className="font-medium">Sound FX</span>
+          </span>
+
+          <span
+            className={`relative h-7 w-[52px] shrink-0 overflow-hidden rounded-full border p-[2px] transition-all duration-300 ease-in-out ${
+              soundOn
+                ? "border-[var(--primary)] bg-[var(--primary)]"
+                : "border-[var(--border-strong)] bg-[var(--surface-2)]"
+            }`}
+          >
+            <span
+              className={`relative z-10 flex h-[21px] w-[21px] items-center justify-center rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.25)] transition-all duration-300 ease-in-out ${
+                soundOn ? "translate-x-[23px]" : "translate-x-0"
+              }`}
+            >
+              {soundOn ? (
+                <Volume2
+                  className="size-3 text-[var(--primary)]"
+                  strokeWidth={2.5}
+                />
+              ) : (
+                <VolumeX
+                  className="size-3 text-[var(--muted-foreground)]"
+                  strokeWidth={2.5}
+                />
               )}
             </span>
           </span>

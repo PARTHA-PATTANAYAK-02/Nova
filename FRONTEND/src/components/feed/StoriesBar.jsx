@@ -124,10 +124,10 @@ const StoriesBar = () => {
               <span className="relative">
                 {myStory ? (
                   <span
-                    className={`block rounded-full p-[2.5px] ${
+                    className={`block rounded-full ${
                       isAllViewed(myStory)
-                        ? "bg-[var(--border-strong)]"
-                        : "bg-grad-ring"
+                        ? "nova-story-ring-seen"
+                        : "nova-story-ring-active"
                     } transition-transform duration-300 group-hover:scale-[1.05]`}
                   >
                     <span className="block rounded-full bg-[var(--background)] p-[2px]">
@@ -138,9 +138,9 @@ const StoriesBar = () => {
                     </span>
                   </span>
                 ) : (
-                  <span className="block rounded-full p-[2.5px] bg-[var(--border)] transition-transform duration-300 group-hover:scale-[1.05]">
-                    <span className="block rounded-full bg-[var(--background)] p-[2px]">
-                      <Avatar className="size-16">
+                  <span className="nova-story-ring-none block rounded-full transition-transform duration-300 group-hover:scale-[1.05]">
+                    <span className="block rounded-full bg-transparent p-[1px]">
+                      <Avatar className="size-16 border border-[var(--border)]/60">
                         <AvatarImage src={user?.profilePicture} />
                         <AvatarFallback>{initial}</AvatarFallback>
                       </Avatar>
@@ -182,8 +182,10 @@ const StoriesBar = () => {
               className="group flex w-[76px] shrink-0 flex-col items-center gap-2 outline-none"
             >
               <span
-                className={`block rounded-full p-[2.5px] transition-transform duration-300 group-hover:scale-[1.05] ${
-                  isAllViewed(story) ? "bg-[var(--border-strong)]" : "bg-grad-ring"
+                className={`block rounded-full transition-transform duration-300 group-hover:scale-[1.05] ${
+                  isAllViewed(story)
+                    ? "nova-story-ring-seen"
+                    : "nova-story-ring-active"
                 }`}
               >
                 <span className="block rounded-full bg-[var(--background)] p-[2px]">
