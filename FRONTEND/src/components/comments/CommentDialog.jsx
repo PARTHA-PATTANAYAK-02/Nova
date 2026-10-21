@@ -394,11 +394,7 @@ const CommentDialog = ({ open, setOpen }) => {
                   to={`/profile/${author._id}`}
                   className="nova-comment-dialog__header-avatar"
                 >
-                  <span
-                    className="nova-comment-dialog__header-ring"
-                    aria-hidden
-                  />
-                  <Avatar className="size-9 border-2 border-[var(--background)]">
+                  <Avatar className="size-9 border border-[var(--border)]">
                     <AvatarImage src={authorAvatar} />
                     <AvatarFallback>{authorInitial}</AvatarFallback>
                   </Avatar>
@@ -430,7 +426,6 @@ const CommentDialog = ({ open, setOpen }) => {
                       to={`/profile/${author._id}`}
                       className="nova-comment-caption__avatar"
                     >
-                      <span className="nova-comment__avatar-ring" aria-hidden />
                       <Avatar className="nova-comment__avatar-img">
                         <AvatarImage src={authorAvatar} />
                         <AvatarFallback>{authorInitial}</AvatarFallback>

@@ -326,53 +326,56 @@
 .nova-comment-dialog__stat.is-pulsing svg {
   animation: novaLikePop 0.55s cubic-bezier(0.175, 0.885, 0.32, 1.4) both;
 }
-@keyframes storyRingSpin {
+@keyframes storyRingShift {
   0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-@keyframes storyRingGlow {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(255, 49, 93, 0);
+    background-position: 0% 50%;
+    filter: hue-rotate(0deg);
   }
   50% {
-    box-shadow: 0 0 14px 2px rgba(255, 49, 93, 0.42);
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+    filter: hue-rotate(25deg);
   }
 }
 .nova-story-ring-active {
-  position: relative;
-  border-radius: 999px;
-  background: var(--grad-ring);
-  animation: storyRingGlow 3s ease-in-out infinite;
   display: inline-flex;
-}
-.nova-story-ring-active::after {
-  content: "";
-  position: absolute;
-  inset: -2px;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5px;
   border-radius: 999px;
-  background: conic-gradient(from 0deg, #ff315d, #ff8c00, #9333ea, #ff315d);
-  z-index: -1;
-  animation: storyRingSpin 8s linear infinite;
-  opacity: 0.85;
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  background-size: 200% 200%;
+  animation: storyRingShift 3.5s ease-in-out infinite alternate;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  transition: transform 0.25s ease;
 }
 .nova-story-ring-seen {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
   border-radius: 999px;
   background: var(--border-strong) !important;
   opacity: 0.45;
-  box-shadow: none !important;
+  box-sizing: border-box;
   animation: none !important;
-  display: inline-flex;
+  box-shadow: none !important;
+  flex-shrink: 0;
 }
 .nova-story-ring-none {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border-radius: 999px;
   background: transparent !important;
-  box-shadow: none !important;
+  box-sizing: border-box;
   animation: none !important;
-  display: inline-flex;
+  box-shadow: none !important;
+  flex-shrink: 0;
 }
 
 @keyframes floatingMiniHeart {
@@ -1449,21 +1452,6 @@
   flex-shrink: 0;
   outline: none;
 }
-.nova-comment__avatar-ring {
-  position: absolute;
-  inset: -2px;
-  border-radius: 999px;
-  background: var(--grad-ring);
-  opacity: 0;
-  transition:
-    opacity 0.3s ease,
-    transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-  transform: scale(0.9);
-}
-.nova-comment:hover .nova-comment__avatar-ring {
-  opacity: 1;
-  transform: scale(1);
-}
 .nova-comment__avatar-img {
   position: relative;
   width: 32px;
@@ -1759,16 +1747,6 @@
   height: 36px;
   flex-shrink: 0;
   outline: none;
-}
-.nova-comment-dialog__header-ring {
-  position: absolute;
-  inset: -2px;
-  border-radius: 999px;
-  background: var(--grad-ring);
-  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.nova-comment-dialog__header-avatar:hover .nova-comment-dialog__header-ring {
-  transform: scale(1.08) rotate(8deg);
 }
 .nova-comment-dialog__header-meta {
   flex: 1;
@@ -2433,13 +2411,19 @@
 }
 .nova-profile__avatar-ring {
   display: inline-flex;
-  padding: 3px;
+  padding: 3.5px;
   border-radius: 999px;
-  background: var(--grad-ring);
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  background-size: 200% 200%;
+  animation: storyRingShift 3.5s ease-in-out infinite alternate;
+  box-sizing: border-box;
+  flex-shrink: 0;
   transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .nova-profile__avatar-ring.is-seen {
-  background: var(--border-strong);
+  background: var(--border-strong) !important;
+  opacity: 0.45;
+  animation: none !important;
 }
 .nova-profile__avatar-btn:hover .nova-profile__avatar-ring {
   transform: scale(1.03);
@@ -3219,7 +3203,7 @@
   display: inline-flex;
   padding: 3px;
   border-radius: 999px;
-  background: var(--grad-ring);
+  background: var(--border);
 }
 .nova-edit__avatar {
   width: 96px;
@@ -3775,13 +3759,19 @@
 
 .nova-user-row__ring {
   display: inline-flex;
-  padding: 2px;
+  padding: 2.5px;
   border-radius: 999px;
-  background: var(--grad-ring);
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  background-size: 200% 200%;
+  animation: storyRingShift 3.5s ease-in-out infinite alternate;
+  box-sizing: border-box;
+  flex-shrink: 0;
   transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .nova-user-row__ring.is-seen {
-  background: var(--border-strong);
+  background: var(--border-strong) !important;
+  opacity: 0.45;
+  animation: none !important;
 }
 .nova-user-row__ring-inner {
   display: block;

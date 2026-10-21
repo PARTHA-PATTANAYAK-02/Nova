@@ -72,7 +72,6 @@ const Comment = ({ comment }) => {
         className="nova-comment__avatar"
         aria-label={`${authorName} profile`}
       >
-        <span className="nova-comment__avatar-ring" aria-hidden />
         <Avatar className="nova-comment__avatar-img">
           <AvatarImage src={author.profilePicture} alt={authorName} />
           <AvatarFallback>{initial}</AvatarFallback>

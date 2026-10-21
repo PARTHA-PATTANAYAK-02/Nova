@@ -8,6 +8,7 @@ import { apiUrl } from "@/lib/api";
 import { useSelector } from "react-redux";
 import { getSocketInstance } from "@/redux/socketSlice";
 import { getDisplayName } from "@/lib/utils";
+import { markStoryItemAsViewed } from "@/lib/story";
 
 const IMAGE_DURATION = 10000; // 10s for images
 const STORY_REACTIONS = ["❤️", "🥰", "😂", "😮", "😢", "🔥"];
@@ -90,7 +91,10 @@ const StoryViewer = ({
   }, [onReactionChange]);
 
   useEffect(() => {
-    if (currentItem?._id) onMarkViewedRef.current?.(currentItem._id);
+    if (currentItem?._id) {
+      markStoryItemAsViewed(currentItem._id);
+      onMarkViewedRef.current?.(currentItem._id);
+    }
   }, [currentItem?._id]);
 
   useEffect(() => {
@@ -318,8 +322,7 @@ const StoryViewer = ({
             aria-label={`Open ${getDisplayName(currentStory.user)}'s profile`}
           >
             <span className="relative size-9 shrink-0">
-              <span className="absolute -inset-[2px] rounded-full bg-grad-ring" />
-              <Avatar className="relative size-9 border-2 border-white/30">
+              <Avatar className="size-9 border-2 border-white/50">
                 <AvatarImage src={currentStory.user.profilePicture} />
                 <AvatarFallback>
                   {getDisplayName(currentStory.user, "U")

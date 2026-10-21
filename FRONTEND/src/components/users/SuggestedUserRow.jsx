@@ -28,8 +28,12 @@ const SuggestedUserRow = ({
         className="nova-user-row__avatar-btn"
       >
         {story ? (
-          <span className={`nova-user-row__ring ${seen ? "is-seen" : ""}`}>
-            <span className="nova-user-row__ring-inner">
+          <span
+            className={`block rounded-full transition-transform duration-300 ${
+              seen ? "nova-story-ring-seen" : "nova-story-ring-active"
+            }`}
+          >
+            <span className="block rounded-full bg-[var(--background)] p-[2px]">
               <Avatar className="size-10">
                 <AvatarImage src={user.profilePicture} alt={displayName} />
                 <AvatarFallback>{initial}</AvatarFallback>
@@ -37,7 +41,7 @@ const SuggestedUserRow = ({
             </span>
           </span>
         ) : (
-          <Avatar className="size-10 border-2 border-[var(--background)]">
+          <Avatar className="size-10 border border-[var(--border)]/70">
             <AvatarImage src={user.profilePicture} alt={displayName} />
             <AvatarFallback>{initial}</AvatarFallback>
           </Avatar>

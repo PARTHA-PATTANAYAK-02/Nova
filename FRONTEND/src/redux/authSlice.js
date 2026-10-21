@@ -5,6 +5,7 @@ const initialState = {
   suggestedUsers: [],
   userProfile: null,
   selectedUser: null,
+  viewedStoryItemIds: [],
 };
 
 const authSlice = createSlice({
@@ -53,6 +54,14 @@ const authSlice = createSlice({
         : [...currentBookmarks, postId];
     },
 
+    // Mark story item as globally viewed
+    markStoryItemViewed: (state, action) => {
+      const id = String(action.payload);
+      if (id && !state.viewedStoryItemIds.includes(id)) {
+        state.viewedStoryItemIds.push(id);
+      }
+    },
+
     // Other reducers
     setSuggestedUsers: (state, action) => {
       state.suggestedUsers = action.payload;
@@ -74,6 +83,7 @@ export const {
   setUserProfile,
   setSelectedUser,
   updateBookmarks,
+  markStoryItemViewed,
 } = authSlice.actions;
 
 export default authSlice.reducer;

@@ -433,11 +433,10 @@ const Post = ({ post }) => {
       <header className="flex items-center gap-3 px-4 py-3">
         <Link
           to={`/profile/${post.author._id}`}
-          className="relative shrink-0 size-10 group/av"
+          className="relative shrink-0 size-10 flex items-center justify-center"
           aria-label={`${getDisplayName(post.author)} profile`}
         >
-          <span className="absolute -inset-[2px] rounded-full bg-grad-ring opacity-0 group-hover/av:opacity-100 transition-opacity duration-300" />
-          <Avatar className="relative size-10 border-2 border-[var(--background)]">
+          <Avatar className="size-10 border border-[var(--border)] transition-transform hover:scale-105">
             <AvatarImage
               src={post.author?.profilePicture}
               alt={getDisplayName(post.author)}

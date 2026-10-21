@@ -49,6 +49,11 @@ import { isSoundEnabled, setSoundEnabled } from "@/lib/sound";
 import { getErrorMessage } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
 import StoryViewer from "@/components/feed/StoryViewer";
+import {
+  checkIsStoryAllViewed,
+  getGlobalViewedItemIds,
+  markStoryItemAsViewed,
+} from "@/lib/story";
 
 const isValidObjectId = (id) =>
   typeof id === "string" && /^[0-9a-fA-F]{24}$/.test(id);
@@ -107,8 +112,17 @@ const Profile = () => {
   const [coverOpen, setCoverOpen] = useState(false);
   const [profileStory, setProfileStory] = useState(null);
   const [profileStoryOpen, setProfileStoryOpen] = useState(false);
+  const [viewedStoryIds, setViewedStoryIds] = useState(getGlobalViewedItemIds);
   const [followLoading, setFollowLoading] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+
+  useEffect(() => {
+    const handleGlobalSync = () => {
+      setViewedStoryIds(getGlobalViewedItemIds());
+    };
+    window.addEventListener("nova:story-viewed", handleGlobalSync);
+    return () => window.removeEventListener("nova:story-viewed", handleGlobalSync);
+  }, []);
 
   const [removedPostIds, setRemovedPostIds] = useState(new Set());
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -278,9 +292,7 @@ const Profile = () => {
   const hasCover = Boolean(userProfile?.coverPicture);
   const coverUrl = userProfile?.coverPicture;
 
-  const isAllStoryViewed =
-    profileStory?.items?.length > 0 &&
-    profileStory.items.every((item) => item.viewedByMe);
+  const isAllStoryViewed = checkIsStoryAllViewed(profileStory, viewedStoryIds);
 
   const initial = (userProfile?.fullName || userProfile?.username || "U")
     .charAt(0)
@@ -654,6 +666,8 @@ const Profile = () => {
           stories={[profileStory]}
           onClose={() => setProfileStoryOpen(false)}
           onMarkViewed={(itemId) => {
+            markStoryItemAsViewed(itemId);
+            setViewedStoryIds((previous) => new Set(previous).add(itemId));
             setProfileStory(
               (previous) =>
                 previous && {
@@ -663,17 +677,6 @@ const Profile = () => {
                   ),
                 },
             );
-            axios
-              .post(
-                apiUrl(`/api/v1/story/${itemId}/view`),
-                {},
-                { withCredentials: true },
-              )
-              .catch((error) =>
-                toast.error(
-                  error.response?.data?.message || "Unable to save story view.",
-                ),
-              );
           }}
           onReactionChange={(itemId, emoji, reactionDetails) =>
             setProfileStory(

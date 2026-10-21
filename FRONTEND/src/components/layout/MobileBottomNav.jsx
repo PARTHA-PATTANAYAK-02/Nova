@@ -375,9 +375,14 @@ const MobileBottomNav = () => {
               ${showProfileMenu ? "bg-[var(--surface-2)]" : ""}
             `}
           >
-            <span className="relative size-7">
-              <span className="absolute -inset-[2px] rounded-full bg-grad-ring opacity-90" />
-              <Avatar className="relative size-7 border-2 border-[var(--background)]">
+            <span className="relative size-7 flex items-center justify-center">
+              <Avatar
+                className={`size-7 transition-all ${
+                  showProfileMenu
+                    ? "border-2 border-[var(--primary)]"
+                    : "border border-[var(--border)]"
+                }`}
+              >
                 <AvatarImage src={user?.profilePicture} />
                 <AvatarFallback>{initial}</AvatarFallback>
               </Avatar>

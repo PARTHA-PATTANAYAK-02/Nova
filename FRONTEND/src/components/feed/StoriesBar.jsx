@@ -9,14 +9,20 @@ import { apiUrl } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { getDisplayName } from "@/lib/utils";
+import {
+  checkIsItemViewed,
+  checkIsStoryAllViewed,
+  getGlobalViewedItemIds,
+  markStoryItemAsViewed,
+} from "@/lib/story";
 
 const getId = (v) => (typeof v === "object" ? v?._id : v)?.toString();
 
 const StoriesBar = () => {
-  const { user } = useSelector((s) => s.auth);
+  const { user, viewedStoryItemIds } = useSelector((s) => s.auth);
   const navigate = useNavigate();
   const [stories, setStories] = useState([]);
-  const [viewedSet, setViewedSet] = useState(new Set());
+  const [viewedSet, setViewedSet] = useState(getGlobalViewedItemIds);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [startUser, setStartUser] = useState(0);
@@ -44,6 +50,18 @@ const StoriesBar = () => {
     loadStories();
   }, [loadStories, followingKey]);
 
+  useEffect(() => {
+    const handleGlobalSync = () => {
+      setViewedSet(getGlobalViewedItemIds());
+    };
+    window.addEventListener("nova:story-viewed", handleGlobalSync);
+    return () => window.removeEventListener("nova:story-viewed", handleGlobalSync);
+  }, []);
+
+  useEffect(() => {
+    setViewedSet(getGlobalViewedItemIds());
+  }, [viewedStoryItemIds]);
+
   const myStory = useMemo(
     () => stories.find((s) => getId(s.user?._id) === getId(user?._id)),
     [stories, user?._id],
@@ -57,12 +75,12 @@ const StoriesBar = () => {
     [stories, followingIds],
   );
   const isItemViewed = useCallback(
-    (item) => viewedSet.has(item._id) || item.viewedByMe,
+    (item) => checkIsItemViewed(item, viewedSet),
     [viewedSet],
   );
   const isAllViewed = useCallback(
-    (story) => story.items.every(isItemViewed),
-    [isItemViewed],
+    (story) => checkIsStoryAllViewed(story, viewedSet),
+    [viewedSet],
   );
   const sortedStories = useMemo(
     () =>
@@ -90,11 +108,7 @@ const StoriesBar = () => {
   };
   const markViewed = useCallback((itemId) => {
     setViewedSet((prev) => new Set(prev).add(itemId));
-    axios
-      .post(apiUrl(`/api/v1/story/${itemId}/view`), {}, { withCredentials: true })
-      .catch((e) =>
-        toast.error(e.response?.data?.message || "Unable to save story view."),
-      );
+    markStoryItemAsViewed(itemId);
   }, []);
   const updateStoryReaction = useCallback((itemId, emoji, details) => {
     setStories((prev) =>
@@ -114,7 +128,7 @@ const StoriesBar = () => {
   return (
     <>
       <div className="mb-2">
-        <div className="flex gap-3.5 overflow-x-auto px-1 pb-2 scroll-hide">
+        <div className="flex gap-3.5 overflow-x-auto px-2 pt-2 pb-2.5 scroll-hide items-center">
           {/* YOUR STORY */}
           <div className="relative flex w-[76px] shrink-0 flex-col items-center gap-2">
             <button

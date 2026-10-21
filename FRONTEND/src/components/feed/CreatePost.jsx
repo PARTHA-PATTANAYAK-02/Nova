@@ -218,9 +218,8 @@ const CreatePost = ({ open, setOpen }) => {
         {/* ═════════ BODY (scrollable) ═════════ */}
         <div className="nova-create-post__body">
           <div className="nova-create-post__user">
-            <span className="relative shrink-0 size-9">
-              <span className="absolute -inset-[2px] rounded-full bg-grad-ring" />
-              <Avatar className="relative size-9 border-2 border-[var(--background)]">
+            <span className="relative shrink-0 size-9 flex items-center justify-center">
+              <Avatar className="size-9 border border-[var(--border)]">
                 <AvatarImage src={user?.profilePicture} />
                 <AvatarFallback>
                   {getDisplayName(user, "U").charAt(0).toUpperCase()}
