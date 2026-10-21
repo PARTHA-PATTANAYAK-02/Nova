@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import Feed from "@/components/feed/Feed";
 import { Outlet, useLocation } from "react-router-dom";
 import RightSidebar from "@/components/layout/RightSidebar";
@@ -15,6 +15,38 @@ const Home = () => {
   const location = useLocation();
   const dispatch = useDispatch();
   const { posts } = useSelector((s) => s.post);
+  const rightScrollRef = useRef(null);
+
+  useEffect(() => {
+    const el = rightScrollRef.current;
+    if (!el) return;
+
+    const handleWheel = (e) => {
+      // If right sidebar content does not overflow (cannot scroll), scroll window
+      const canScroll = el.scrollHeight > el.clientHeight + 1;
+      if (!canScroll) {
+        window.scrollBy({ top: e.deltaY, behavior: "auto" });
+        return;
+      }
+
+      // If scrolling down and already at bottom: chain to window
+      const atBottom = Math.ceil(el.scrollTop + el.clientHeight) >= el.scrollHeight - 1;
+      if (e.deltaY > 0 && atBottom) {
+        window.scrollBy({ top: e.deltaY, behavior: "auto" });
+        return;
+      }
+
+      // If scrolling up and already at top: chain to window
+      const atTop = el.scrollTop <= 0;
+      if (e.deltaY < 0 && atTop) {
+        window.scrollBy({ top: e.deltaY, behavior: "auto" });
+        return;
+      }
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: true });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, []);
 
   useEffect(() => {
     const postId = location.state?.notificationPostId;
@@ -49,13 +81,16 @@ const Home = () => {
 
   return (
     <div className="flex min-h-dvh w-full">
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 lg:pr-[364px] xl:pr-[408px]">
         <Feed requestState={postsState} />
         <Outlet />
       </div>
 
-      <aside className="hidden lg:block w-[340px] xl:w-[380px] shrink-0 pr-4 py-4">
-        <div className="sticky top-4 max-h-[calc(100dvh-32px)] overflow-y-auto rounded-3xl bg-[var(--surface)]/60 backdrop-blur-xl border border-[var(--border)]/60 shadow-[0_12px_40px_-20px_rgba(0,0,0,.2)]">
+      <aside className="hidden lg:block fixed right-3 xl:right-4 top-3 bottom-3 z-30 w-[340px] xl:w-[380px] pointer-events-none">
+        <div
+          ref={rightScrollRef}
+          className="max-h-full overflow-y-auto pr-1 scrollbar-none pointer-events-auto"
+        >
           <RightSidebar />
         </div>
       </aside>

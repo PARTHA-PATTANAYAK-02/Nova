@@ -9,6 +9,173 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ═══════════════════════════════════════════════════════════════
+   PREVENT MODAL / POPUP LAYOUT JUMP & SCROLLBAR SHIFT
+   ═══════════════════════════════════════════════════════════════ */
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
+/* High-specificity overrides to permanently neutralize react-remove-scroll
+   and react-remove-scroll-bar dynamic style tags.
+   Specificity (0, 2, 2) unconditionally beats react-remove-scroll-bar's
+   injected body[data-scroll-locked] (0, 1, 1) rule regardless of insertion order.
+   This prevents the 17px margin compression that caused the page to shrink
+   when any popup or dialog opened. */
+html body[data-scroll-locked],
+html body[data-scroll-locked][data-scroll-locked],
+html[style] body[data-scroll-locked],
+html body[style*="overflow: hidden"],
+html body[style*="margin-right"],
+html body[style*="padding-right"],
+body[data-scroll-locked] {
+  margin-right: 0px !important;
+  padding-right: 0px !important;
+  margin-left: 0px !important;
+  padding-left: 0px !important;
+  position: static !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+.right-scroll-bar-position,
+.width-before-scroll-bar {
+  right: 0px !important;
+  margin-right: 0px !important;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PREMIUM MODAL & POPUP ANIMATIONS + PERFECT CENTERING
+   ═══════════════════════════════════════════════════════════════ */
+[data-slot="dialog-content"] {
+  position: fixed !important;
+  inset: 0 !important;
+  margin: auto !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  translate: none !important;
+  z-index: 50 !important;
+  box-sizing: border-box !important;
+}
+
+@keyframes modalEnter {
+  0% {
+    opacity: 0;
+    transform: scale(0.93);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes modalExit {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+@keyframes overlayFadeIn {
+  0% {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
+  }
+  100% {
+    opacity: 1;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
+@keyframes overlayFadeOut {
+  0% {
+    opacity: 1;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  100% {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
+  }
+}
+
+@keyframes popoverEnter {
+  0% {
+    opacity: 0;
+    transform: scale(0.93) translateY(-4px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.01) translateY(0.5px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes popoverExit {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95) translateY(-3px);
+  }
+}
+
+[data-slot="dialog-overlay"][data-state="open"] {
+  animation: overlayFadeIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+[data-slot="dialog-overlay"][data-state="closed"] {
+  animation: overlayFadeOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards !important;
+}
+
+[data-slot="dialog-content"][data-state="open"] {
+  animation: modalEnter 0.36s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  will-change: transform, opacity;
+}
+
+[data-slot="dialog-content"][data-state="closed"] {
+  animation: modalExit 0.2s cubic-bezier(0.4, 0, 0.8, 1) forwards !important;
+  will-change: transform, opacity;
+}
+
+[data-slot="popover-content"][data-state="open"] {
+  animation: popoverEnter 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  will-change: transform, opacity;
+}
+
+[data-slot="popover-content"][data-state="closed"] {
+  animation: popoverExit 0.18s cubic-bezier(0.4, 0, 1, 1) forwards !important;
+  will-change: transform, opacity;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    1 · DESIGN TOKENS
    ═══════════════════════════════════════════════════════════════ */
 
