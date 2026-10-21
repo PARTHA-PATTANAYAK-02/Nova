@@ -22,11 +22,10 @@ const postSlice = createSlice({
     // Replace a post in place with the fresh version pushed over the socket.
     updatePost: (state, action) => {
       const updated = action.payload;
+      if (!updated || !updated._id) return;
       const index = state.posts.findIndex((p) => p._id === updated._id);
       if (index !== -1) {
         state.posts[index] = updated;
-      } else {
-        state.posts.unshift(updated);
       }
       if (state.selectedPost?._id === updated._id) {
         state.selectedPost = updated;

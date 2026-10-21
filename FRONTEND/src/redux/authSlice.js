@@ -20,20 +20,19 @@ const authSlice = createSlice({
 
     // ✅ Update following list after follow/unfollow
     updateFollowing: (state, action) => {
-      const followedUserId = action.payload;
-
-      if (!state.user) return;
+      const followedUserId = (action.payload?._id || action.payload)?.toString();
+      if (!state.user || !followedUserId) return;
 
       const following = state.user.following || [];
-      const isFollowing = following.includes(followedUserId);
+      const isFollowing = following.some(
+        (id) => (id?._id || id)?.toString() === followedUserId,
+      );
 
       if (isFollowing) {
-        // Unfollow logic
         state.user.following = following.filter(
-          (id) => id !== followedUserId,
+          (id) => (id?._id || id)?.toString() !== followedUserId,
         );
       } else {
-        // Follow logic
         state.user.following.push(followedUserId);
       }
     },

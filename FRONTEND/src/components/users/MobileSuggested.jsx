@@ -23,8 +23,9 @@ const MobileSuggested = () => {
   useEffect(() => {
     const initialState = {};
     (suggestedUsers || []).forEach((suggestedUser) => {
-      initialState[suggestedUser._id] =
-        user?.following?.includes(suggestedUser._id) || false;
+      initialState[suggestedUser._id] = (user?.following || []).some(
+        (id) => (id?._id || id)?.toString() === suggestedUser._id?.toString(),
+      );
     });
     setFollowStates(initialState);
   }, [suggestedUsers, user]);

@@ -162,7 +162,9 @@ const SearchPage = () => {
           ) : (
             <div className="nv-search__list">
               {suggestedList.map((u, index) => {
-                const isFollowing = user?.following?.includes(u._id);
+                const isFollowing = (user?.following || []).some(
+                  (id) => (id?._id || id)?.toString() === u._id?.toString(),
+                );
                 const initial = (u.fullName || u.username || "U")
                   .charAt(0)
                   .toUpperCase();

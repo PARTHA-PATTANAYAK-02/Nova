@@ -190,12 +190,7 @@ function App() {
       (response) => response,
       (error) => {
         const message = error.response?.data?.message?.toLowerCase();
-        const isExpiredSession =
-          error.response?.status === 401 &&
-          (message === "user not authenticated" ||
-            message === "invalid" ||
-            message === "invalid or expired authentication token" ||
-            message?.includes("session is no longer valid"));
+        const isExpiredSession = error.response?.status === 401;
 
         if (isExpiredSession) dispatch(setAuthUser(null));
         return Promise.reject(error);
@@ -249,7 +244,14 @@ function App() {
       });
 
       socketio.on("newMessage", (message) => {
-        dispatch(appendMessage(message));
+        const activeUserId = selectedUserRef.current?._id;
+        const belongsToActiveChat =
+          activeUserId &&
+          (message.senderId === activeUserId || message.receiverId === activeUserId);
+
+        if (belongsToActiveChat) {
+          dispatch(appendMessage(message));
+        }
         if (message.senderId !== user?._id) {
           playMessageSound();
         }
@@ -280,6 +282,10 @@ function App() {
           return;
         }
         dispatch(setLikeNotification(notification));
+      });
+
+      socketio.on("newPost", (newPost) => {
+        if (newPost?._id) dispatch(appendPost(newPost));
       });
 
       socketio.on("postUpdated", (post) => {

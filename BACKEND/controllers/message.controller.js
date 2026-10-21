@@ -1,5 +1,5 @@
 import { Conversation } from "../models/conversation.model.js";
-import { getReceiverSocketId, io } from "../socket/socket.js";
+import { emitToUser, getReceiverSocketId, getReceiverSocketIds, io } from "../socket/socket.js";
 import { Message } from "../models/message.model.js";
 import { User } from "../models/user.model.js";
 import mongoose from "mongoose";
@@ -97,13 +97,13 @@ export const sendMessage = async (req, res) => {
       });
     }
 
-    const receiverSocketId = getReceiverSocketId(receiverId);
+    const receiverSocketIds = getReceiverSocketIds(receiverId);
     const newMessage = await Message.create({
       senderId,
       receiverId,
       message,
       replyTo,
-      status: receiverSocketId ? "delivered" : "sent",
+      status: receiverSocketIds.length > 0 ? "delivered" : "sent",
     });
 
     conversation.messages.push(newMessage._id);
@@ -112,10 +112,8 @@ export const sendMessage = async (req, res) => {
     incrementUnreadCount(conversation, receiverId);
     await conversation.save();
 
-    const senderSocketId = getReceiverSocketId(senderId);
-
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit("newMessage", newMessage);
+    if (receiverSocketIds.length > 0) {
+      emitToUser(receiverId, "newMessage", newMessage);
       await createAndEmitNotification({
         recipient: receiverId,
         actor: senderId,
@@ -123,19 +121,17 @@ export const sendMessage = async (req, res) => {
         messageId: newMessage._id,
         conversationId: conversation._id,
       });
-      if (senderSocketId) {
-        io.to(senderSocketId).emit("messageStatus", {
-          messageId: newMessage._id,
-          status: "delivered",
-        });
-      }
-      io.to(receiverSocketId).emit("conversationUpdated", {
+      emitToUser(senderId, "messageStatus", {
+        messageId: newMessage._id,
+        status: "delivered",
+      });
+      emitToUser(receiverId, "conversationUpdated", {
         conversationId: conversation._id,
         lastMessage: newMessage,
       });
     }
 
-    if (!receiverSocketId) {
+    if (receiverSocketIds.length === 0) {
       await createAndEmitNotification({
         recipient: receiverId,
         actor: senderId,
@@ -250,17 +246,11 @@ export const markMessagesAsRead = async (req, res) => {
       },
     );
 
-    const senderSocketId = getReceiverSocketId(senderId);
-    if (senderSocketId)
-      io.to(senderSocketId).emit("messagesRead", { readerId });
-
-    const readerSocketId = getReceiverSocketId(readerId);
-    if (readerSocketId) {
-      io.to(readerSocketId).emit("conversationUpdated", {
-        conversationId: conversation._id,
-        unreadCount: 0,
-      });
-    }
+    emitToUser(senderId, "messagesRead", { readerId });
+    emitToUser(readerId, "conversationUpdated", {
+      conversationId: conversation._id,
+      unreadCount: 0,
+    });
 
     return res
       .status(200)
@@ -321,10 +311,8 @@ export const reactToMessage = async (req, res) => {
         emoji: reaction.emoji,
       })),
     };
-    for (const participantId of [message.senderId, message.receiverId]) {
-      const socketId = getReceiverSocketId(participantId.toString());
-      if (socketId) io.to(socketId).emit("messageReactionUpdated", update);
-    }
+    emitToUser(message.senderId, "messageReactionUpdated", update);
+    emitToUser(message.receiverId, "messageReactionUpdated", update);
 
     return res.status(200).json({
       success: true,

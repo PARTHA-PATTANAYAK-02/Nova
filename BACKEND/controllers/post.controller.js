@@ -82,7 +82,7 @@ export const addNewPost = async (req, res) => {
 
     await post.populate({ path: "author", select: "-password" });
 
-    io.emit("postUpdated", { ...post.toObject(), comments: [] });
+    io.emit("newPost", post);
 
     return res.status(201).json({
       message: "New post added",
@@ -134,7 +134,8 @@ export const getAllPost = async (req, res) => {
       success: true,
     });
   } catch (error) {
-    console.log(error);
+    console.error("getAllPost error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
 export const getPostById = async (req, res) => {
@@ -184,7 +185,8 @@ export const getUserPost = async (req, res) => {
       success: true,
     });
   } catch (error) {
-    console.log(error);
+    console.error("getUserPost error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
 export const likePost = async (req, res) => {
@@ -198,8 +200,11 @@ export const likePost = async (req, res) => {
         .json({ message: "Post not found", success: false });
 
     // like logic started
-    await post.updateOne({ $addToSet: { likes: likeKrneWalaUserKiId } });
-    await post.save();
+    const hasLiked = post.likes.some((id) => id.toString() === likeKrneWalaUserKiId.toString());
+    if (!hasLiked) {
+      post.likes.push(likeKrneWalaUserKiId);
+      await post.save();
+    }
 
     // implement socket io for real time notification
     const postOwnerId = post.author.toString();
@@ -215,7 +220,10 @@ export const likePost = async (req, res) => {
     await emitPostUpdated(postId);
 
     return res.status(200).json({ message: "Post liked", success: true });
-  } catch (error) {}
+  } catch (error) {
+    console.error("likePost error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
 };
 export const dislikePost = async (req, res) => {
   try {
@@ -227,14 +235,17 @@ export const dislikePost = async (req, res) => {
         .status(404)
         .json({ message: "Post not found", success: false });
 
-    // like logic started
-    await post.updateOne({ $pull: { likes: likeKrneWalaUserKiId } });
+    // dislike logic started
+    post.likes = post.likes.filter((id) => id.toString() !== likeKrneWalaUserKiId.toString());
     await post.save();
 
     await emitPostUpdated(postId);
 
     return res.status(200).json({ message: "Post disliked", success: true });
-  } catch (error) {}
+  } catch (error) {
+    console.error("dislikePost error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
 };
 export const addComment = async (req, res) => {
   try {
@@ -315,7 +326,8 @@ export const getCommentsOfPost = async (req, res) => {
 
     return res.status(200).json({ success: true, comments });
   } catch (error) {
-    console.log(error);
+    console.error("getCommentsOfPost error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
 export const deletePost = async (req, res) => {
@@ -362,7 +374,8 @@ export const deletePost = async (req, res) => {
       message: "Post deleted",
     });
   } catch (error) {
-    console.log(error);
+    console.error("deletePost error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
 export const bookmarkPost = async (req, res) => {
@@ -376,9 +389,13 @@ export const bookmarkPost = async (req, res) => {
         .json({ message: "Post not found", success: false });
 
     const user = await User.findById(authorId);
-    if (user.bookmarks.includes(post._id)) {
-      // already bookmarked -> remove from the bookmark
-      await user.updateOne({ $pull: { bookmarks: post._id } });
+    if (!user) {
+      return res.status(404).json({ message: "User not found", success: false });
+    }
+
+    const isBookmarked = user.bookmarks.some((id) => id.toString() === post._id.toString());
+    if (isBookmarked) {
+      user.bookmarks = user.bookmarks.filter((id) => id.toString() !== post._id.toString());
       await user.save();
       return res.status(200).json({
         type: "unsaved",
@@ -386,14 +403,14 @@ export const bookmarkPost = async (req, res) => {
         success: true,
       });
     } else {
-      // bookmark krna pdega
-      await user.updateOne({ $addToSet: { bookmarks: post._id } });
+      user.bookmarks.push(post._id);
       await user.save();
       return res
         .status(200)
         .json({ type: "saved", message: "Post bookmarked", success: true });
     }
   } catch (error) {
-    console.log(error);
+    console.error("bookmarkPost error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };

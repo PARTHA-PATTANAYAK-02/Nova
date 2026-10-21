@@ -104,8 +104,10 @@ const MobileBottomNav = () => {
   const handleNotificationClick = (n) => {
     if (n.type === "message") {
       navigate("/chat", { state: { user: n.userDetails } });
-    } else if (n.type === "comment") {
+    } else if (n.type === "comment" || n.type === "like") {
       navigate("/", { state: { notificationPostId: n.postId } });
+    } else if (n.type === "follow" && n.userId) {
+      navigate(`/profile/${n.userId}`);
     } else {
       navigate("/");
     }

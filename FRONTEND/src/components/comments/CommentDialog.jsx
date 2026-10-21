@@ -63,6 +63,7 @@ const CommentDialog = ({ open, setOpen }) => {
 
   const mediaBurstTimeoutRef = useRef(null);
   const lastTapRef = useRef(0);
+  const touchStartCoordsRef = useRef({ x: 0, y: 0 });
 
   /* ─── RESET ON CLOSE ─── */
   useEffect(() => {
@@ -232,8 +233,21 @@ const CommentDialog = ({ open, setOpen }) => {
     if (!isLikedByMe) handleLikeToggle();
   };
 
+  const handleMediaTouchStart = (e) => {
+    const t = e.touches?.[0];
+    if (t) touchStartCoordsRef.current = { x: t.clientX, y: t.clientY };
+  };
+
   const handleMediaTouchEnd = (e) => {
     const now = Date.now();
+    const t = e.changedTouches?.[0];
+    if (t) {
+      const dist = Math.hypot(
+        t.clientX - touchStartCoordsRef.current.x,
+        t.clientY - touchStartCoordsRef.current.y,
+      );
+      if (dist > 10) return; // Scrolled/dragged, not a tap
+    }
     if (now - lastTapRef.current < 280) {
       e.preventDefault();
       handleMediaDoubleClick();
@@ -322,7 +336,7 @@ const CommentDialog = ({ open, setOpen }) => {
         <div
           className="nova-comment-dialog__media"
           onDoubleClick={handleMediaDoubleClick}
-          onTouchEnd={handleMediaTouchEnd}
+          onTouchStart={handleMediaTouchStart} onTouchEnd={handleMediaTouchEnd}
         >
           <div className="nova-comment-dialog__media-glow" aria-hidden />
 

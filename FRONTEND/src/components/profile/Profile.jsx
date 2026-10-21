@@ -186,7 +186,9 @@ const Profile = () => {
     };
   }, [userProfile?._id, user?._id, userFollowingKey]);
 
-  const isFollowing = user?.following?.includes(userProfile?._id);
+  const isFollowing = (user?.following || []).some(
+    (id) => (id?._id || id)?.toString() === userProfile?._id?.toString(),
+  );
 
   const handleFollowToggle = async () => {
     if (followLoading || !userProfile?._id) return;

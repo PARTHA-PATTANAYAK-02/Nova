@@ -55,14 +55,20 @@ const useGetAllPost = () => {
     fetchAllPost();
   }, [fetchAllPost]);
 
+  const retry = useCallback(() => fetchAllPost(1), [fetchAllPost]);
+  const loadMore = useCallback(() => {
+    setState((current) => {
+      if (!current.loading && !current.loadingMore && current.hasMore) {
+        fetchAllPost(current.page + 1);
+      }
+      return current;
+    });
+  }, [fetchAllPost]);
+
   return {
     ...state,
-    retry: () => fetchAllPost(1),
-    loadMore: () => {
-      if (!state.loading && !state.loadingMore && state.hasMore) {
-        fetchAllPost(state.page + 1);
-      }
-    },
+    retry,
+    loadMore,
   };
 };
 export default useGetAllPost;

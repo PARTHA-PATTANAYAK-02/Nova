@@ -19,7 +19,7 @@ const Posts = ({ requestState }) => {
     );
     io.observe(target);
     return () => io.disconnect();
-  }, [requestState]);
+  }, [requestState.hasMore, requestState.loadMore]);
 
   if (requestState.loading && posts.length === 0) {
     return (

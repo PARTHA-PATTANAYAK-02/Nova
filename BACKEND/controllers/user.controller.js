@@ -426,7 +426,8 @@ export const login = async (req, res) => {
         user,
       });
   } catch (error) {
-    console.log(error);
+    console.error("login error:", error);
+    return res.status(500).json({ success: false, message: "Login failed" });
   }
 };
 export const logout = async (_, res) => {
@@ -437,7 +438,8 @@ export const logout = async (_, res) => {
       success: true,
     });
   } catch (error) {
-    console.log(error);
+    console.error("logout error:", error);
+    return res.status(500).json({ success: false, message: "Logout failed" });
   }
 };
 
@@ -467,16 +469,28 @@ export const getProfile = async (req, res) => {
     const userId = req.params.id;
     let user = await User.findById(userId)
       .select("-password")
-      .populate({ path: "posts", createdAt: -1 })
+      .populate({ path: "posts", options: { sort: { createdAt: -1 } } })
       .populate("bookmarks")
       .populate("followers", "username fullName profilePicture")
       .populate("following", "username fullName profilePicture");
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+        success: false,
+      });
+    }
+
     return res.status(200).json({
       user,
       success: true,
     });
   } catch (error) {
-    console.log(error);
+    console.error("getProfile error:", error);
+    return res.status(500).json({
+      message: "Failed to fetch user profile",
+      success: false,
+    });
   }
 };
 
@@ -562,25 +576,38 @@ export const editProfile = async (req, res) => {
       user,
     });
   } catch (error) {
-    console.log(error);
+    console.error("editProfile error:", error);
+    return res.status(500).json({ success: false, message: "Profile update failed" });
   }
 };
 export const getSuggestedUsers = async (req, res) => {
   try {
-    const suggestedUsers = await User.find({ _id: { $ne: req.id } }).select(
-      "-password",
-    );
-    if (!suggestedUsers) {
-      return res.status(400).json({
-        message: "Currently do not have any users",
-      });
+    const currentUser = await User.findById(req.id).select("following");
+    const followingIds = (currentUser?.following || []).map((id) => (id?._id || id)?.toString());
+    const excludedIds = [req.id, ...followingIds];
+
+    // Priority 1: Users the current user doesn't follow yet
+    let suggestedUsers = await User.find({ _id: { $nin: excludedIds } })
+      .select("-password")
+      .limit(10);
+
+    // Fallback: If no unfollowed users exist, show other community users so the section is never blank
+    if (!suggestedUsers || suggestedUsers.length === 0) {
+      suggestedUsers = await User.find({ _id: { $ne: req.id } })
+        .select("-password")
+        .limit(10);
     }
+
     return res.status(200).json({
       success: true,
-      users: suggestedUsers,
+      users: suggestedUsers || [],
     });
   } catch (error) {
-    console.log(error);
+    console.error("getSuggestedUsers error:", error);
+    return res.status(500).json({
+      message: "Failed to fetch suggested users",
+      success: false,
+    });
   }
 };
 export const followOrUnfollow = async (req, res) => {
@@ -644,6 +671,7 @@ export const followOrUnfollow = async (req, res) => {
         .json({ message: "followed successfully", success: true });
     }
   } catch (error) {
-    console.log(error);
+    console.error("followOrUnfollow error:", error);
+    return res.status(500).json({ success: false, message: "Failed to update follow status" });
   }
 };

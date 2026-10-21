@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import cloudinary from "../utils/cloudinary.js";
 import { Story } from "../models/story.model.js";
 import { User } from "../models/user.model.js";
-import { getReceiverSocketId, io } from "../socket/socket.js";
+import { emitToUser, getReceiverSocketId, io } from "../socket/socket.js";
 
 const STORY_LIFETIME_MS = 24 * 60 * 60 * 1000;
 const STORY_REACTIONS = new Set(["❤️", "🥰", "😂", "😮", "😢", "🔥"]);
@@ -264,11 +264,9 @@ export const reactToStory = async (req, res) => {
       })),
       reactionDetails: story.author.toString() === req.id.toString() ? reactionDetails : undefined,
     };
-    const ownerSocketId = getReceiverSocketId(story.author.toString());
-    if (ownerSocketId) io.to(ownerSocketId).emit("storyReactionUpdated", update);
+    emitToUser(story.author, "storyReactionUpdated", update);
     if (story.author.toString() !== req.id.toString()) {
-      const actorSocketId = getReceiverSocketId(req.id.toString());
-      if (actorSocketId) io.to(actorSocketId).emit("storyReactionUpdated", {
+      emitToUser(req.id, "storyReactionUpdated", {
         storyId: story._id,
         reactions: update.reactions,
       });

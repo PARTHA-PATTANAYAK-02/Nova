@@ -92,6 +92,7 @@ const Post = ({ post }) => {
   const likeAnimTimeoutRef = useRef(null);
   const bookmarkAnimTimeoutRef = useRef(null);
   const lastTouchRef = useRef(0);
+  const touchStartCoordsRef = useRef({ x: 0, y: 0 });
 
   const isOwnPost = user?._id === post?.author?._id;
   const isFollowing = user?.following?.some(
@@ -270,8 +271,21 @@ const Post = ({ post }) => {
     if (!liked) likeOrDislikeHandler();
   };
 
+  const handleMediaTouchStart = (e) => {
+    const t = e.touches?.[0];
+    if (t) touchStartCoordsRef.current = { x: t.clientX, y: t.clientY };
+  };
+
   const handleMediaTouchEnd = (e) => {
     const now = Date.now();
+    const t = e.changedTouches?.[0];
+    if (t) {
+      const dist = Math.hypot(
+        t.clientX - touchStartCoordsRef.current.x,
+        t.clientY - touchStartCoordsRef.current.y,
+      );
+      if (dist > 10) return; // Scrolled/dragged, not a tap
+    }
     if (now - lastTouchRef.current < 280) {
       e.preventDefault();
       handleMediaDoubleClick();
@@ -544,9 +558,12 @@ const Post = ({ post }) => {
         className="relative bg-[var(--surface-2)]/40 overflow-hidden w-full"
         style={mediaStyle}
         onDoubleClick={handleMediaDoubleClick}
+        onTouchStart={(e) => {
+          handleMediaTouchStart(e);
+          if (post.mediaType === "video") showControls();
+        }}
         onTouchEnd={handleMediaTouchEnd}
         onMouseMove={post.mediaType === "video" ? showControls : undefined}
-        onTouchStart={post.mediaType === "video" ? showControls : undefined}
         onMouseLeave={() => {
           if (videoPlaying) {
             window.clearTimeout(controlsTimeoutRef.current);

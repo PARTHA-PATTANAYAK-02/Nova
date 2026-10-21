@@ -48,6 +48,14 @@ export const getReceiverSocketIds = (receiverId) => userSocketMap[receiverId] ||
 export const getReceiverSocketId = (receiverId) =>
   getReceiverSocketIds(receiverId)[0];
 
+export const emitToUser = (userId, event, data) => {
+  if (!userId) return;
+  const socketIds = getReceiverSocketIds(userId?.toString?.() || userId);
+  for (const socketId of socketIds) {
+    io.to(socketId).emit(event, data);
+  }
+};
+
 io.on("connection", (socket) => {
   const userId = socket.userId;
   if (userId) {
