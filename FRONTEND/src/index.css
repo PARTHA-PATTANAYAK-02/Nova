@@ -14,6 +14,7 @@
 html {
   overflow-y: scroll;
   scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* High-specificity overrides to permanently neutralize react-remove-scroll
@@ -1995,6 +1996,8 @@ body[data-scroll-locked] {
 }
 .nova-comment-dialog__item {
   animation: novaCommentIn 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  content-visibility: auto;
+  contain-intrinsic-size: 0 60px;
 }
 
 .nova-comment-dialog__empty {
@@ -5022,7 +5025,7 @@ body[data-scroll-locked] {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
 }

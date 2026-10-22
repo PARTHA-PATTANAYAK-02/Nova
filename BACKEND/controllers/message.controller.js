@@ -141,12 +141,10 @@ export const sendMessage = async (req, res) => {
       });
     }
 
-    if (senderSocketId) {
-      io.to(senderSocketId).emit("conversationUpdated", {
-        conversationId: conversation._id,
-        lastMessage: newMessage,
-      });
-    }
+    emitToUser(senderId, "conversationUpdated", {
+      conversationId: conversation._id,
+      lastMessage: newMessage,
+    });
 
     return res.status(201).json({
       success: true,
@@ -168,14 +166,37 @@ export const getMessage = async (req, res) => {
     }
     const conversation = await getConversationForUsers(req.id, req.params.id);
     if (!conversation)
-      return res.status(200).json({ success: true, messages: [] });
+      return res.status(200).json({ success: true, messages: [], hasMore: false });
 
-    const messages = await Message.find({
-      _id: { $in: conversation.messages },
-    }).sort({
-      createdAt: 1,
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 30, 1), 100);
+    const beforeId = req.query.before;
+
+    const query = { _id: { $in: conversation.messages } };
+
+    if (beforeId && mongoose.isValidObjectId(beforeId)) {
+      const beforeMessage = await Message.findById(beforeId).select("createdAt");
+      if (beforeMessage) {
+        query.createdAt = { $lt: beforeMessage.createdAt };
+      }
+    }
+
+    // Fetch latest messages matching criteria
+    const rawMessages = await Message.find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit + 1);
+
+    const hasMore = rawMessages.length > limit;
+    const messages = hasMore ? rawMessages.slice(0, limit) : rawMessages;
+
+    // Return in ascending chronological order for client display
+    messages.reverse();
+
+    return res.status(200).json({
+      success: true,
+      messages,
+      hasMore,
+      nextCursor: hasMore && messages.length > 0 ? messages[0]._id : null,
     });
-    return res.status(200).json({ success: true, messages });
   } catch (error) {
     console.error("getMessage error:", error);
     return res

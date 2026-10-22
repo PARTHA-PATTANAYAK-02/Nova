@@ -128,6 +128,10 @@ const CreatePost = ({ open, setOpen }) => {
   };
 
   const createPostHandler = async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      toast.error("You're offline. Reconnect to internet to share posts.");
+      return;
+    }
     if (!imagePreview || !file) {
       toast.error("Please select an image or video first.");
       return;

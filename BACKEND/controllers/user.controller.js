@@ -11,7 +11,12 @@ import { validateEmailDeliverability } from "../utils/emailValidation.js";
 import { consumeOtp, discardOtp, issueOtp, verifyOtp } from "../utils/emailOtp.js";
 import { sendOtpEmail } from "../utils/emailjs.js";
 import { deleteAccountAndRelatedData } from "../utils/accountDeletion.js";
-import { authCookieOptions, clearAuthCookie } from "../utils/authCookie.js";
+import {
+  accessTokenCookieOptions,
+  refreshTokenCookieOptions,
+  clearAuthCookie,
+} from "../utils/authCookie.js";
+import { generateAccessToken, generateRefreshToken } from "../utils/token.js";
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const normalizeEmail = (email) => email?.trim().toLowerCase();
@@ -177,25 +182,20 @@ export const verifyRegistrationOtp = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 12);
     const user = await User.create({ email, fullName, password: hashedPassword });
-    const token = jwt.sign(
-      { userId: user._id },
-      environment.authentication.jwtSecret,
-      { expiresIn: "1d" },
-    );
+    const token = generateAccessToken(user._id);
+    const refreshToken = generateRefreshToken(user._id);
     const safeUser = user.toObject();
     delete safeUser.password;
 
     return res
-      .cookie("token", token, {
-        ...authCookieOptions,
-        maxAge: 24 * 60 * 60 * 1000,
-      })
+      .cookie("token", token, accessTokenCookieOptions)
+      .cookie("refreshToken", refreshToken, refreshTokenCookieOptions)
       .status(201)
       .json({
-      success: true,
-      message: "Email verified. Welcome to Nova!",
-      user: safeUser,
-    });
+        success: true,
+        message: "Email verified. Welcome to Nova!",
+        user: safeUser,
+      });
   } catch (error) {
     console.error("verifyRegistrationOtp error:", error);
     return res.status(500).json({ success: false, message: "Unable to create your account. Please try again." });
@@ -384,17 +384,14 @@ export const login = async (req, res) => {
       });
     }
 
-    const token = await jwt.sign(
-      { userId: user._id },
-      environment.authentication.jwtSecret,
-      { expiresIn: "1d" },
-    );
+    const token = generateAccessToken(user._id);
+    const refreshToken = generateRefreshToken(user._id);
 
     // populate each post if in the posts array
     const populatedPosts = await Promise.all(
       user.posts.map(async (postId) => {
         const post = await Post.findById(postId);
-        if (post.author.equals(user._id)) {
+        if (post && post.author?.equals(user._id)) {
           return post;
         }
         return null;
@@ -416,10 +413,8 @@ export const login = async (req, res) => {
       posts: populatedPosts,
     };
     return res
-      .cookie("token", token, {
-        ...authCookieOptions,
-        maxAge: 1 * 24 * 60 * 60 * 1000,
-      })
+      .cookie("token", token, accessTokenCookieOptions)
+      .cookie("refreshToken", refreshToken, refreshTokenCookieOptions)
       .json({
         message: `Welcome back ${user.fullName?.trim() || "to Nova"}`,
         success: true,
@@ -430,6 +425,60 @@ export const login = async (req, res) => {
     return res.status(500).json({ success: false, message: "Login failed" });
   }
 };
+
+export const refreshToken = async (req, res) => {
+  try {
+    const rawRefreshToken = req.cookies?.refreshToken;
+    if (!rawRefreshToken) {
+      clearAuthCookie(res);
+      return res.status(401).json({
+        success: false,
+        message: "No refresh token provided",
+      });
+    }
+
+    const decode = jwt.verify(
+      rawRefreshToken,
+      environment.authentication.jwtSecret,
+    );
+    if (!decode?.userId) {
+      clearAuthCookie(res);
+      return res.status(401).json({
+        success: false,
+        message: "Invalid refresh token",
+      });
+    }
+
+    const user = await User.findById(decode.userId).select("-password");
+    if (!user) {
+      clearAuthCookie(res);
+      return res.status(401).json({
+        success: false,
+        message: "User no longer exists",
+      });
+    }
+
+    const newAccessToken = generateAccessToken(user._id);
+    const newRefreshToken = generateRefreshToken(user._id);
+
+    return res
+      .cookie("token", newAccessToken, accessTokenCookieOptions)
+      .cookie("refreshToken", newRefreshToken, refreshTokenCookieOptions)
+      .status(200)
+      .json({
+        success: true,
+        message: "Token refreshed successfully",
+        user,
+      });
+  } catch (error) {
+    clearAuthCookie(res);
+    return res.status(401).json({
+      success: false,
+      message: "Expired or invalid refresh token",
+    });
+  }
+};
+
 export const logout = async (_, res) => {
   try {
     clearAuthCookie(res);
@@ -631,7 +680,7 @@ export const followOrUnfollow = async (req, res) => {
       });
     }
     // mai check krunga ki follow krna hai ya unfollow
-    const isFollowing = user.following.includes(jiskoFollowKrunga);
+    const isFollowing = (user.following || []).some((id) => (id?._id || id)?.toString() === jiskoFollowKrunga.toString());
     if (isFollowing) {
       // unfollow logic ayega
       await Promise.all([

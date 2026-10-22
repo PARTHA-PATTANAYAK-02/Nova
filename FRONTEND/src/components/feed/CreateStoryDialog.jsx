@@ -20,12 +20,14 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
   const [caption, setCaption] = useState("");
   const [audience, setAudience] = useState("followers");
   const [uploading, setUploading] = useState(false);
+  const [videoDuration, setVideoDuration] = useState(0);
 
   const clearFile = () => {
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     previewUrlRef.current = "";
     setFile(null);
     setPreview("");
+    setVideoDuration(0);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -33,6 +35,7 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
     clearFile();
     setCaption("");
     setAudience("followers");
+    setVideoDuration(0);
     setUploading(false);
   };
 
@@ -79,6 +82,7 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
           toast.error("Story videos must be 30 seconds or shorter.");
           return;
         }
+        setVideoDuration(video.duration);
         previewUrlRef.current = objectUrl;
         setFile(selectedFile);
         setPreview(objectUrl);
@@ -103,6 +107,10 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
   };
 
   const shareStory = async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      toast.error("You're offline. Reconnect to internet to share stories.");
+      return;
+    }
     if (!file || uploading) return;
     try {
       setUploading(true);
@@ -110,6 +118,9 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
       body.append("image", file);
       body.append("caption", caption.trim());
       body.append("audience", audience);
+      if (file.type?.startsWith("video/") && videoDuration > 0) {
+        body.append("duration", String(videoDuration));
+      }
 
       const res = await axios.post(apiUrl("/api/v1/story"), body, {
         withCredentials: true,

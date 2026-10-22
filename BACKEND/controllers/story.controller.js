@@ -9,6 +9,84 @@ const STORY_LIFETIME_MS = 24 * 60 * 60 * 1000;
 const STORY_REACTIONS = new Set(["❤️", "🥰", "😂", "😮", "😢", "🔥"]);
 const getReferenceId = (value) => (value?._id || value)?.toString();
 
+// Extracts duration from MP4/MOV or WebM/MKV buffer directly without external dependencies
+const getVideoDurationFromBuffer = (buffer) => {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 16) return null;
+
+  try {
+    // 1. MP4 / MOV container (ISO BMFF): scan boxes for 'moov' -> 'mvhd'
+    let offset = 0;
+    while (offset + 8 <= buffer.length) {
+      let size = buffer.readUInt32BE(offset);
+      const type = buffer.toString("ascii", offset + 4, offset + 8);
+      let headerSize = 8;
+      if (size === 1) {
+        if (offset + 16 > buffer.length) break;
+        size = Number(buffer.readBigUInt64BE(offset + 8));
+        headerSize = 16;
+      } else if (size === 0) {
+        size = buffer.length - offset;
+      }
+      if (size < headerSize) break;
+
+      if (type === "moov") {
+        let subOffset = offset + headerSize;
+        const moovEnd = Math.min(offset + size, buffer.length);
+        while (subOffset + 8 <= moovEnd) {
+          let subSize = buffer.readUInt32BE(subOffset);
+          const subType = buffer.toString("ascii", subOffset + 4, subOffset + 8);
+          let subHeaderSize = 8;
+          if (subSize === 1) {
+            if (subOffset + 16 > moovEnd) break;
+            subSize = Number(buffer.readBigUInt64BE(subOffset + 8));
+            subHeaderSize = 16;
+          } else if (subSize === 0) {
+            subSize = moovEnd - subOffset;
+          }
+          if (subSize < subHeaderSize) break;
+
+          if (subType === "mvhd") {
+            const version = buffer.readUInt8(subOffset + subHeaderSize);
+            if (version === 0 && subOffset + subHeaderSize + 20 <= moovEnd) {
+              const timescale = buffer.readUInt32BE(subOffset + subHeaderSize + 12);
+              const duration = buffer.readUInt32BE(subOffset + subHeaderSize + 16);
+              if (timescale > 0) return duration / timescale;
+            } else if (version === 1 && subOffset + subHeaderSize + 32 <= moovEnd) {
+              const timescale = buffer.readUInt32BE(subOffset + subHeaderSize + 20);
+              const duration = Number(buffer.readBigUInt64BE(subOffset + subHeaderSize + 24));
+              if (timescale > 0) return duration / timescale;
+            }
+          }
+          subOffset += subSize;
+        }
+      }
+      offset += size;
+    }
+  } catch {
+    // Continue fallback check
+  }
+
+  try {
+    // 2. WebM / Matroska EBML: search for Duration element [0x44, 0x89]
+    for (let i = 0; i < Math.min(buffer.length - 10, 50000); i++) {
+      if (buffer[i] === 0x44 && buffer[i + 1] === 0x89) {
+        const lenByte = buffer[i + 2];
+        if (lenByte === 0x84 && i + 7 <= buffer.length) {
+          const dur = buffer.readFloatBE(i + 3);
+          if (Number.isFinite(dur) && dur > 0) return dur > 1000 ? dur / 1000 : dur;
+        } else if (lenByte === 0x88 && i + 11 <= buffer.length) {
+          const dur = buffer.readDoubleBE(i + 3);
+          if (Number.isFinite(dur) && dur > 0) return dur > 1000 ? dur / 1000 : dur;
+        }
+      }
+    }
+  } catch {
+    // Ignore fallback errors
+  }
+
+  return null;
+};
+
 const getViewableStory = async (storyId, viewerId) => {
   const story = await Story.findOne({
     _id: storyId,
@@ -101,6 +179,18 @@ export const createStory = async (req, res) => {
     }
     if (caption.length > 500) {
       return res.status(400).json({ success: false, message: "Caption can be up to 500 characters" });
+    }
+
+    if (isVideo) {
+      const clientDuration = Number(req.body.duration);
+      if (Number.isFinite(clientDuration) && clientDuration > 30) {
+        return res.status(400).json({ success: false, message: "Story videos must be 30 seconds or shorter" });
+      }
+
+      const bufferDuration = getVideoDurationFromBuffer(image.buffer);
+      if (Number.isFinite(bufferDuration) && bufferDuration > 30.5) {
+        return res.status(400).json({ success: false, message: "Story videos must be 30 seconds or shorter" });
+      }
     }
 
     const uploadBuffer = isVideo

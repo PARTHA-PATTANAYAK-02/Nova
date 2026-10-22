@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Check,
   CheckCheck,
@@ -7,6 +7,7 @@ import {
   Smile,
   MessageSquareReply,
   X,
+  Loader2,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
@@ -390,17 +391,6 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
     return undefined;
   }, [messages]);
 
-  const scrollToBottom = () => {
-    const el = scrollContainerRef.current;
-    if (!el) return;
-    requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight;
-      requestAnimationFrame(() => {
-        el.scrollTop = el.scrollHeight;
-      });
-    });
-  };
-
   const isNearBottom = () => {
     const el = scrollContainerRef.current;
     if (!el) return true;
@@ -408,15 +398,64 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
     return d <= 150;
   };
 
+  const lastMsgIdRef = useRef(null);
+  const isInitialScrollDoneRef = useRef(false);
+
+  // Reset initial scroll flag when changing conversation
   useEffect(() => {
-    if (messageRequest.loading) return;
-    scrollToBottom();
+    isInitialScrollDoneRef.current = false;
+  }, [selectedUser?._id]);
+
+  // Instantly position at the latest message at bottom BEFORE browser paints
+  useLayoutEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el || messageRequest.loading || !messages?.length) return;
+
+    if (!isInitialScrollDoneRef.current) {
+      el.scrollTop = el.scrollHeight;
+      isInitialScrollDoneRef.current = true;
+    }
   }, [selectedUser?._id, messageRequest.loading, messages]);
 
+  // Smooth scroll for subsequent incoming / outgoing messages when user is near bottom
   useEffect(() => {
-    if (!messages?.length) return;
-    scrollToBottom();
-  }, [messages?.length]);
+    const el = scrollContainerRef.current;
+    if (!el || messageRequest.loading || !messages?.length) return;
+
+    const latestMsg = messages[messages.length - 1];
+    const isNewBottomMessage =
+      latestMsg && latestMsg._id !== lastMsgIdRef.current;
+    lastMsgIdRef.current = latestMsg?._id;
+
+    if (isNewBottomMessage && isInitialScrollDoneRef.current && isNearBottom()) {
+      requestAnimationFrame(() => {
+        el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+      });
+    }
+  }, [messages, messageRequest.loading]);
+
+  const handleScroll = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    if (
+      el.scrollTop <= 80 &&
+      messageRequest.hasMore &&
+      !messageRequest.loadingMore &&
+      messages?.length > 0
+    ) {
+      const oldestId = messages[0]._id;
+      const prevScrollHeight = el.scrollHeight;
+
+      messageRequest.loadOlderMessages(oldestId).then((loaded) => {
+        if (loaded && el) {
+          requestAnimationFrame(() => {
+            el.scrollTop = el.scrollHeight - prevScrollHeight;
+          });
+        }
+      });
+    }
+  };
 
   useEffect(() => {
     if (!isTyping) return;
@@ -443,7 +482,11 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
         />
       )}
 
-      <div ref={scrollContainerRef} className="nova-messages__scroll">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="nova-messages__scroll"
+      >
         {messageRequest.loading ? (
           <LoadingState message="Loading messages…" />
         ) : messageRequest.error ? (
@@ -462,7 +505,39 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
             </p>
           </div>
         ) : (
-          messages?.map((msg, index) => {
+          <>
+            {/* Loading older messages indicator */}
+            {messageRequest.loadingMore && (
+              <div className="flex items-center justify-center py-2.5 gap-2 text-xs text-[var(--muted-foreground)] animate-fade-in">
+                <Loader2 className="size-3.5 animate-spin text-[var(--primary)]" />
+                <span>Loading earlier messages…</span>
+              </div>
+            )}
+            {messageRequest.hasMore && !messageRequest.loadingMore && (
+              <div className="flex justify-center py-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = scrollContainerRef.current;
+                    if (!el || !messages?.length) return;
+                    const prevScrollHeight = el.scrollHeight;
+                    messageRequest
+                      .loadOlderMessages(messages[0]._id)
+                      .then((loaded) => {
+                        if (loaded && el) {
+                          requestAnimationFrame(() => {
+                            el.scrollTop = el.scrollHeight - prevScrollHeight;
+                          });
+                        }
+                      });
+                  }}
+                  className="text-[11px] font-medium text-[var(--primary)] hover:underline px-3 py-1 rounded-full bg-[var(--surface-2)]/80 border border-[var(--border)]/60 transition-colors"
+                >
+                  Load earlier messages
+                </button>
+              </div>
+            )}
+            {messages?.map((msg, index) => {
             const isMine = msg.senderId === user?._id;
             const prev = messages[index - 1];
             const sameAsPrev = prev?.senderId === msg.senderId;
@@ -677,7 +752,8 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
                 </div>
               </div>
             );
-          })
+          })}
+          </>
         )}
 
         {isTyping && (

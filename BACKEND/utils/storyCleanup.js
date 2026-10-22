@@ -24,6 +24,12 @@ export const removeLegacyStoryTtlIndex = async () => {
   }
 };
 
+const extractPublicIdFromUrl = (url) => {
+  if (!url || typeof url !== "string") return null;
+  const match = url.match(/\/upload\/(?:v\d+\/)?([^\.]+)/);
+  return match ? match[1] : null;
+};
+
 export const cleanupExpiredStories = async () => {
   if (cleanupInProgress) return;
   cleanupInProgress = true;
@@ -32,23 +38,38 @@ export const cleanupExpiredStories = async () => {
     const expiredStories = await Story.find({
       expiresAt: { $lte: new Date() },
     })
-      .select("_id imagePublicId resourceType")
+      .select("_id image imagePublicId resourceType")
+      .limit(100)
       .lean();
 
     for (const story of expiredStories) {
-      try {
-        // Older story records may not have a public id. Their database record
-        // can still be safely removed, but new uploads always have one.
-        if (story.imagePublicId) {
-          await cloudinary.uploader.destroy(story.imagePublicId, {
+      const publicId = story.imagePublicId || extractPublicIdFromUrl(story.image);
+      let mediaDestroyed = !publicId; // If no publicId could be resolved, proceed with document deletion
+
+      if (publicId) {
+        try {
+          const res = await cloudinary.uploader.destroy(publicId, {
             resource_type: story.resourceType === "video" ? "video" : "image",
             invalidate: true,
           });
+          if (res?.result === "ok" || res?.result === "not found") {
+            mediaDestroyed = true;
+          }
+        } catch (destroyError) {
+          if (destroyError?.http_code === 404 || destroyError?.message?.includes("not found")) {
+            mediaDestroyed = true;
+          } else {
+            console.error(`Cloudinary deletion error for story ${story._id}:`, destroyError);
+          }
         }
-        await Story.deleteOne({ _id: story._id });
-      } catch (error) {
-        // Keep the record when Cloudinary fails, so the next run retries it.
-        console.error(`Unable to clean up expired story ${story._id}:`, error);
+      }
+
+      if (mediaDestroyed) {
+        try {
+          await Story.deleteOne({ _id: story._id });
+        } catch (dbError) {
+          console.error(`Unable to delete expired story record ${story._id}:`, dbError);
+        }
       }
     }
   } catch (error) {

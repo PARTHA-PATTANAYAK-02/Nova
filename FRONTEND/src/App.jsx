@@ -1,17 +1,8 @@
-import { useEffect, useRef, useState } from "react";
-import ChatPage from "@/components/chat/ChatPage";
-import EditProfile from "@/components/profile/EditProfile";
-import AccountSecurity from "@/components/profile/AccountSecurity";
-import ForgotPassword from "@/components/auth/ForgotPassword";
+import React, { Suspense, lazy, useEffect, useRef, useState } from "react";
 import Home from "@/components/feed/Home";
 import Login from "@/components/auth/Login";
 import MainLayout from "@/components/layout/MainLayout";
-import Profile from "@/components/profile/Profile";
 import Signup from "@/components/auth/Signup";
-import SearchPage from "@/components/search/SearchPage";
-import NotFound from "@/components/common/NotFound";
-import ProfileSetup from "@/components/onboarding/ProfileSetup";
-import WelcomeScreen from "@/components/onboarding/WelcomeScreen";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { io } from "socket.io-client";
 import { useDispatch, useSelector } from "react-redux";
@@ -24,10 +15,37 @@ import {
   setNotifications,
 } from "./redux/rtnSlice";
 import axios from "axios";
-import { removePost, setSelectedPost, updatePost } from "./redux/postSlice";
+import { appendPost, removePost, setSelectedPost, updatePost } from "./redux/postSlice";
 import ProtectedRoutes from "@/components/common/ProtectedRoutes";
 import { API_BASE_URL, apiUrl } from "./lib/api";
 import { playMessageSound, playReactionSound } from "./lib/sound";
+import NetworkStatusBanner from "@/components/common/NetworkStatusBanner";
+
+// Code-split route components for optimized bundle size & fast initial paint
+const ChatPage = lazy(() => import("@/components/chat/ChatPage"));
+const Profile = lazy(() => import("@/components/profile/Profile"));
+const EditProfile = lazy(() => import("@/components/profile/EditProfile"));
+const AccountSecurity = lazy(() => import("@/components/profile/AccountSecurity"));
+const SearchPage = lazy(() => import("@/components/search/SearchPage"));
+const ForgotPassword = lazy(() => import("@/components/auth/ForgotPassword"));
+const NotFound = lazy(() => import("@/components/common/NotFound"));
+const ProfileSetup = lazy(() => import("@/components/onboarding/ProfileSetup"));
+const WelcomeScreen = lazy(() => import("@/components/onboarding/WelcomeScreen"));
+
+const RouteSuspense = ({ children }) => (
+  <Suspense
+    fallback={
+      <div className="min-h-[50vh] flex items-center justify-center p-6">
+        <div className="flex flex-col items-center gap-3">
+          <div className="size-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+          <span className="text-xs text-muted-foreground animate-pulse">Loading...</span>
+        </div>
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
 
 const browserRouter = createBrowserRouter([
   {
@@ -50,7 +68,9 @@ const browserRouter = createBrowserRouter([
         path: "/profile/:id",
         element: (
           <ProtectedRoutes>
-            <Profile />
+            <RouteSuspense>
+              <Profile />
+            </RouteSuspense>
           </ProtectedRoutes>
         ),
       },
@@ -58,7 +78,9 @@ const browserRouter = createBrowserRouter([
         path: "/account/edit",
         element: (
           <ProtectedRoutes>
-            <EditProfile />
+            <RouteSuspense>
+              <EditProfile />
+            </RouteSuspense>
           </ProtectedRoutes>
         ),
       },
@@ -66,7 +88,9 @@ const browserRouter = createBrowserRouter([
         path: "/account/security",
         element: (
           <ProtectedRoutes>
-            <AccountSecurity />
+            <RouteSuspense>
+              <AccountSecurity />
+            </RouteSuspense>
           </ProtectedRoutes>
         ),
       },
@@ -74,7 +98,9 @@ const browserRouter = createBrowserRouter([
         path: "/chat",
         element: (
           <ProtectedRoutes>
-            <ChatPage />
+            <RouteSuspense>
+              <ChatPage />
+            </RouteSuspense>
           </ProtectedRoutes>
         ),
       },
@@ -82,7 +108,9 @@ const browserRouter = createBrowserRouter([
         path: "/search",
         element: (
           <ProtectedRoutes>
-            <SearchPage />
+            <RouteSuspense>
+              <SearchPage />
+            </RouteSuspense>
           </ProtectedRoutes>
         ),
       },
@@ -98,13 +126,19 @@ const browserRouter = createBrowserRouter([
   },
   {
     path: "/forgot-password",
-    element: <ForgotPassword />,
+    element: (
+      <RouteSuspense>
+        <ForgotPassword />
+      </RouteSuspense>
+    ),
   },
   {
     path: "/welcome/setup",
     element: (
       <ProtectedRoutes>
-        <ProfileSetup />
+        <RouteSuspense>
+          <ProfileSetup />
+        </RouteSuspense>
       </ProtectedRoutes>
     ),
   },
@@ -112,14 +146,20 @@ const browserRouter = createBrowserRouter([
     path: "/welcome",
     element: (
       <ProtectedRoutes>
-        <WelcomeScreen />
+        <RouteSuspense>
+          <WelcomeScreen />
+        </RouteSuspense>
       </ProtectedRoutes>
     ),
   },
   /* ---------- CATCH-ALL 404 ---------- */
   {
     path: "*",
-    element: <NotFound />,
+    element: (
+      <RouteSuspense>
+        <NotFound />
+      </RouteSuspense>
+    ),
   },
 ]);
 
@@ -186,18 +226,37 @@ function App() {
   useEffect(() => {
     if (!currentUserId || !sessionVerified) return undefined;
 
+    // Proactive background silent refresh every 15 minutes so sessions never expire
+    const refreshInterval = setInterval(() => {
+      axios
+        .post(apiUrl("/api/v1/user/refresh-token"), {}, { withCredentials: true })
+        .then((res) => {
+          if (res.data?.user) dispatch(setAuthUser(res.data.user));
+        })
+        .catch(() => {
+          // If refresh fails, normal interceptors will handle subsequent expired calls
+        });
+    }, 15 * 60 * 1000);
+
+    // Only clear auth user if the refresh token endpoint itself failed with 401
+    // or if a retried request still returned 401
     const interceptorId = axios.interceptors.response.use(
       (response) => response,
       (error) => {
-        const message = error.response?.data?.message?.toLowerCase();
-        const isExpiredSession = error.response?.status === 401;
+        const isRefreshUrl = error.config?.url?.includes("/api/v1/user/refresh-token");
+        const isFinal401 = error.response?.status === 401 && (isRefreshUrl || error.config?._retry);
 
-        if (isExpiredSession) dispatch(setAuthUser(null));
+        if (isFinal401) {
+          dispatch(setAuthUser(null));
+        }
         return Promise.reject(error);
       },
     );
 
-    return () => axios.interceptors.response.eject(interceptorId);
+    return () => {
+      clearInterval(refreshInterval);
+      axios.interceptors.response.eject(interceptorId);
+    };
   }, [currentUserId, dispatch, sessionVerified]);
 
   /* ---------- SOCKET + NOTIFICATIONS ---------- */
@@ -363,6 +422,7 @@ function App() {
 
   return (
     <div className="min-h-screen">
+      <NetworkStatusBanner />
       <RouterProvider router={browserRouter} />
     </div>
   );

@@ -96,7 +96,7 @@ const Post = ({ post }) => {
 
   const isOwnPost = user?._id === post?.author?._id;
   const isFollowing = user?.following?.some(
-    (i) => (i?._id || i) === post?.author?._id,
+    (i) => (i?._id || i)?.toString() === post?.author?._id?.toString(),
   );
 
   /* reset aspect when post changes */
@@ -106,7 +106,7 @@ const Post = ({ post }) => {
   }, [post?._id]);
 
   useEffect(() => {
-    setLiked(post?.likes?.some((i) => (i?._id || i) === user?._id) || false);
+    setLiked(post?.likes?.some((i) => (i?._id || i)?.toString() === user?._id?.toString()) || false);
     setPostLike(post?.likes?.length || 0);
     setComment(post?.comments || []);
   }, [post?._id, post?.likes, post?.comments, user?._id]);
@@ -211,6 +211,10 @@ const Post = ({ post }) => {
   };
 
   const likeOrDislikeHandler = async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      toast.error("You're offline. Reconnect to internet to like posts.");
+      return;
+    }
     if (actionLoading === "like" || !user?._id) return;
     const wasLiked = liked;
     const nextLiked = !wasLiked;
@@ -419,7 +423,7 @@ const Post = ({ post }) => {
       className="
         nova-post-card
         relative overflow-hidden rounded-3xl
-        bg-[var(--surface)] md:bg-[var(--surface)]/75 md:backdrop-blur-xl
+        bg-[var(--surface)]
         border border-[var(--border)]/60
         shadow-[0_2px_8px_-2px_rgba(0,0,0,.05),0_12px_40px_-24px_rgba(0,0,0,.18)]
         transition-all duration-300 ease-[cubic-bezier(.2,.8,.2,1)]

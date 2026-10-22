@@ -176,6 +176,10 @@ const ChatPage = () => {
 
   /* ---------- SEND ---------- */
   const sendMessageHandler = async (receiverId) => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      toast.error("You're offline. Reconnect to internet to send messages.");
+      return;
+    }
     const text = textMessage.trim();
     if (!text || !receiverId || !user?._id || sending) return;
 

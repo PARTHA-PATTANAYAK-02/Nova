@@ -15,6 +15,13 @@ const chatSlice = createSlice({
     setMessages: (state, action) => {
       state.messages = action.payload;
     },
+    prependMessages: (state, action) => {
+      const existingIds = new Set(state.messages.map((message) => message._id));
+      const olderMessages = (action.payload || []).filter(
+        (message) => !existingIds.has(message._id),
+      );
+      state.messages = [...olderMessages, ...state.messages];
+    },
     appendMessage: (state, action) => {
       if (
         !state.messages.some((message) => message._id === action.payload._id)
@@ -51,6 +58,7 @@ const chatSlice = createSlice({
 export const {
   setOnlineUsers,
   setMessages,
+  prependMessages,
   appendMessage,
   updateMessageStatus,
   updateMessageReactions,

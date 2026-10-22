@@ -53,6 +53,7 @@ const CommentDialog = ({ open, setOpen }) => {
   const [postDetail, setPostDetail] = useState(null);
   const [loading, setLoading] = useState(false);
   const [comments, setComments] = useState([]);
+  const [visibleCount, setVisibleCount] = useState(25);
   const [submitting, setSubmitting] = useState(false);
   const [liking, setLiking] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -64,6 +65,7 @@ const CommentDialog = ({ open, setOpen }) => {
   const mediaBurstTimeoutRef = useRef(null);
   const lastTapRef = useRef(0);
   const touchStartCoordsRef = useRef({ x: 0, y: 0 });
+  const sentinelRef = useRef(null);
 
   /* ─── RESET ON CLOSE ─── */
   useEffect(() => {
@@ -75,6 +77,7 @@ const CommentDialog = ({ open, setOpen }) => {
       setLiking(false);
       setSaving(false);
       setMediaBurst(false);
+      setVisibleCount(25);
     }
   }, [open]);
 
@@ -158,6 +161,21 @@ const CommentDialog = ({ open, setOpen }) => {
     });
     setComments(sorted);
   }, [post]);
+
+  /* ─── VIRTUALIZED COMMENTS SCROLL SENTINEL ─── */
+  useEffect(() => {
+    if (!sentinelRef.current || visibleCount >= comments.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((prev) => Math.min(prev + 25, comments.length));
+        }
+      },
+      { root: null, rootMargin: "150px" },
+    );
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [comments.length, visibleCount]);
 
   /* ─── LIKE ─── */
   const likeCount = Array.isArray(post?.likes) ? post.likes.length : 0;
@@ -257,6 +275,10 @@ const CommentDialog = ({ open, setOpen }) => {
 
   /* ─── ADD COMMENT ─── */
   const sendMessageHandler = async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      toast.error("You're offline. Reconnect to internet to post comments.");
+      return;
+    }
     if (!text.trim() || !post?._id || submitting) return;
     const commentText = text.trim();
 
@@ -283,6 +305,7 @@ const CommentDialog = ({ open, setOpen }) => {
 
         const updatedComments = [newComment, ...comments];
         setComments(updatedComments);
+        setVisibleCount((prev) => prev + 1);
         setPostDetail((prev) =>
           prev ? { ...prev, comments: updatedComments } : prev,
         );
@@ -474,15 +497,36 @@ const CommentDialog = ({ open, setOpen }) => {
 
                 <div className="nova-comment-dialog__list">
                   {comments.length > 0 ? (
-                    comments.map((comment, i) => (
-                      <div
-                        key={comment._id}
-                        className="nova-comment-dialog__item"
-                        style={{ animationDelay: `${Math.min(i * 30, 300)}ms` }}
-                      >
-                        <Comment comment={comment} />
-                      </div>
-                    ))
+                    <>
+                      {comments.slice(0, visibleCount).map((comment, i) => (
+                        <div
+                          key={comment._id}
+                          className="nova-comment-dialog__item"
+                          style={{ animationDelay: `${Math.min(i * 20, 200)}ms` }}
+                        >
+                          <Comment comment={comment} />
+                        </div>
+                      ))}
+
+                      {visibleCount < comments.length && (
+                        <div
+                          ref={sentinelRef}
+                          className="py-3 flex flex-col items-center justify-center gap-1.5"
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setVisibleCount((prev) =>
+                                Math.min(prev + 25, comments.length),
+                              )
+                            }
+                            className="text-xs font-semibold text-[var(--primary)] hover:underline px-3 py-1.5 rounded-full bg-[var(--surface-2)]/80 hover:bg-[var(--surface-2)] transition-all cursor-pointer"
+                          >
+                            Load more comments ({comments.length - visibleCount} remaining)
+                          </button>
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div className="nova-comment-dialog__empty">
                       <div className="nova-comment-dialog__empty-orb">
