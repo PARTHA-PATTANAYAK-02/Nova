@@ -17,6 +17,28 @@ const messageSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    storyRef: {
+      storyId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Story",
+      },
+      image: {
+        type: String,
+        default: null,
+      },
+      mediaType: {
+        type: String,
+        default: "image",
+      },
+      isUnavailable: {
+        type: Boolean,
+        default: false,
+      },
+      isDeleted: {
+        type: Boolean,
+        default: false,
+      },
+    },
     replyTo: {
       messageId: {
         type: mongoose.Schema.Types.ObjectId,

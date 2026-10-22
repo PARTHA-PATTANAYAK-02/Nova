@@ -6,20 +6,23 @@ import {
   Clock,
   Smile,
   MessageSquareReply,
+  ImageOff,
   X,
   Loader2,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
 import { toast } from "sonner";
-import { updateMessageReactions, clearReactionNotice } from "@/redux/chatSlice";
+import { updateMessageReactions, clearReactionNotice, markStoryAsUnavailable } from "@/redux/chatSlice";
 import { apiUrl } from "@/lib/api";
+import { getSocketInstance } from "@/redux/socketSlice";
 import { getDisplayName } from "@/lib/utils";
 import { playReactionSound } from "@/lib/sound";
 import useGetAllMessage from "@/hooks/useGetAllMessage";
 import useGetRTM from "@/hooks/useGetRTM";
 import { ErrorState, LoadingState } from "@/components/common/RequestState";
 import EmojiPicker from "./EmojiPicker";
+import StoryViewer from "@/components/feed/StoryViewer";
 
 const isTouchPrimary = () =>
   typeof window !== "undefined" &&
@@ -146,6 +149,34 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
   const [justReacted, setJustReacted] = useState(null);
   const [isTouch, setIsTouch] = useState(false);
   const [actionsFor, setActionsFor] = useState(null);
+  const [activeStoryViewer, setActiveStoryViewer] = useState(null);
+  const [openingStory, setOpeningStory] = useState(false);
+
+  const handleOpenStory = async (storyId) => {
+    if (!storyId || openingStory) return;
+    try {
+      setOpeningStory(true);
+      const res = await axios.get(apiUrl(`/api/v1/story/${storyId}`), {
+        withCredentials: true,
+      });
+      if (res.data?.success && res.data.story) {
+        setActiveStoryViewer({
+          stories: [res.data.story],
+          userIndex: 0,
+          itemIndex: 0,
+        });
+      } else {
+        toast.error("This story is no longer available (expired after 24 hours).");
+      }
+    } catch (err) {
+      const msg =
+        err.response?.data?.message ||
+        "This story is no longer available (expired after 24 hours).";
+      toast.error(msg);
+    } finally {
+      setOpeningStory(false);
+    }
+  };
 
   const [swipeFor, setSwipeFor] = useState({ msgId: null, offset: 0 });
   const swipeRef = useRef(null);
@@ -185,6 +216,28 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
       document.removeEventListener("pointerdown", handleOutsideClick, true);
     };
   }, [actionsFor]);
+
+  /* ---------- Realtime story deletion / expiry listener ---------- */
+  useEffect(() => {
+    const socket = getSocketInstance();
+    if (!socket) return undefined;
+    const handleStoryUnavailable = (data) => {
+      if (data?.storyId) {
+        dispatch(
+          markStoryAsUnavailable({
+            storyId: data.storyId,
+            isDeleted: Boolean(data.isDeleted ?? true),
+          }),
+        );
+      }
+    };
+    socket.on("storyDeleted", handleStoryUnavailable);
+    socket.on("storyRefUnavailable", handleStoryUnavailable);
+    return () => {
+      socket.off("storyDeleted", handleStoryUnavailable);
+      socket.off("storyRefUnavailable", handleStoryUnavailable);
+    };
+  }, [dispatch]);
 
   /* ---------- receiver popup ---------- */
   useEffect(() => {
@@ -661,6 +714,77 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
                         </button>
                       )}
 
+                      {msg.storyRef?.storyId && (
+                        msg.storyRef.isUnavailable || !msg.storyRef.image ? (
+                          <div
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toast.info(
+                                msg.storyRef.isDeleted
+                                  ? "This story was deleted by the user."
+                                  : "This story is no longer available (expired after 24 hours)."
+                              );
+                            }}
+                            className={`mb-2 flex items-center gap-2.5 rounded-xl p-2 pr-3 text-left border cursor-pointer select-none transition-all active:scale-98 ${
+                              isMine
+                                ? "bg-white/5 border-dashed border-white/20 text-white/80 hover:bg-white/10"
+                                : "bg-black/20 border-dashed border-white/15 text-white/80 hover:bg-black/30"
+                            }`}
+                          >
+                            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white/50">
+                              <ImageOff className="size-4" strokeWidth={2} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[11px] font-semibold text-white/90 flex items-center gap-1.5">
+                                <span className="size-1.5 rounded-full bg-white/40" />
+                                {msg.storyRef.isDeleted ? "Story deleted" : "Story expired"}
+                              </p>
+                              <p className="truncate text-[10px] text-white/50">
+                                {msg.storyRef.isDeleted ? "Removed by author" : "No longer available"}
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleOpenStory(msg.storyRef.storyId);
+                            }}
+                            className={`mb-2 flex items-center gap-2.5 rounded-xl p-1.5 pr-3 text-left transition-all active:scale-98 group cursor-pointer border ${
+                              isMine
+                                ? "bg-white/10 hover:bg-white/20 border-white/20 text-white"
+                                : "bg-black/25 hover:bg-black/35 border-white/10 text-white"
+                            }`}
+                          >
+                            <div className="relative size-11 shrink-0 overflow-hidden rounded-lg bg-black/40 ring-1 ring-white/15">
+                              {msg.storyRef.mediaType === "video" ? (
+                                <video
+                                  src={msg.storyRef.image}
+                                  className="h-full w-full object-cover"
+                                  muted
+                                  playsInline
+                                />
+                              ) : (
+                                <img
+                                  src={msg.storyRef.image}
+                                  alt="Story"
+                                  className="h-full w-full object-cover"
+                                />
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white/95">
+                                <span className="size-1.5 rounded-full bg-gradient-to-r from-pink-500 to-amber-500" />
+                                <span>Story reply</span>
+                              </div>
+                              <p className="truncate text-[10.5px] text-white/70">
+                                Tap to view story
+                              </p>
+                            </div>
+                          </button>
+                        )
+                      )}
                       <p className="nova-msg__text">{msg.message}</p>
 
                       <div
@@ -796,6 +920,15 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
             setOpenPickerFor(null);
             setAnchorEl(null);
           }}
+        />
+      )}
+
+      {activeStoryViewer && (
+        <StoryViewer
+          stories={activeStoryViewer.stories}
+          initialUserIndex={activeStoryViewer.userIndex}
+          initialItemIndex={activeStoryViewer.itemIndex}
+          onClose={() => setActiveStoryViewer(null)}
         />
       )}
     </div>

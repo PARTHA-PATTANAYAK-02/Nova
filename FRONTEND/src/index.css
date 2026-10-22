@@ -618,6 +618,24 @@ body[data-scroll-locked] {
     transform: scale(1);
   }
 }
+@keyframes storyFloatBurst {
+  0% {
+    opacity: 0.95;
+    transform: translateY(0) scale(0.6) rotate(0deg);
+  }
+  25% {
+    opacity: 1;
+    transform: translateY(-80px) scale(1.25) rotate(var(--rot, 0deg));
+  }
+  70% {
+    opacity: 0.85;
+    transform: translateY(-220px) scale(1.1) rotate(calc(var(--rot, 0deg) * -1));
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-340px) scale(0.9) rotate(var(--rot, 0deg));
+  }
+}
 @keyframes novaCommentIn {
   from {
     opacity: 0;

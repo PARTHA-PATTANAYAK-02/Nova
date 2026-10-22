@@ -1,5 +1,6 @@
 import cloudinary from "./cloudinary.js";
 import { Story } from "../models/story.model.js";
+import { Message } from "../models/message.model.js";
 
 const CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 let cleanupInProgress = false;
@@ -67,6 +68,16 @@ export const cleanupExpiredStories = async () => {
       if (mediaDestroyed) {
         try {
           await Story.deleteOne({ _id: story._id });
+          await Message.updateMany(
+            { "storyRef.storyId": story._id },
+            {
+              $set: {
+                "storyRef.image": null,
+                "storyRef.isUnavailable": true,
+                "storyRef.isExpired": true,
+              },
+            }
+          );
         } catch (dbError) {
           console.error(`Unable to delete expired story record ${story._id}:`, dbError);
         }

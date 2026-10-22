@@ -53,6 +53,24 @@ const chatSlice = createSlice({
     clearReactionNotice: (state) => {
       state.reactionNotice = null;
     },
+    markStoryAsUnavailable: (state, action) => {
+      const { storyId, isDeleted } = action.payload || {};
+      if (!storyId) return;
+      state.messages = state.messages.map((m) => {
+        if (m.storyRef && m.storyRef.storyId?.toString() === storyId?.toString()) {
+          return {
+            ...m,
+            storyRef: {
+              ...m.storyRef,
+              image: null,
+              isUnavailable: true,
+              isDeleted: Boolean(isDeleted),
+            },
+          };
+        }
+        return m;
+      });
+    },
   },
 });
 export const {
@@ -63,5 +81,6 @@ export const {
   updateMessageStatus,
   updateMessageReactions,
   clearReactionNotice,
+  markStoryAsUnavailable,
 } = chatSlice.actions;
 export default chatSlice.reducer;

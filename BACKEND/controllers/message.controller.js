@@ -1,6 +1,7 @@
 import { Conversation } from "../models/conversation.model.js";
 import { emitToUser, getReceiverSocketId, getReceiverSocketIds, io } from "../socket/socket.js";
 import { Message } from "../models/message.model.js";
+import { Story } from "../models/story.model.js";
 import { User } from "../models/user.model.js";
 import mongoose from "mongoose";
 import { createAndEmitNotification } from "../utils/notifications.js";
@@ -187,6 +188,55 @@ export const getMessage = async (req, res) => {
 
     const hasMore = rawMessages.length > limit;
     const messages = hasMore ? rawMessages.slice(0, limit) : rawMessages;
+
+    // Dynamically verify active stories for messages referencing stories
+    const storyIds = messages
+      .filter((m) => m.storyRef && m.storyRef.storyId)
+      .map((m) => m.storyRef.storyId);
+
+    if (storyIds.length > 0) {
+      const activeStories = await Story.find({
+        _id: { $in: storyIds },
+        expiresAt: { $gt: new Date() },
+      }).select("_id image mediaType expiresAt");
+
+      const activeStoryMap = new Map();
+      activeStories.forEach((s) => activeStoryMap.set(s._id.toString(), s));
+
+      const expiredOrDeletedStoryIds = [];
+
+      for (let i = 0; i < messages.length; i++) {
+        const m = messages[i];
+        if (m.storyRef && m.storyRef.storyId) {
+          const sId = m.storyRef.storyId.toString();
+          const activeStory = activeStoryMap.get(sId);
+          if (m.toObject) messages[i] = m.toObject();
+          if (!activeStory) {
+            // Expired (> 24 hours) or deleted
+            messages[i].storyRef.image = null;
+            messages[i].storyRef.isUnavailable = true;
+            expiredOrDeletedStoryIds.push(m.storyRef.storyId);
+          } else {
+            // Active story: ensure fresh active image
+            messages[i].storyRef.image = activeStory.image;
+            messages[i].storyRef.mediaType = activeStory.mediaType;
+            messages[i].storyRef.isUnavailable = false;
+          }
+        }
+      }
+
+      if (expiredOrDeletedStoryIds.length > 0) {
+        Message.updateMany(
+          { "storyRef.storyId": { $in: expiredOrDeletedStoryIds } },
+          {
+            $set: {
+              "storyRef.image": null,
+              "storyRef.isUnavailable": true,
+            },
+          }
+        ).catch((err) => console.error("Error clearing expired storyRef images:", err));
+      }
+    }
 
     // Return in ascending chronological order for client display
     messages.reverse();

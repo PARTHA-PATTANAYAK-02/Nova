@@ -9,6 +9,7 @@ import { apiUrl } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { getDisplayName } from "@/lib/utils";
+import { getSocketInstance } from "@/redux/socketSlice";
 import {
   checkIsItemViewed,
   checkIsStoryAllViewed,
@@ -49,6 +50,18 @@ const StoriesBar = () => {
   useEffect(() => {
     loadStories();
   }, [loadStories, followingKey]);
+
+  useEffect(() => {
+    const socket = getSocketInstance();
+    if (!socket) return undefined;
+    const handleStoryDeleted = () => {
+      loadStories();
+    };
+    socket.on("storyDeleted", handleStoryDeleted);
+    return () => {
+      socket.off("storyDeleted", handleStoryDeleted);
+    };
+  }, [loadStories]);
 
   useEffect(() => {
     const handleGlobalSync = () => {
@@ -238,6 +251,7 @@ const StoriesBar = () => {
           initialItemIndex={startItem}
           onMarkViewed={markViewed}
           onReactionChange={updateStoryReaction}
+          onDeleteStory={() => loadStories()}
           onClose={() => setViewerOpen(false)}
           onOpenProfile={(storyUser) => {
             setViewerOpen(false);

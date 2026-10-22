@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import cloudinary from "../utils/cloudinary.js";
 import { Story } from "../models/story.model.js";
 import { User } from "../models/user.model.js";
+import { Message } from "../models/message.model.js";
+import { Conversation } from "../models/conversation.model.js";
 import { emitToUser, getReceiverSocketId, io } from "../socket/socket.js";
 
 const STORY_LIFETIME_MS = 24 * 60 * 60 * 1000;
@@ -346,20 +348,37 @@ export const reactToStory = async (req, res) => {
         profilePicture: reaction.userId.profilePicture,
       },
     }));
+    const reactor = reactionDetails.find((r) => r.user?._id?.toString() === req.id.toString());
     const update = {
       storyId: story._id,
       reactions: story.reactions.map((reaction) => ({
         userId: reaction.userId._id,
         emoji: reaction.emoji,
       })),
-      reactionDetails: story.author.toString() === req.id.toString() ? reactionDetails : undefined,
+      reactionDetails: reactionDetails,
+      latestReaction: emoji && reactor ? {
+        emoji,
+        user: reactor.user,
+      } : null,
     };
     emitToUser(story.author, "storyReactionUpdated", update);
     if (story.author.toString() !== req.id.toString()) {
       emitToUser(req.id, "storyReactionUpdated", {
         storyId: story._id,
         reactions: update.reactions,
+        reactionDetails: reactionDetails,
       });
+      if (emoji && reactor) {
+        emitToUser(story.author, "notification", {
+          type: "story_reaction",
+          userId: req.id,
+          storyId: story._id,
+          emoji,
+          user: reactor.user,
+          message: `${reactor.user?.fullName || reactor.user?.username || "Someone"} reacted ${emoji} to your story`,
+          createdAt: new Date(),
+        });
+      }
     }
     return res.status(200).json({
       success: true,
@@ -369,5 +388,186 @@ export const reactToStory = async (req, res) => {
   } catch (error) {
     console.error("reactToStory error:", error);
     return res.status(500).json({ success: false, message: "Unable to react to story" });
+  }
+};
+
+export const replyToStory = async (req, res) => {
+  try {
+    const storyId = req.params.id;
+    const senderId = req.id;
+    const text = req.body.message?.trim();
+
+    if (!mongoose.isValidObjectId(storyId)) {
+      return res.status(400).json({ success: false, message: "Invalid story" });
+    }
+    if (!text) {
+      return res.status(400).json({ success: false, message: "Reply message cannot be empty" });
+    }
+
+    const { story, forbidden } = await getViewableStory(storyId, senderId);
+    if (!story) {
+      return res.status(forbidden ? 403 : 404).json({
+        success: false,
+        message: forbidden ? "Only followers can reply to this story" : "Story not found",
+      });
+    }
+
+    const receiverId = story.author.toString();
+    if (senderId === receiverId) {
+      return res.status(400).json({ success: false, message: "You cannot reply to your own story" });
+    }
+
+    const sender = await User.findById(senderId).select("username fullName profilePicture");
+    if (!sender) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const storyReplyText = `💬 Replied to story: ${text}`;
+
+    let conversation = await Conversation.findOne({
+      participants: { $all: [senderId, receiverId] },
+    });
+    if (!conversation) {
+      conversation = await Conversation.create({
+        participants: [senderId, receiverId],
+        unreadCounts: [
+          { user: senderId, count: 0 },
+          { user: receiverId, count: 0 },
+        ],
+      });
+    }
+
+    const newMessage = await Message.create({
+      senderId,
+      receiverId,
+      message: storyReplyText,
+      status: "delivered",
+      storyRef: {
+        storyId: story._id,
+        image: story.image,
+        mediaType: story.mediaType,
+      },
+    });
+
+    conversation.messages.push(newMessage._id);
+    conversation.lastMessage = newMessage._id;
+    conversation.lastMessageAt = newMessage.createdAt;
+    await conversation.save();
+
+    emitToUser(receiverId, "newMessage", newMessage);
+    emitToUser(receiverId, "storyReplyReceived", {
+      storyId: story._id,
+      sender: {
+        _id: sender._id,
+        username: sender.username,
+        fullName: sender.fullName,
+        profilePicture: sender.profilePicture,
+      },
+      message: text,
+      createdAt: new Date(),
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Story reply sent",
+      data: newMessage,
+    });
+  } catch (error) {
+    console.error("replyToStory error:", error);
+    return res.status(500).json({ success: false, message: "Unable to reply to story" });
+  }
+};
+
+export const deleteStory = async (req, res) => {
+  try {
+    const storyId = req.params.id;
+    if (!mongoose.isValidObjectId(storyId)) {
+      return res.status(400).json({ success: false, message: "Invalid story ID" });
+    }
+
+    const story = await Story.findById(storyId);
+    if (!story) {
+      return res.status(404).json({ success: false, message: "Story not found" });
+    }
+
+    if (story.author.toString() !== req.id.toString()) {
+      return res.status(403).json({ success: false, message: "You are not authorized to delete this story" });
+    }
+
+    // Remove from Cloudinary if possible
+    try {
+      const publicId = story.imagePublicId;
+      if (publicId) {
+        await cloudinary.uploader.destroy(publicId, {
+          resource_type: story.resourceType === "video" ? "video" : "image",
+        });
+      }
+    } catch (destroyError) {
+      console.error("Cloudinary asset deletion error during deleteStory:", destroyError);
+    }
+
+    await Story.deleteOne({ _id: story._id });
+
+    // Instantly wipe story image and mark unavailable/deleted in all messages referencing this story
+    await Message.updateMany(
+      { "storyRef.storyId": story._id },
+      {
+        $set: {
+          "storyRef.image": null,
+          "storyRef.isUnavailable": true,
+          "storyRef.isDeleted": true,
+        },
+      }
+    );
+
+    // Broadcast deletion in real time to all connected clients
+    io.emit("storyDeleted", {
+      storyId: story._id,
+      authorId: story.author,
+    });
+    io.emit("storyRefUnavailable", {
+      storyId: story._id,
+      isDeleted: true,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Story deleted successfully",
+    });
+  } catch (error) {
+    console.error("deleteStory error:", error);
+    return res.status(500).json({ success: false, message: "Unable to delete story" });
+  }
+};
+
+export const getStoryById = async (req, res) => {
+  try {
+    const storyId = req.params.id;
+    if (!mongoose.isValidObjectId(storyId)) {
+      return res.status(400).json({ success: false, message: "Invalid story ID" });
+    }
+
+    const story = await Story.findOne({
+      _id: storyId,
+      expiresAt: { $gt: new Date() },
+    })
+      .populate({ path: "author", select: "username fullName profilePicture" })
+      .populate({ path: "reactions.userId", select: "username fullName profilePicture" });
+
+    if (!story) {
+      return res.status(404).json({
+        success: false,
+        message: "This story is no longer available (expired after 24 hours).",
+      });
+    }
+
+    const serialized = serializeStoryGroups([story], req.id);
+    return res.status(200).json({
+      success: true,
+      story: serialized[0] || null,
+    });
+  } catch (error) {
+    console.error("getStoryById error:", error);
+    return res.status(500).json({ success: false, message: "Unable to load story" });
   }
 };
