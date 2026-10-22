@@ -1,66 +1,163 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useSelector } from "react-redux";
 import { WifiOff, Wifi, RefreshCw } from "lucide-react";
 import { getSocketInstance } from "@/redux/socketSlice";
+import { apiUrl } from "@/lib/api";
+import toast from "react-hot-toast";
 
 const NetworkStatusBanner = () => {
-  const [isOnline, setIsOnline] = useState(
-    typeof navigator !== "undefined" ? navigator.onLine : true,
-  );
+  const [isOnline, setIsOnline] = useState(() => {
+    return typeof navigator !== "undefined" ? navigator.onLine : true;
+  });
   const [showRestored, setShowRestored] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
-  const { user } = useSelector((store) => store.auth);
+
+  const hideTimerRef = useRef(null);
+  const isOnlineRef = useRef(isOnline);
+  isOnlineRef.current = isOnline;
+
   const { connected: socketConnected } = useSelector((store) => store.socketio);
 
-  useEffect(() => {
-    let timer;
+  // Verifies real reachability to backend server
+  const checkRealConnection = useCallback(async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      return false;
+    }
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(apiUrl(`/api/v1/health?t=${Date.now()}`), {
+        method: "GET",
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }, []);
 
-    const handleOnline = () => {
+  const markOnline = useCallback(() => {
+    if (!isOnlineRef.current) {
       setIsOnline(true);
       setShowRestored(true);
-      clearTimeout(timer);
 
-      // Reconnect socket if user was logged in
       const socket = getSocketInstance();
       if (socket && !socket.connected) {
         socket.connect();
       }
 
-      timer = setTimeout(() => {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = setTimeout(() => {
         setShowRestored(false);
       }, 3500);
+    }
+  }, []);
+
+  const markOffline = useCallback(() => {
+    clearTimeout(hideTimerRef.current);
+    setIsOnline(false);
+    setShowRestored(false);
+  }, []);
+
+  // 1. Real-time Reactivity: If Socket.IO successfully connects, we are 100% online
+  useEffect(() => {
+    if (socketConnected && !isOnlineRef.current) {
+      markOnline();
+    }
+  }, [socketConnected, markOnline]);
+
+  // 2. Real-time Browser Events + Staggered Auto-retry on "online" toggle
+  useEffect(() => {
+    let retryTimers = [];
+
+    const attemptReconnection = async () => {
+      const reachable = await checkRealConnection();
+      if (reachable) {
+        markOnline();
+        retryTimers.forEach(clearTimeout);
+        retryTimers = [];
+      }
+    };
+
+    const handleOnline = () => {
+      // Cell data often takes 1-3 seconds to negotiate IP/DNS after toggling on.
+      // We automatically test at 0ms, 1200ms, 2500ms, and 4500ms until connected.
+      attemptReconnection();
+      retryTimers.forEach(clearTimeout);
+      retryTimers = [
+        setTimeout(attemptReconnection, 1200),
+        setTimeout(attemptReconnection, 2500),
+        setTimeout(attemptReconnection, 4500),
+      ];
     };
 
     const handleOffline = () => {
-      setIsOnline(false);
-      setShowRestored(false);
+      retryTimers.forEach(clearTimeout);
+      retryTimers = [];
+      markOffline();
     };
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      markOffline();
+    }
+
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
-      clearTimeout(timer);
+      retryTimers.forEach(clearTimeout);
+      clearTimeout(hideTimerRef.current);
     };
-  }, []);
+  }, [checkRealConnection, markOnline, markOffline]);
 
+  // 3. Real-time Auto-Recovery Heartbeat: While offline, poll every 2.5s to restore automatically
+  useEffect(() => {
+    if (isOnline) return undefined;
+
+    const intervalId = setInterval(async () => {
+      // Only ping if the browser hardware reports network is on
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        const reachable = await checkRealConnection();
+        if (reachable) {
+          markOnline();
+        }
+      }
+    }, 2500);
+
+    return () => clearInterval(intervalId);
+  }, [isOnline, checkRealConnection, markOnline]);
+
+  // Manual Retry Handler (still available for immediate user action)
   const handleManualCheck = async () => {
+    if (isChecking) return;
     setIsChecking(true);
-    try {
-      // Lightweight check by pinging standard endpoint
-      await fetch("/favicon.ico", { method: "HEAD", cache: "no-store" });
-      setIsOnline(true);
-      setShowRestored(true);
-      const socket = getSocketInstance();
-      if (socket && !socket.connected) socket.connect();
-      setTimeout(() => setShowRestored(false), 3500);
-    } catch {
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
       setIsOnline(false);
-    } finally {
+      setShowRestored(false);
       setIsChecking(false);
+      toast.error("Still offline. Please check your data connection.", {
+        id: "offline-check-toast",
+      });
+      return;
     }
+
+    const reachable = await checkRealConnection();
+    if (reachable) {
+      markOnline();
+      toast.success("Connection restored!", { id: "offline-check-toast" });
+    } else {
+      setIsOnline(false);
+      setShowRestored(false);
+      toast.error("Unable to reach server. Please check your network.", {
+        id: "offline-check-toast",
+      });
+    }
+    setIsChecking(false);
   };
 
   // If online and not in restored notification mode, don't render anything

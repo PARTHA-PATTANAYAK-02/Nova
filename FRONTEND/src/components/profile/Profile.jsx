@@ -27,6 +27,7 @@ import {
   Maximize2,
   Volume2,
   VolumeX,
+  X,
 } from "lucide-react";
 import {
   Dialog,
@@ -702,27 +703,99 @@ const Profile = () => {
       )}
 
       <Dialog open={photoOpen} onOpenChange={setPhotoOpen}>
-        <DialogContent className="max-w-[min(92vw,360px)] p-0 !gap-0 overflow-hidden border-0 bg-transparent shadow-none">
-          <DialogTitle className="sr-only">Profile photo</DialogTitle>
-          <div className="flex items-center justify-center">
-            <img
-              src={userProfile?.profilePicture}
-              alt={userProfile?.fullName || userProfile?.username || "User"}
-              className="w-full h-auto max-h-[70vh] object-contain rounded-full shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
-              draggable={false}
+        <DialogContent
+          showCloseButton={false}
+          className="w-fit min-w-[min(90vw,320px)] max-w-[min(94vw,560px)] sm:max-w-[min(94vw,560px)] h-fit p-0 !gap-0 overflow-hidden border border-white/10 bg-black/90 backdrop-blur-2xl rounded-3xl shadow-[0_32px_80px_rgba(0,0,0,0.85)]"
+        >
+          <DialogTitle className="sr-only">Profile photo of {userProfile?.fullName || userProfile?.username}</DialogTitle>
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 bg-white/5">
+            <div className="flex items-center gap-3 min-w-0">
+              <Avatar className="size-8 ring-1 ring-white/20 shrink-0">
+                <AvatarImage src={userProfile?.profilePicture} />
+                <AvatarFallback>{initial}</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col min-w-0 text-left">
+                <span className="text-sm font-semibold text-white leading-tight truncate">
+                  {userProfile?.fullName || userProfile?.username}
+                </span>
+                <span className="text-[11px] text-white/60 leading-tight truncate">
+                  @{userProfile?.username || "user"} · Profile Photo
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setPhotoOpen(false)}
+              aria-label="Close"
+              className="size-8 rounded-full flex items-center justify-center bg-white/10 text-white/80 hover:text-white hover:bg-white/20 active:scale-95 transition-all cursor-pointer shrink-0 ml-4"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+
+          {/* Large Profile Photo with ambient backdrop glow */}
+          <div className="relative flex items-center justify-center p-6 sm:p-8 bg-gradient-to-b from-black/20 to-black/60 overflow-hidden">
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 bg-cover bg-center blur-3xl opacity-35 scale-125"
+              style={{ backgroundImage: `url(${userProfile?.profilePicture})` }}
             />
+
+            <div className="relative">
+              <img
+                src={userProfile?.profilePicture}
+                alt={userProfile?.fullName || userProfile?.username || "User"}
+                className="size-[min(76vw,420px)] object-cover rounded-full ring-4 ring-white/20 shadow-[0_24px_64px_rgba(0,0,0,0.7)]"
+                draggable={false}
+              />
+            </div>
           </div>
         </DialogContent>
       </Dialog>
 
       <Dialog open={coverOpen} onOpenChange={setCoverOpen}>
-        <DialogContent className="max-w-[min(92vw,720px)] p-0 !gap-0 overflow-hidden border-0 bg-transparent shadow-none">
-          <DialogTitle className="sr-only">Cover photo</DialogTitle>
-          <div className="flex items-center justify-center">
+        <DialogContent
+          showCloseButton={false}
+          className="w-fit min-w-[min(90vw,340px)] max-w-[min(94vw,1100px)] sm:max-w-[min(94vw,1100px)] h-fit p-0 !gap-0 overflow-hidden border border-white/10 bg-black/90 backdrop-blur-2xl rounded-3xl shadow-[0_32px_80px_rgba(0,0,0,0.85)]"
+        >
+          <DialogTitle className="sr-only">Cover photo of {userProfile?.fullName || userProfile?.username}</DialogTitle>
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 bg-white/5">
+            <div className="flex items-center gap-3 min-w-0">
+              <Avatar className="size-8 ring-1 ring-white/20 shrink-0">
+                <AvatarImage src={userProfile?.profilePicture} />
+                <AvatarFallback>{initial}</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col min-w-0 text-left">
+                <span className="text-sm font-semibold text-white leading-tight truncate">
+                  {userProfile?.fullName || userProfile?.username}
+                </span>
+                <span className="text-[11px] text-white/60 leading-tight">
+                  Cover Photo
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCoverOpen(false)}
+              aria-label="Close"
+              className="size-8 rounded-full flex items-center justify-center bg-white/10 text-white/80 hover:text-white hover:bg-white/20 active:scale-95 transition-all cursor-pointer shrink-0 ml-4"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+
+          {/* Cover View - fits image width cleanly without unnecessary side gaps */}
+          <div className="relative flex items-center justify-center p-2 sm:p-3 bg-gradient-to-b from-black/20 to-black/60">
             <img
               src={coverUrl}
               alt="Cover"
-              className="w-full h-auto max-h-[80vh] object-contain rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
+              className="block w-auto h-auto max-w-[min(90vw,1060px)] max-h-[80vh] object-contain rounded-2xl shadow-2xl"
               draggable={false}
             />
           </div>

@@ -167,79 +167,63 @@ function App() {
   const { user, selectedUser } = useSelector((store) => store.auth);
   const dispatch = useDispatch();
   const selectedUserRef = useRef(selectedUser);
-  const [sessionState, setSessionState] = useState({
-    userId: null,
-    status: "checking",
-  });
-  const [sessionAttempt, setSessionAttempt] = useState(0);
   const currentUserId = user?._id;
   const hasUser = Boolean(user);
-  const sessionVerified =
-    !hasUser ||
-    (Boolean(currentUserId) &&
-      sessionState.userId === currentUserId &&
-      sessionState.status === "ready");
 
+  // Silent background session synchronization
   useEffect(() => {
     if (!currentUserId) {
       if (hasUser) dispatch(setAuthUser(null));
-      setSessionState({ userId: null, status: "ready" });
       return undefined;
     }
 
-    let active = true;
-    const controller = new AbortController();
-    const userId = currentUserId;
-    setSessionState({ userId, status: "checking" });
+    const checkSession = () => {
+      // If client is known to be offline, skip request until network is restored
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return;
+      }
 
-    axios
-      .get(apiUrl("/api/v1/user/me"), {
-        withCredentials: true,
-        signal: controller.signal,
-      })
-      .then((response) => {
-        if (!active) return;
-        if (!response.data?.user?._id) {
-          dispatch(setAuthUser(null));
-          setSessionState({ userId: null, status: "ready" });
-          return;
-        }
-        dispatch(setAuthUser(response.data.user));
-        setSessionState({ userId, status: "ready" });
-      })
-      .catch((error) => {
-        if (!active || axios.isCancel(error)) return;
-        if (error.response?.status === 401 || error.response?.status === 404) {
-          dispatch(setAuthUser(null));
-          setSessionState({ userId: null, status: "ready" });
-          return;
-        }
-        setSessionState({ userId, status: "error" });
-      });
-
-    return () => {
-      active = false;
-      controller.abort();
+      axios
+        .get(apiUrl("/api/v1/user/me"), { withCredentials: true })
+        .then((response) => {
+          if (!response.data?.user?._id) {
+            dispatch(setAuthUser(null));
+            return;
+          }
+          dispatch(setAuthUser(response.data.user));
+        })
+        .catch((error) => {
+          // Only invalidate session if backend explicitly rejected with 401/404
+          if (error.response?.status === 401 || error.response?.status === 404) {
+            dispatch(setAuthUser(null));
+          }
+          // Network errors or offline failures keep cached session active
+        });
     };
-  }, [currentUserId, dispatch, hasUser, sessionAttempt]);
 
+    checkSession();
+
+    // Re-validate session whenever the browser regains internet connectivity
+    window.addEventListener("online", checkSession);
+    return () => {
+      window.removeEventListener("online", checkSession);
+    };
+  }, [currentUserId, dispatch, hasUser]);
+
+  // Proactive background silent refresh every 15 minutes so sessions never expire
   useEffect(() => {
-    if (!currentUserId || !sessionVerified) return undefined;
+    if (!currentUserId) return undefined;
 
-    // Proactive background silent refresh every 15 minutes so sessions never expire
     const refreshInterval = setInterval(() => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
       axios
         .post(apiUrl("/api/v1/user/refresh-token"), {}, { withCredentials: true })
         .then((res) => {
           if (res.data?.user) dispatch(setAuthUser(res.data.user));
         })
-        .catch(() => {
-          // If refresh fails, normal interceptors will handle subsequent expired calls
-        });
+        .catch(() => {});
     }, 15 * 60 * 1000);
 
-    // Only clear auth user if the refresh token endpoint itself failed with 401
-    // or if a retried request still returned 401
     const interceptorId = axios.interceptors.response.use(
       (response) => response,
       (error) => {
@@ -257,7 +241,7 @@ function App() {
       clearInterval(refreshInterval);
       axios.interceptors.response.eject(interceptorId);
     };
-  }, [currentUserId, dispatch, sessionVerified]);
+  }, [currentUserId, dispatch]);
 
   /* ---------- SOCKET + NOTIFICATIONS ---------- */
   useEffect(() => {
@@ -269,7 +253,7 @@ function App() {
   }, [dispatch]);
 
   useEffect(() => {
-    if (user?._id && sessionVerified) {
+    if (user?._id) {
       const socketio = io(API_BASE_URL, {
         query: {
           userId: user?._id,
@@ -279,16 +263,18 @@ function App() {
       });
       setSocketInstance(socketio);
 
-      axios
-        .get(apiUrl("/api/v1/user/notifications"), { withCredentials: true })
-        .then((response) => {
-          if (response.data.success) {
-            dispatch(
-              setNotifications({ notifications: response.data.notifications }),
-            );
-          }
-        })
-        .catch(() => undefined);
+      if (typeof navigator === "undefined" || navigator.onLine) {
+        axios
+          .get(apiUrl("/api/v1/user/notifications"), { withCredentials: true })
+          .then((response) => {
+            if (response.data.success) {
+              dispatch(
+                setNotifications({ notifications: response.data.notifications }),
+              );
+            }
+          })
+          .catch(() => undefined);
+      }
 
       socketio.on("connect", () => {
         dispatch(setSocketConnected(true));
@@ -384,41 +370,7 @@ function App() {
         dispatch(setSocketConnected(false));
       };
     }
-  }, [user, dispatch, sessionVerified]);
-
-  if (user && !sessionVerified) {
-    if (
-      !currentUserId ||
-      sessionState.userId !== currentUserId ||
-      sessionState.status === "checking"
-    ) {
-      return (
-        <main className="flex min-h-dvh items-center justify-center bg-background px-5 text-center">
-          <p className="text-sm text-muted-foreground animate-pulse">
-            Verifying your Nova session…
-          </p>
-        </main>
-      );
-    }
-
-    if (sessionState.status === "error") {
-      return (
-        <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background px-5 text-center">
-          <p className="max-w-md text-sm text-muted-foreground">
-            We couldn't verify your session because Nova's server could not be
-            reached. Check your connection and try again.
-          </p>
-          <button
-            type="button"
-            onClick={() => setSessionAttempt((attempt) => attempt + 1)}
-            className="btn-base bg-primary text-primary-foreground hover:bg-primary-hover shadow-glow-sm"
-          >
-            Try again
-          </button>
-        </main>
-      );
-    }
-  }
+  }, [user, dispatch]);
 
   return (
     <div className="min-h-screen">
