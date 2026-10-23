@@ -71,6 +71,30 @@ const chatSlice = createSlice({
         return m;
       });
     },
+    deleteMessageForMe: (state, action) => {
+      const messageId = action.payload?.messageId || action.payload;
+      if (!messageId) return;
+      state.messages = state.messages.filter(
+        (m) => m._id?.toString() !== messageId.toString(),
+      );
+    },
+    deleteMessageForEveryone: (state, action) => {
+      const { messageId, deletedAt } = action.payload || {};
+      if (!messageId) return;
+      state.messages = state.messages.map((m) => {
+        if (m._id?.toString() === messageId.toString()) {
+          return {
+            ...m,
+            isDeletedForEveryone: true,
+            message: "This message was deleted",
+            storyRef: null,
+            reactions: [],
+            deletedAt: deletedAt || new Date().toISOString(),
+          };
+        }
+        return m;
+      });
+    },
   },
 });
 export const {
@@ -82,5 +106,7 @@ export const {
   updateMessageReactions,
   clearReactionNotice,
   markStoryAsUnavailable,
+  deleteMessageForMe,
+  deleteMessageForEveryone,
 } = chatSlice.actions;
 export default chatSlice.reducer;

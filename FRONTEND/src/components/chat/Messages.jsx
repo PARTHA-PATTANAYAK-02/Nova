@@ -7,13 +7,15 @@ import {
   Smile,
   MessageSquareReply,
   ImageOff,
+  Trash2,
+  Ban,
   X,
   Loader2,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
 import { toast } from "sonner";
-import { updateMessageReactions, clearReactionNotice, markStoryAsUnavailable } from "@/redux/chatSlice";
+import { updateMessageReactions, clearReactionNotice, markStoryAsUnavailable, deleteMessageForMe, deleteMessageForEveryone } from "@/redux/chatSlice";
 import { apiUrl } from "@/lib/api";
 import { getSocketInstance } from "@/redux/socketSlice";
 import { getDisplayName } from "@/lib/utils";
@@ -76,7 +78,7 @@ const ReactionPopup = ({ emoji, name }) => {
 };
 
 /* ═══ Desktop action menu — with outside dismiss and auto-placement ═══ */
-const MessageActions = ({ isMine, isBelow, onReply, onReact, onClose }) => (
+const MessageActions = ({ isMine, isBelow, onReply, onReact, onDelete, onClose }) => (
   <div
     className={`nova-actions ${
       isMine ? "nova-actions--right" : "nova-actions--left"
@@ -112,6 +114,19 @@ const MessageActions = ({ isMine, isBelow, onReply, onReact, onClose }) => (
             </button>
           </>
         )}
+
+        <span className="nova-actions__sep" />
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="nova-actions__btn text-red-400 hover:text-red-300"
+        >
+          <Trash2 className="size-3.5" strokeWidth={2.2} />
+          Delete
+        </button>
 
         <button
           type="button"
@@ -151,6 +166,37 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
   const [actionsFor, setActionsFor] = useState(null);
   const [activeStoryViewer, setActiveStoryViewer] = useState(null);
   const [openingStory, setOpeningStory] = useState(false);
+  const [deleteTargetMessage, setDeleteTargetMessage] = useState(null);
+  const [deletingMessage, setDeletingMessage] = useState(false);
+
+  const handleDeleteMessage = async (deleteType) => {
+    if (!deleteTargetMessage?._id || deletingMessage) return;
+    try {
+      setDeletingMessage(true);
+      await axios.post(
+        apiUrl(`/api/v1/message/delete/${deleteTargetMessage._id}`),
+        { deleteType },
+        { withCredentials: true },
+      );
+      if (deleteType === "everyone") {
+        dispatch(
+          deleteMessageForEveryone({
+            messageId: deleteTargetMessage._id,
+            deletedAt: new Date().toISOString(),
+          }),
+        );
+        toast.success("Message deleted for everyone");
+      } else {
+        dispatch(deleteMessageForMe({ messageId: deleteTargetMessage._id }));
+        toast.success("Message deleted for you");
+      }
+      setDeleteTargetMessage(null);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Unable to delete message");
+    } finally {
+      setDeletingMessage(false);
+    }
+  };
 
   const handleOpenStory = async (storyId) => {
     if (!storyId || openingStory) return;
@@ -233,9 +279,25 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
     };
     socket.on("storyDeleted", handleStoryUnavailable);
     socket.on("storyRefUnavailable", handleStoryUnavailable);
+
+    const handleDeletedForEveryone = ({ messageId, deletedAt }) => {
+      if (messageId) {
+        dispatch(deleteMessageForEveryone({ messageId, deletedAt }));
+      }
+    };
+    const handleDeletedForMe = ({ messageId }) => {
+      if (messageId) {
+        dispatch(deleteMessageForMe({ messageId }));
+      }
+    };
+    socket.on("messageDeletedForEveryone", handleDeletedForEveryone);
+    socket.on("messageDeletedForMe", handleDeletedForMe);
+
     return () => {
       socket.off("storyDeleted", handleStoryUnavailable);
       socket.off("storyRefUnavailable", handleStoryUnavailable);
+      socket.off("messageDeletedForEveryone", handleDeletedForEveryone);
+      socket.off("messageDeletedForMe", handleDeletedForMe);
     };
   }, [dispatch]);
 
@@ -601,7 +663,7 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
             const isPending = msg.__optimistic || msg.status === "sending";
             const isPickerOpen = openPickerFor === msg._id;
             const isActionsOpen = actionsFor === msg._id;
-            const isReplyable = !isPending;
+            const isReplyable = !isPending && !msg.isDeletedForEveryone;
 
             const burstEmoji =
               justReacted?.messageId === msg._id ? justReacted.emoji : null;
@@ -683,6 +745,27 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
                       </span>
                     )}
 
+                    {msg.isDeletedForEveryone ? (
+                      <div
+                        className={`nova-msg ${
+                          isMine ? "is-mine" : "is-theirs"
+                        } opacity-75 italic select-none ${sameAsNext ? "is-grouped" : ""}`}
+                      >
+                        <div className="flex items-center gap-1.5 py-0.5 text-[12.5px] text-white/75">
+                          <Ban className="size-3.5 shrink-0 text-white/45" />
+                          <span>
+                            {isMine ? "You deleted this message" : "This message was deleted"}
+                          </span>
+                        </div>
+                        <div
+                          className={`nova-msg__meta ${
+                            isMine ? "is-mine" : "is-theirs"
+                          }`}
+                        >
+                          <span>{formatMessageTime(msg.deletedAt || msg.createdAt)}</span>
+                        </div>
+                      </div>
+                    ) : (
                     <div
                       onClick={(e) => handleBubbleClick(e, msg, isMine)}
                       className={`nova-msg ${
@@ -798,6 +881,7 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
                         )}
                       </div>
                     </div>
+                    )}
 
                     {grouped.length > 0 && (
                       <div
@@ -838,7 +922,7 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
                       </div>
                     )}
 
-                    {/* Message action menu (Reply / React) — with outside dismiss and auto-placement */}
+                    {/* Message action menu (Reply / React / Delete) */}
                     {isActionsOpen && isReplyable && (
                       <MessageActions
                         isMine={isMine}
@@ -853,6 +937,10 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
                             `message-${msg._id}`,
                           );
                           if (anchor) openPicker(msg._id, anchor, isMine);
+                        }}
+                        onDelete={() => {
+                          setActionsFor(null);
+                          setDeleteTargetMessage(msg);
                         }}
                         onClose={() => setActionsFor(null)}
                       />
@@ -930,6 +1018,64 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
           initialItemIndex={activeStoryViewer.itemIndex}
           onClose={() => setActiveStoryViewer(null)}
         />
+      )}
+
+      {/* WHATSAPP-STYLE DELETE MESSAGE MODAL */}
+      {deleteTargetMessage && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+          onClick={() => {
+            if (!deletingMessage) setDeleteTargetMessage(null);
+          }}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-[#1c1c1e] border border-white/10 p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-full bg-red-500/15 text-red-400 shrink-0">
+                <Trash2 className="size-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-base font-semibold text-white">Delete message?</h3>
+                <p className="text-xs text-white/60 mt-0.5">
+                  {deleteTargetMessage.senderId === user?._id
+                    ? "Delete for everyone will replace it with a deleted message notice for both of you."
+                    : "Delete for me will remove this message from your chat."}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 pt-2">
+              {deleteTargetMessage.senderId === user?._id && (
+                <button
+                  type="button"
+                  disabled={deletingMessage}
+                  onClick={() => handleDeleteMessage("everyone")}
+                  className="w-full rounded-xl bg-red-600 hover:bg-red-700 py-2.5 text-xs font-semibold text-white transition-colors cursor-pointer active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  Delete for everyone
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={deletingMessage}
+                onClick={() => handleDeleteMessage("me")}
+                className="w-full rounded-xl bg-white/10 hover:bg-white/15 py-2.5 text-xs font-semibold text-white/90 transition-colors cursor-pointer active:scale-98"
+              >
+                Delete for me
+              </button>
+              <button
+                type="button"
+                disabled={deletingMessage}
+                onClick={() => setDeleteTargetMessage(null)}
+                className="w-full rounded-xl py-2 text-xs font-medium text-white/60 hover:text-white transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

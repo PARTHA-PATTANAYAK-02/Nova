@@ -61,6 +61,17 @@ const messageSchema = new mongoose.Schema(
     readAt: {
       type: Date,
     },
+    deletedFor: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    }],
+    isDeletedForEveryone: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Date,
+    },
     reactions: [{
       userId: {
         type: mongoose.Schema.Types.ObjectId,

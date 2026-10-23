@@ -71,6 +71,16 @@ const authSlice = createSlice({
     setSelectedUser: (state, action) => {
       state.selectedUser = action.payload;
     },
+    updateUserLastSeen: (state, action) => {
+      const { userId, lastSeen } = action.payload || {};
+      if (!userId) return;
+      if (state.selectedUser && state.selectedUser._id?.toString() === userId.toString()) {
+        state.selectedUser = {
+          ...state.selectedUser,
+          lastSeen,
+        };
+      }
+    },
   },
 });
 
@@ -83,6 +93,7 @@ export const {
   setSelectedUser,
   updateBookmarks,
   markStoryItemViewed,
+  updateUserLastSeen,
 } = authSlice.actions;
 
 export default authSlice.reducer;

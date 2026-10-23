@@ -172,7 +172,7 @@ export const getMessage = async (req, res) => {
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 30, 1), 100);
     const beforeId = req.query.before;
 
-    const query = { _id: { $in: conversation.messages } };
+    const query = { _id: { $in: conversation.messages }, deletedFor: { $ne: req.id } };
 
     if (beforeId && mongoose.isValidObjectId(beforeId)) {
       const beforeMessage = await Message.findById(beforeId).select("createdAt");
@@ -258,7 +258,7 @@ export const getMessage = async (req, res) => {
 export const getConversations = async (req, res) => {
   try {
     const conversations = await Conversation.find({ participants: req.id })
-      .populate("participants", "username fullName profilePicture")
+      .populate("participants", "username fullName profilePicture lastSeen")
       .populate("lastMessage")
       .sort({ lastMessageAt: -1, updatedAt: -1 });
 
@@ -396,5 +396,81 @@ export const reactToMessage = async (req, res) => {
       success: false,
       message: "Unable to react to message",
     });
+  }
+};
+
+export const deleteMessage = async (req, res) => {
+  try {
+    const messageId = req.params.id;
+    const deleteType = req.body.deleteType || "me"; // "everyone" or "me"
+    const userId = req.id;
+
+    if (!mongoose.isValidObjectId(messageId)) {
+      return res.status(400).json({ success: false, message: "Invalid message ID" });
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ success: false, message: "Message not found" });
+    }
+
+    const isSender = message.senderId.toString() === userId.toString();
+    const isReceiver = message.receiverId.toString() === userId.toString();
+
+    if (!isSender && !isReceiver) {
+      return res.status(403).json({ success: false, message: "Unauthorized" });
+    }
+
+    if (deleteType === "everyone") {
+      if (!isSender) {
+        return res.status(403).json({
+          success: false,
+          message: "You can only delete your own messages for everyone",
+        });
+      }
+
+      message.isDeletedForEveryone = true;
+      message.message = "This message was deleted";
+      message.storyRef = null;
+      message.reactions = [];
+      message.deletedAt = new Date();
+      await message.save();
+
+      emitToUser(message.senderId, "messageDeletedForEveryone", {
+        messageId: message._id,
+        deletedAt: message.deletedAt,
+      });
+      emitToUser(message.receiverId, "messageDeletedForEveryone", {
+        messageId: message._id,
+        deletedAt: message.deletedAt,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Message deleted for everyone",
+        messageId: message._id,
+        isDeletedForEveryone: true,
+      });
+    } else {
+      // Delete for me
+      if (!message.deletedFor.some((id) => id.toString() === userId.toString())) {
+        message.deletedFor.push(userId);
+        await message.save();
+      }
+
+      emitToUser(userId, "messageDeletedForMe", {
+        messageId: message._id,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Message deleted for you",
+        messageId: message._id,
+        deletedForMe: true,
+      });
+    }
+  } catch (error) {
+    console.error("deleteMessage error:", error);
+    return res.status(500).json({ success: false, message: "Unable to delete message" });
   }
 };

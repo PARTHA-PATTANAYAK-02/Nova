@@ -7,7 +7,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { io } from "socket.io-client";
 import { useDispatch, useSelector } from "react-redux";
 import { setSocketConnected, setSocketInstance } from "./redux/socketSlice";
-import { setAuthUser } from "./redux/authSlice";
+import { setAuthUser, updateUserLastSeen } from "./redux/authSlice";
 import { appendMessage, setOnlineUsers } from "./redux/chatSlice";
 import {
   removeNotification,
@@ -286,6 +286,12 @@ function App() {
 
       socketio.on("getOnlineUsers", (onlineUsers) => {
         dispatch(setOnlineUsers(onlineUsers));
+      });
+
+      socketio.on("userLastSeen", (data) => {
+        if (data?.userId) {
+          dispatch(updateUserLastSeen(data));
+        }
       });
 
       socketio.on("newMessage", (message) => {

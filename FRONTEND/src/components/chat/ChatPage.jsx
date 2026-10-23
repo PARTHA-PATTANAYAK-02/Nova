@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { setSelectedUser } from "@/redux/authSlice";
+import { setSelectedUser, updateUserLastSeen } from "@/redux/authSlice";
 import {
   MessageCircle,
   Search,
@@ -16,7 +16,7 @@ import {
 import Messages from "@/components/chat/Messages";
 import axios from "axios";
 import { setMessages } from "@/redux/chatSlice";
-import { getDisplayName, getErrorMessage } from "@/lib/utils";
+import { getDisplayName, getErrorMessage, formatLastSeen } from "@/lib/utils";
 import { toast } from "sonner";
 import { getSocketInstance } from "@/redux/socketSlice";
 import useGetConversations from "@/hooks/useGetConversations";
@@ -32,6 +32,16 @@ const ChatPage = () => {
   const [replyingTo, setReplyingTo] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sending, setSending] = useState(false);
+  const [liveLastSeen, setLiveLastSeen] = useState({});
+  const [, setTick] = useState(0);
+
+  // Live timer interval to re-render relative last seen ("just now", "1 min ago", "2 min ago", etc.) live
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTick((t) => (t + 1) % 1000000);
+    }, 10000); // 10s tick
+    return () => clearInterval(timer);
+  }, []);
 
   const location = useLocation();
 
@@ -63,6 +73,24 @@ const ChatPage = () => {
   useEffect(() => {
     messagesRef.current = Array.isArray(messages) ? messages : [];
   }, [messages]);
+
+  useEffect(() => {
+    const socket = getSocketInstance();
+    if (!socket) return undefined;
+    const handleUserLastSeen = (data) => {
+      if (data?.userId && data?.lastSeen) {
+        dispatch(updateUserLastSeen(data));
+        setLiveLastSeen((prev) => ({
+          ...prev,
+          [data.userId.toString()]: data.lastSeen,
+        }));
+      }
+    };
+    socket.on("userLastSeen", handleUserLastSeen);
+    return () => {
+      socket.off("userLastSeen", handleUserLastSeen);
+    };
+  }, [dispatch]);
 
   const othersOnline = (onlineUsers || []).filter((id) => id !== user?._id);
   const othersOnlineCount = othersOnline.length;
@@ -437,10 +465,12 @@ const ChatPage = () => {
                     }`}
                   >
                     {isOnline
-                      ? "Active now"
-                      : hasConversation
-                        ? "Tap to chat"
-                        : "Suggested"}
+                      ? "Online"
+                      : (liveLastSeen[u?._id] || u?.lastSeen)
+                        ? formatLastSeen(liveLastSeen[u?._id] || u?.lastSeen)
+                        : hasConversation
+                          ? "Tap to chat"
+                          : "Suggested"}
                   </span>
                 </span>
 
@@ -512,8 +542,12 @@ const ChatPage = () => {
                     }`}
                   >
                     {onlineUsers.includes(selectedUser?._id)
-                      ? "Active now"
-                      : "Offline"}
+                      ? "Online"
+                      : formatLastSeen(
+                          liveLastSeen[selectedUser?._id] ||
+                          selectedUser?.lastSeen ||
+                          conversationUsers.find((c) => c._id === selectedUser?._id)?.lastSeen
+                        )}
                   </span>
                 </span>
               </span>

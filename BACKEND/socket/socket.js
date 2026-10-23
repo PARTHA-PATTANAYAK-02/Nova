@@ -3,6 +3,7 @@ import express from "express";
 import http from "http";
 import jwt from "jsonwebtoken";
 import { environment } from "../config/environment.js";
+import { User } from "../models/user.model.js";
 
 const app = express();
 
@@ -82,7 +83,14 @@ io.on("connection", (socket) => {
       userSocketMap[userId] = (userSocketMap[userId] || []).filter(
         (id) => id !== socket.id,
       );
-      if (userSocketMap[userId].length === 0) delete userSocketMap[userId];
+      if (userSocketMap[userId].length === 0) {
+        delete userSocketMap[userId];
+        const lastSeen = new Date();
+        User.findByIdAndUpdate(userId, { lastSeen }).catch((err) =>
+          console.error("Error updating user lastSeen on disconnect:", err)
+        );
+        io.emit("userLastSeen", { userId, lastSeen: lastSeen.toISOString() });
+      }
     }
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
   });
