@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import { environment } from "../config/environment.js";
-import { clearAuthCookie, accessTokenCookieOptions } from "../utils/authCookie.js";
-import { generateAccessToken } from "../utils/token.js";
+import { accessTokenCookieOptions, refreshTokenCookieOptions } from "../utils/authCookie.js";
+import { generateAccessToken, generateRefreshToken } from "../utils/token.js";
 import { User } from "../models/user.model.js";
 
 const isAuthenticated = async (req, res, next) => {
@@ -31,17 +31,20 @@ const isAuthenticated = async (req, res, next) => {
         const userExists = await User.exists({ _id: decodeRefresh.userId });
         if (userExists) {
           const newAccessToken = generateAccessToken(decodeRefresh.userId);
+          const newRefreshToken = generateRefreshToken(decodeRefresh.userId);
+          // Sliding session: keep active users logged in smoothly
           res.cookie("token", newAccessToken, accessTokenCookieOptions);
+          res.cookie("refreshToken", newRefreshToken, refreshTokenCookieOptions);
           req.id = decodeRefresh.userId;
           return next();
         }
       }
     } catch (refreshError) {
-      // Both tokens are invalid or expired
+      // Refresh token is expired or invalid
     }
   }
 
-  clearAuthCookie(res);
+  // Neither token is valid. Return 401 without prematurely wiping cookies here
   return res.status(401).json({
     message: "Session expired. Please log in again.",
     success: false,
@@ -49,4 +52,3 @@ const isAuthenticated = async (req, res, next) => {
 };
 
 export default isAuthenticated;
-

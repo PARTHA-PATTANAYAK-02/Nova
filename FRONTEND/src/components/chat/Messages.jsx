@@ -212,12 +212,12 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
           itemIndex: 0,
         });
       } else {
-        toast.error("This story is no longer available (expired after 24 hours).");
+        toast.error("This story is no longer available.");
       }
     } catch (err) {
       const msg =
         err.response?.data?.message ||
-        "This story is no longer available (expired after 24 hours).";
+        "This story is no longer available.";
       toast.error(msg);
     } finally {
       setOpeningStory(false);
@@ -802,11 +802,7 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
                           <div
                             onClick={(event) => {
                               event.stopPropagation();
-                              toast.info(
-                                msg.storyRef.isDeleted
-                                  ? "This story was deleted by the user."
-                                  : "This story is no longer available (expired after 24 hours)."
-                              );
+                              toast.info("This story is no longer available.");
                             }}
                             className={`mb-2 flex items-center gap-2.5 rounded-xl p-2 pr-3 text-left border cursor-pointer select-none transition-all active:scale-98 ${
                               isMine
@@ -820,10 +816,10 @@ const Messages = ({ selectedUser, onReplyMessage }) => {
                             <div className="min-w-0 flex-1">
                               <p className="text-[11px] font-semibold text-white/90 flex items-center gap-1.5">
                                 <span className="size-1.5 rounded-full bg-white/40" />
-                                {msg.storyRef.isDeleted ? "Story deleted" : "Story expired"}
+                                Story unavailable
                               </p>
                               <p className="truncate text-[10px] text-white/50">
-                                {msg.storyRef.isDeleted ? "Removed by author" : "No longer available"}
+                                No longer available
                               </p>
                             </div>
                           </div>

@@ -429,52 +429,77 @@ export const login = async (req, res) => {
 export const refreshToken = async (req, res) => {
   try {
     const rawRefreshToken = req.cookies?.refreshToken;
-    if (!rawRefreshToken) {
-      clearAuthCookie(res);
-      return res.status(401).json({
-        success: false,
-        message: "No refresh token provided",
-      });
+    const rawAccessToken = req.cookies?.token;
+
+    // 1. Try refresh token verification
+    if (rawRefreshToken) {
+      try {
+        const decode = jwt.verify(
+          rawRefreshToken,
+          environment.authentication.jwtSecret,
+        );
+        if (decode?.userId) {
+          const user = await User.findById(decode.userId).select("-password");
+          if (user) {
+            const newAccessToken = generateAccessToken(user._id);
+            const newRefreshToken = generateRefreshToken(user._id);
+
+            return res
+              .cookie("token", newAccessToken, accessTokenCookieOptions)
+              .cookie("refreshToken", newRefreshToken, refreshTokenCookieOptions)
+              .status(200)
+              .json({
+                success: true,
+                message: "Session renewed successfully",
+                user,
+              });
+          }
+        }
+      } catch (refreshErr) {
+        // Refresh token expired or invalid; fall through to access token fallback
+      }
     }
 
-    const decode = jwt.verify(
-      rawRefreshToken,
-      environment.authentication.jwtSecret,
-    );
-    if (!decode?.userId) {
-      clearAuthCookie(res);
-      return res.status(401).json({
-        success: false,
-        message: "Invalid refresh token",
-      });
+    // 2. Fallback: if access token is still valid, renew both cookies seamlessly
+    if (rawAccessToken) {
+      try {
+        const decodeAccess = jwt.verify(
+          rawAccessToken,
+          environment.authentication.jwtSecret,
+        );
+        if (decodeAccess?.userId) {
+          const user = await User.findById(decodeAccess.userId).select("-password");
+          if (user) {
+            const newAccessToken = generateAccessToken(user._id);
+            const newRefreshToken = generateRefreshToken(user._id);
+
+            return res
+              .cookie("token", newAccessToken, accessTokenCookieOptions)
+              .cookie("refreshToken", newRefreshToken, refreshTokenCookieOptions)
+              .status(200)
+              .json({
+                success: true,
+                message: "Session renewed successfully",
+                user,
+              });
+          }
+        }
+      } catch (accessErr) {
+        // Both tokens invalid
+      }
     }
 
-    const user = await User.findById(decode.userId).select("-password");
-    if (!user) {
-      clearAuthCookie(res);
-      return res.status(401).json({
-        success: false,
-        message: "User no longer exists",
-      });
-    }
-
-    const newAccessToken = generateAccessToken(user._id);
-    const newRefreshToken = generateRefreshToken(user._id);
-
-    return res
-      .cookie("token", newAccessToken, accessTokenCookieOptions)
-      .cookie("refreshToken", newRefreshToken, refreshTokenCookieOptions)
-      .status(200)
-      .json({
-        success: true,
-        message: "Token refreshed successfully",
-        user,
-      });
+    // 3. Both tokens are missing or invalid: clear cookies and return session expired
+    clearAuthCookie(res);
+    return res.status(401).json({
+      success: false,
+      message: "Session expired. Please log in again.",
+    });
   } catch (error) {
     clearAuthCookie(res);
     return res.status(401).json({
       success: false,
-      message: "Expired or invalid refresh token",
+      message: "Session expired. Please log in again.",
     });
   }
 };

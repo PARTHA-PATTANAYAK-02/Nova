@@ -63,8 +63,19 @@ axios.interceptors.response.use(
         processQueue(null);
         return axios(originalRequest);
       } catch (refreshErr) {
-        processQueue(refreshErr);
-        return Promise.reject(refreshErr);
+        const sessionExpiredError = {
+          ...refreshErr,
+          message: "Session expired. Please log in again.",
+          response: {
+            ...refreshErr.response,
+            data: {
+              ...(refreshErr.response?.data || {}),
+              message: "Session expired. Please log in again.",
+            },
+          },
+        };
+        processQueue(sessionExpiredError);
+        return Promise.reject(sessionExpiredError);
       } finally {
         isRefreshing = false;
       }

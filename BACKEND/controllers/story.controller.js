@@ -557,7 +557,7 @@ export const getStoryById = async (req, res) => {
     if (!story) {
       return res.status(404).json({
         success: false,
-        message: "This story is no longer available (expired after 24 hours).",
+        message: "This story is no longer available.",
       });
     }
 
