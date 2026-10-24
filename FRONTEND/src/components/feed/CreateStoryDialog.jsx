@@ -5,7 +5,6 @@ import {
   X,
   Upload,
   Sparkles,
-  Check,
   Smile,
   Plus,
   Minus,
@@ -15,7 +14,10 @@ import {
   Minimize2,
   ZoomIn,
   ZoomOut,
-  RotateCw,
+  BarChart2,
+  HelpCircle,
+  Bookmark,
+  Check,
 } from "lucide-react";
 import axios from "axios";
 import { toast } from "sonner";
@@ -28,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { apiUrl } from "@/lib/api";
+import { useSelector } from "react-redux";
 
 const POPULAR_EMOJIS = [
   "🔥", "❤️", "😍", "😂", "✨", "💯", "👑", "🚀",
@@ -47,6 +50,8 @@ const POPULAR_BADGES = [
 ];
 
 const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
+  const { user } = useSelector((s) => s.auth);
+
   const fileInputRef = useRef(null);
   const previewUrlRef = useRef("");
   const previewBoxRef = useRef(null);
@@ -59,15 +64,46 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
   const [videoDuration, setVideoDuration] = useState(0);
 
   // Resize, Fit Mode & Zoom State
-  const [fitMode, setFitMode] = useState("fit"); // 'fit' (uncropped + ambient blur) | 'fill' (9:16 full bleed)
-  const [imageScale, setImageScale] = useState(1); // 0.6 to 1.6
+  const [fitMode, setFitMode] = useState("fit");
+  const [imageScale, setImageScale] = useState(1);
 
-  // Instagram Stickers & Emojis State
+  // Stickers & Emojis State
   const [stickers, setStickers] = useState([]);
   const [activeStickerId, setActiveStickerId] = useState(null);
   const [showStickerModal, setShowStickerModal] = useState(false);
   const [customStickerText, setCustomStickerText] = useState("");
-  const [activeTab, setActiveTab] = useState("emojis"); // 'emojis' | 'badges' | 'custom'
+  const [activeTab, setActiveTab] = useState("emojis"); // 'emojis' | 'badges' | 'poll' | 'question' | 'custom'
+
+  // Interactive Stickers State (Poll & Question)
+  const [activePoll, setActivePoll] = useState(null);
+  const [pollQuestion, setPollQuestion] = useState("");
+  const [pollOption1, setPollOption1] = useState("Yes 😍");
+  const [pollOption2, setPollOption2] = useState("No 😴");
+
+  const [activeQuestionSticker, setActiveQuestionSticker] = useState(null);
+  const [questionPrompt, setQuestionPrompt] = useState("Ask me anything...");
+
+  // Profile Highlights State
+  const [saveToHighlight, setSaveToHighlight] = useState(false);
+  const [userHighlights, setUserHighlights] = useState([]);
+  const [selectedHighlightId, setSelectedHighlightId] = useState("");
+  const [newHighlightName, setNewHighlightName] = useState("");
+
+  // Load existing highlights for user
+  useEffect(() => {
+    if (open && user?._id) {
+      axios
+        .get(apiUrl(`/api/v1/story/highlights/user/${user._id}`), {
+          withCredentials: true,
+        })
+        .then((res) => {
+          if (res.data?.success) {
+            setUserHighlights(res.data.highlights || []);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [open, user?._id]);
 
   const clearFile = () => {
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
@@ -77,6 +113,8 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
     setVideoDuration(0);
     setStickers([]);
     setActiveStickerId(null);
+    setActivePoll(null);
+    setActiveQuestionSticker(null);
     setImageScale(1);
     setFitMode("fit");
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -90,6 +128,11 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
     setUploading(false);
     setShowStickerModal(false);
     setStickers([]);
+    setActivePoll(null);
+    setActiveQuestionSticker(null);
+    setSaveToHighlight(false);
+    setSelectedHighlightId("");
+    setNewHighlightName("");
     setImageScale(1);
     setFitMode("fit");
   };
@@ -98,7 +141,7 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
     () => () => {
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     },
-    [],
+    []
   );
 
   const selectFile = (selectedFile) => {
@@ -116,7 +159,7 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
       toast.error(
         isVideo
           ? "Story videos must be 20 MB or smaller."
-          : "Images must be 10 MB or smaller.",
+          : "Images must be 10 MB or smaller."
       );
       return;
     }
@@ -172,14 +215,41 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
       text: content,
       type,
       bg,
-      x: 50, // center (%)
-      y: 45, // center-ish (%)
+      x: 50,
+      y: 45,
       scale: 1,
     };
     setStickers((prev) => [...prev, newSticker]);
     setActiveStickerId(newSticker.id);
     setShowStickerModal(false);
     toast.success("Sticker added! Drag to position.", { duration: 1800 });
+  };
+
+  const addPollSticker = () => {
+    if (!pollQuestion.trim()) {
+      toast.error("Please enter a question for your poll.");
+      return;
+    }
+    const pollObj = {
+      question: pollQuestion.trim(),
+      options: [
+        { text: pollOption1.trim() || "Yes" },
+        { text: pollOption2.trim() || "No" },
+      ],
+    };
+    setActivePoll(pollObj);
+    setShowStickerModal(false);
+    toast.success("Voting poll added to story!");
+  };
+
+  const addQuestionSticker = () => {
+    if (!questionPrompt.trim()) {
+      toast.error("Please enter a prompt.");
+      return;
+    }
+    setActiveQuestionSticker({ question: questionPrompt.trim() });
+    setShowStickerModal(false);
+    toast.success("Question sticker added!");
   };
 
   const removeSticker = (id) => {
@@ -193,11 +263,10 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
         if (s.id !== id) return s;
         const nextScale = Math.min(Math.max((s.scale || 1) + delta, 0.6), 2.0);
         return { ...s, scale: nextScale };
-      }),
+      })
     );
   };
 
-  // Dragging sticker inside preview box
   const handleStickerPointerDown = (e, id) => {
     e.stopPropagation();
     setActiveStickerId(id);
@@ -209,14 +278,14 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
       if (!currentBox) return;
       const xPercent = Math.min(
         Math.max(((moveEvent.clientX - currentBox.left) / currentBox.width) * 100, 5),
-        95,
+        95
       );
       const yPercent = Math.min(
         Math.max(((moveEvent.clientY - currentBox.top) / currentBox.height) * 100, 5),
-        95,
+        95
       );
       setStickers((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, x: xPercent, y: yPercent } : s)),
+        prev.map((s) => (s.id === id ? { ...s, x: xPercent, y: yPercent } : s))
       );
     };
 
@@ -229,7 +298,7 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
     window.addEventListener("pointerup", onPointerUp);
   };
 
-  /* ---------- BAKE PROPORTIONAL STICKERS & FULL CANVAS COMPOSITING ---------- */
+  /* ---------- BAKE EMOJIS & FIT CANVAS ---------- */
   const bakeStickersToImage = useCallback(
     async (imageFile, currentStickers, currentFitMode, currentZoom) => {
       return new Promise((resolve) => {
@@ -243,7 +312,6 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
 
         img.onload = () => {
           URL.revokeObjectURL(objectUrl);
-          // Standard Instagram Story canvas: 1080 x 1920
           const CANVAS_W = 1080;
           const CANVAS_H = 1920;
           const canvas = document.createElement("canvas");
@@ -256,21 +324,18 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
           const imgAspect = imgW / imgH;
           const canvasAspect = CANVAS_W / CANVAS_H;
 
-          // 1. Draw Ambient Blurred Background (For Fit mode or slight margins)
+          // 1. Draw Ambient Blurred Background
           ctx.save();
-          // Draw blurred image scaled up to cover canvas
           ctx.filter = "blur(50px)";
           ctx.drawImage(img, -120, -120, CANVAS_W + 240, CANVAS_H + 240);
           ctx.filter = "none";
-          // Soft dark scrim over the blur so the main image and stickers pop
           ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
           ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
           ctx.restore();
 
-          // 2. Draw Main Image (Fit vs Fill + User Zoom)
+          // 2. Draw Main Image
           let drawW, drawH;
           if (currentFitMode === "fill") {
-            // Cover math
             if (imgAspect < canvasAspect) {
               drawW = CANVAS_W * currentZoom;
               drawH = (CANVAS_W / imgAspect) * currentZoom;
@@ -279,7 +344,6 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
               drawW = (CANVAS_H * imgAspect) * currentZoom;
             }
           } else {
-            // Contain math (Whole image fits, never cropped)
             if (imgAspect > canvasAspect) {
               drawW = CANVAS_W * currentZoom;
               drawH = (CANVAS_W / imgAspect) * currentZoom;
@@ -294,7 +358,7 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
 
           ctx.drawImage(img, drawX, drawY, drawW, drawH);
 
-          // 3. Draw Stickers proportional to 1080 x 1920
+          // 3. Draw Stickers
           currentStickers.forEach((s) => {
             const posX = (s.x / 100) * CANVAS_W;
             const posY = (s.y / 100) * CANVAS_H;
@@ -313,7 +377,6 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
               const badgeH = fontSize + padY * 2;
               const radius = badgeH / 2;
 
-              // Rounded pill badge with shadow
               ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
               ctx.shadowBlur = 16;
               ctx.shadowOffsetY = 6;
@@ -333,7 +396,6 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
               ctx.textBaseline = "middle";
               ctx.fillText(s.text, 0, 2);
             } else {
-              // Emoji
               const emojiSize = Math.round(100 * stickerScale);
               ctx.font = `${emojiSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
               ctx.textAlign = "center";
@@ -358,7 +420,7 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
               }
             },
             "image/jpeg",
-            0.94,
+            0.94
           );
         };
 
@@ -366,7 +428,7 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
         img.src = objectUrl;
       });
     },
-    [],
+    []
   );
 
   const shareStory = async () => {
@@ -380,7 +442,6 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
       setUploading(true);
 
       let fileToUpload = file;
-      // If photo, bake with fitMode, imageScale and stickers into 1080x1920 standard story
       if (file.type.startsWith("image/")) {
         fileToUpload = await bakeStickersToImage(file, stickers, fitMode, imageScale);
       }
@@ -393,6 +454,23 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
         body.append("duration", String(videoDuration));
       }
 
+      // Append Interactive Stickers
+      if (activePoll) {
+        body.append("poll", JSON.stringify(activePoll));
+      }
+      if (activeQuestionSticker) {
+        body.append("questionSticker", JSON.stringify(activeQuestionSticker));
+      }
+
+      // Append Highlights Option
+      if (saveToHighlight) {
+        if (selectedHighlightId) {
+          body.append("highlightId", selectedHighlightId);
+        } else if (newHighlightName.trim()) {
+          body.append("highlightName", newHighlightName.trim());
+        }
+      }
+
       const res = await axios.post(apiUrl("/api/v1/story"), body, {
         withCredentials: true,
         headers: { "Content-Type": "multipart/form-data" },
@@ -401,14 +479,18 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
       if (!res.data?.success) throw new Error(res.data?.message);
 
       await onCreated?.(res.data.story);
-      toast.success("Story shared for 24 hours!");
+      toast.success(
+        saveToHighlight
+          ? "Story shared & saved to Highlights!"
+          : "Story shared for 24 hours!"
+      );
       onOpenChange(false);
       reset();
     } catch (error) {
       toast.error(
         error.response?.data?.message ||
           error.message ||
-          "Unable to share story.",
+          "Unable to share story."
       );
     } finally {
       setUploading(false);
@@ -490,7 +572,7 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
             </button>
           </div>
           <DialogDescription className="sr-only">
-            Share a photo or video story that disappears after 24 hours.
+            Share a photo or video story that disappears after 24 hours or save to highlights.
           </DialogDescription>
         </DialogHeader>
 
@@ -498,7 +580,7 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3.5 space-y-3.5">
           {preview ? (
             <div className="space-y-2.5">
-              {/* 9:16 WYSIWYG STORY PREVIEW CONTAINER */}
+              {/* 9:16 STORY PREVIEW CONTAINER */}
               <div
                 ref={previewBoxRef}
                 onClick={() => setActiveStickerId(null)}
@@ -514,7 +596,6 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
                   />
                 ) : (
                   <div className="relative h-full w-full flex items-center justify-center overflow-hidden">
-                    {/* Ambient blurred backdrop for Fit Mode */}
                     {fitMode === "fit" && (
                       <div
                         aria-hidden="true"
@@ -523,7 +604,6 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
                       />
                     )}
 
-                    {/* Main Image with user scale and Fit/Fill mode */}
                     <img
                       src={preview}
                       alt="Story preview"
@@ -537,7 +617,62 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
                   </div>
                 )}
 
-                {/* STICKERS LAYER */}
+                {/* INTERACTIVE STICKERS: VOTING POLL */}
+                {activePoll && (
+                  <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-[84%] bg-black/75 border border-white/20 backdrop-blur-xl rounded-2xl p-3 shadow-2xl select-none animate-in zoom-in-95 duration-200">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
+                      <span className="text-[10px] font-bold text-amber-400 flex items-center gap-1 uppercase tracking-wider">
+                        <BarChart2 className="size-3" />
+                        Voting Poll
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setActivePoll(null)}
+                        className="size-5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </div>
+                    <p className="text-center font-bold text-white text-xs mt-1.5">
+                      {activePoll.question}
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5 mt-2.5">
+                      <div className="rounded-xl bg-white/15 py-1.5 px-2 text-center text-xs font-semibold text-white border border-white/20 truncate">
+                        {activePoll.options[0]?.text || "Yes"}
+                      </div>
+                      <div className="rounded-xl bg-white/15 py-1.5 px-2 text-center text-xs font-semibold text-white border border-white/20 truncate">
+                        {activePoll.options[1]?.text || "No"}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* INTERACTIVE STICKERS: QUESTION (ASK ME ANYTHING) */}
+                {activeQuestionSticker && (
+                  <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-[84%] bg-gradient-to-br from-pink-500/80 to-purple-600/80 border border-white/25 backdrop-blur-xl rounded-2xl p-3 shadow-2xl select-none animate-in zoom-in-95 duration-200 text-center">
+                    <div className="flex items-center justify-between pb-1 text-white/90">
+                      <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                        <HelpCircle className="size-3" />
+                        Question
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setActiveQuestionSticker(null)}
+                        className="size-5 rounded-full bg-black/20 hover:bg-black/40 flex items-center justify-center text-white"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </div>
+                    <p className="font-extrabold text-white text-xs sm:text-sm mt-1">
+                      {activeQuestionSticker.question}
+                    </p>
+                    <div className="mt-2 py-1.5 px-3 rounded-xl bg-white/20 text-white/70 text-[11px] font-medium border border-white/25">
+                      Type something…
+                    </div>
+                  </div>
+                )}
+
+                {/* REGULAR STICKERS LAYER */}
                 {stickers.map((s) => {
                   const isActive = activeStickerId === s.id;
                   return (
@@ -567,7 +702,6 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
                         </span>
                       )}
 
-                      {/* Active Sticker Controls Overlay */}
                       {isActive && (
                         <div
                           className="absolute -top-7 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-black/85 px-1.5 py-0.5 rounded-full border border-white/30 backdrop-blur-md shadow-lg"
@@ -603,7 +737,7 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
                   );
                 })}
 
-                {/* TOP ACTIONS OVERLAY */}
+                {/* TOP REMOVE BUTTON */}
                 <div className="absolute top-2.5 right-2.5 z-30 flex items-center gap-1.5">
                   <button
                     type="button"
@@ -617,11 +751,10 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
                 </div>
               </div>
 
-              {/* FIT / FILL & ZOOM RESIZE CONTROLS (FOR PHOTOS) */}
+              {/* CONTROLS (FIT, ZOOM, STICKERS) */}
               {!file?.type.startsWith("video/") && (
                 <div className="flex flex-col gap-2 p-2 rounded-2xl bg-[var(--surface-2)]/60 border border-[var(--border)]">
                   <div className="flex items-center justify-between gap-2">
-                    {/* Fit vs Fill Mode Toggle */}
                     <button
                       type="button"
                       onClick={() => setFitMode((m) => (m === "fit" ? "fill" : "fit"))}
@@ -640,18 +773,16 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
                       )}
                     </button>
 
-                    {/* Sticker Button */}
                     <button
                       type="button"
                       onClick={() => setShowStickerModal(true)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-[var(--background)] hover:bg-[var(--primary)]/10 text-[var(--foreground)] border border-[var(--border)] active:scale-95 transition-all shadow-sm cursor-pointer"
                     >
                       <Smile className="size-3.5 text-[var(--primary)]" />
-                      <span>Stickers ({stickers.length})</span>
+                      <span>Stickers & Polls</span>
                     </button>
                   </div>
 
-                  {/* Zoom / Scale Slider & Controls */}
                   <div className="flex items-center gap-2 pt-1 border-t border-[var(--border)]/40 px-1">
                     <button
                       type="button"
@@ -781,6 +912,84 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
             </div>
           </fieldset>
 
+          {/* ═══ INSTAGRAM PROFILE HIGHLIGHTS OPTION ═══ */}
+          <div className="rounded-2xl border border-[var(--border)]/70 bg-[var(--surface-2)]/40 p-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="size-7 rounded-full bg-gradient-to-tr from-amber-500 to-pink-500 flex items-center justify-center text-white">
+                  <Bookmark className="size-3.5" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-[var(--foreground)]">
+                    Save to Profile Highlights
+                  </p>
+                  <p className="text-[10px] text-[var(--muted-foreground)]">
+                    Keep forever on your profile even after 24 hours
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSaveToHighlight((prev) => !prev)}
+                className={`w-10 h-6 flex items-center rounded-full p-0.5 transition-colors cursor-pointer ${
+                  saveToHighlight ? "bg-[var(--primary)]" : "bg-white/10"
+                }`}
+              >
+                <div
+                  className={`bg-white size-5 rounded-full shadow-md transform transition-transform ${
+                    saveToHighlight ? "translate-x-4" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {saveToHighlight && (
+              <div className="pt-2 border-t border-[var(--border)]/40 space-y-2 animate-in fade-in duration-200">
+                <p className="text-[11px] font-medium text-[var(--foreground)]/80">
+                  Select a category or create a new one:
+                </p>
+
+                {/* Existing Highlights chips */}
+                {userHighlights.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {userHighlights.map((hl) => (
+                      <button
+                        key={hl._id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedHighlightId(hl._id);
+                          setNewHighlightName("");
+                        }}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
+                          selectedHighlightId === hl._id
+                            ? "bg-[var(--primary)] text-white border-[var(--primary)] shadow-sm"
+                            : "bg-[var(--surface-2)] text-[var(--foreground)] border-[var(--border)] hover:bg-[var(--surface-2)]/80"
+                        }`}
+                      >
+                        {hl.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Or create new highlight */}
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="text"
+                    value={newHighlightName}
+                    onChange={(e) => {
+                      setNewHighlightName(e.target.value.slice(0, 30));
+                      setSelectedHighlightId("");
+                    }}
+                    placeholder="New Highlight name (e.g. Travel, Fitness)..."
+                    className="flex-1 bg-[var(--background)] border border-[var(--border)] rounded-xl px-3 py-1.5 text-xs text-[var(--foreground)] outline-none focus:border-[var(--primary)]"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* CAPTION */}
           <div>
             <div className="mb-1 flex items-center justify-between">
@@ -804,14 +1013,14 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
           </div>
         </div>
 
-        {/* INSTAGRAM STICKER / EMOJI PICKER MODAL */}
+        {/* ═══ INSTAGRAM STICKER / POLL / AMA PICKER MODAL ═══ */}
         {showStickerModal && (
           <div
             className="absolute inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
             onClick={() => setShowStickerModal(false)}
           >
             <div
-              className="flex flex-col max-h-[80%] rounded-t-[28px] border-t border-[var(--border)] bg-[var(--surface)] p-4 text-[var(--foreground)] shadow-2xl backdrop-blur-2xl animate-in slide-in-from-bottom duration-300"
+              className="flex flex-col max-h-[85%] rounded-t-[28px] border-t border-[var(--border)] bg-[var(--surface)] p-4 text-[var(--foreground)] shadow-2xl backdrop-blur-2xl animate-in slide-in-from-bottom duration-300"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mx-auto h-1 w-10 rounded-full bg-[var(--muted-foreground)]/30 mb-3" />
@@ -819,7 +1028,7 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
               <div className="flex items-center justify-between border-b border-[var(--border)] pb-2.5">
                 <div className="flex items-center gap-1.5">
                   <Smile className="size-4 text-[var(--primary)]" />
-                  <h4 className="text-sm font-semibold">Add to Story</h4>
+                  <h4 className="text-sm font-semibold">Story Stickers & Interactive</h4>
                 </div>
                 <button
                   type="button"
@@ -831,18 +1040,20 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
               </div>
 
               {/* TABS */}
-              <div className="flex gap-2 py-2.5 border-b border-[var(--border)]/60">
+              <div className="flex gap-1.5 py-2.5 border-b border-[var(--border)]/60 overflow-x-auto scroll-hide">
                 {[
                   { id: "emojis", label: "Emojis", icon: Smile },
                   { id: "badges", label: "Badges", icon: Tag },
-                  { id: "custom", label: "Custom Text", icon: Sparkles },
+                  { id: "poll", label: "Voting Poll", icon: BarChart2 },
+                  { id: "question", label: "Ask Me", icon: HelpCircle },
+                  { id: "custom", label: "Custom", icon: Sparkles },
                 ].map((tab) => (
                   <button
                     key={tab.id}
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
                     className={`
-                      flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer
+                      flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer
                       ${
                         activeTab === tab.id
                           ? "bg-[var(--primary)] text-white shadow-sm"
@@ -857,7 +1068,7 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
               </div>
 
               {/* TAB CONTENT */}
-              <div className="overflow-y-auto py-3 max-h-[220px]">
+              <div className="overflow-y-auto py-3 max-h-[260px]">
                 {activeTab === "emojis" && (
                   <div className="grid grid-cols-6 gap-2">
                     {POPULAR_EMOJIS.map((emoji) => (
@@ -886,6 +1097,89 @@ const CreateStoryDialog = ({ open, onOpenChange, onCreated }) => {
                         {badge.text}
                       </button>
                     ))}
+                  </div>
+                )}
+
+                {/* ═══ VOTING POLL BUILDER ═══ */}
+                {activeTab === "poll" && (
+                  <div className="space-y-3 px-1">
+                    <div>
+                      <label className="text-xs font-semibold text-[var(--foreground)]">
+                        Poll Question:
+                      </label>
+                      <input
+                        type="text"
+                        value={pollQuestion}
+                        onChange={(e) => setPollQuestion(e.target.value.slice(0, 60))}
+                        placeholder="e.g. Goa trip this weekend?"
+                        className="w-full mt-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl px-3 py-2 text-xs sm:text-sm text-[var(--foreground)] outline-none focus:border-[var(--primary)]"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[11px] text-[var(--muted-foreground)]">
+                          Option 1:
+                        </label>
+                        <input
+                          type="text"
+                          value={pollOption1}
+                          onChange={(e) => setPollOption1(e.target.value.slice(0, 25))}
+                          placeholder="Yes 😍"
+                          className="w-full mt-0.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl px-3 py-1.5 text-xs text-[var(--foreground)] outline-none focus:border-[var(--primary)]"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-[var(--muted-foreground)]">
+                          Option 2:
+                        </label>
+                        <input
+                          type="text"
+                          value={pollOption2}
+                          onChange={(e) => setPollOption2(e.target.value.slice(0, 25))}
+                          placeholder="No 😴"
+                          className="w-full mt-0.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl px-3 py-1.5 text-xs text-[var(--foreground)] outline-none focus:border-[var(--primary)]"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={!pollQuestion.trim()}
+                      onClick={addPollSticker}
+                      className="w-full py-2.5 rounded-xl bg-grad-btn text-white text-xs font-semibold disabled:opacity-40 cursor-pointer shadow-md flex items-center justify-center gap-1.5"
+                    >
+                      <BarChart2 className="size-3.5" />
+                      Add Voting Poll to Story
+                    </button>
+                  </div>
+                )}
+
+                {/* ═══ ASK ME ANYTHING BUILDER ═══ */}
+                {activeTab === "question" && (
+                  <div className="space-y-3 px-1">
+                    <div>
+                      <label className="text-xs font-semibold text-[var(--foreground)]">
+                        Question / Prompt:
+                      </label>
+                      <input
+                        type="text"
+                        value={questionPrompt}
+                        onChange={(e) => setQuestionPrompt(e.target.value.slice(0, 60))}
+                        placeholder="e.g. Ask me anything..."
+                        className="w-full mt-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl px-3 py-2 text-xs sm:text-sm text-[var(--foreground)] outline-none focus:border-[var(--primary)]"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={!questionPrompt.trim()}
+                      onClick={addQuestionSticker}
+                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 text-white text-xs font-semibold disabled:opacity-40 cursor-pointer shadow-md flex items-center justify-center gap-1.5"
+                    >
+                      <HelpCircle className="size-3.5" />
+                      Add Question Sticker to Story
+                    </button>
                   </div>
                 )}
 

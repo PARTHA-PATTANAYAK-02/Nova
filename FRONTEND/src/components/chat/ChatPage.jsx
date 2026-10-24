@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { setSelectedUser, updateUserLastSeen } from "@/redux/authSlice";
@@ -12,6 +12,13 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
+  Mic,
+  Paperclip,
+  Trash2,
+  Loader2,
+  Image as ImageIcon,
 } from "lucide-react";
 import Messages from "@/components/chat/Messages";
 import axios from "axios";
@@ -27,6 +34,13 @@ import { apiUrl } from "@/lib/api";
 import { playMessageSound } from "@/lib/sound";
 import ChatUserMenu from "@/components/chat/ChatUserMenu";
 
+const formatDuration = (seconds) => {
+  if (!seconds || isNaN(seconds)) return "0:00";
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+};
+
 const ChatPage = () => {
   const [textMessage, setTextMessage] = useState("");
   const [replyingTo, setReplyingTo] = useState(null);
@@ -35,11 +49,32 @@ const ChatPage = () => {
   const [liveLastSeen, setLiveLastSeen] = useState({});
   const [, setTick] = useState(0);
 
-  // Live timer interval to re-render relative last seen ("just now", "1 min ago", "2 min ago", etc.) live
+  /* ═══ In-Chat Search State ═══ */
+  const [showInChatSearch, setShowInChatSearch] = useState(false);
+  const [inChatSearchQuery, setInChatSearchQuery] = useState("");
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
+
+  /* ═══ Voice Recording State ═══ */
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const recordingTimerRef = useRef(null);
+  const audioStreamRef = useRef(null);
+
+  /* ═══ Media Attachment State ═══ */
+  const [selectedMediaFile, setSelectedMediaFile] = useState(null);
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState(null);
+  const [mediaType, setMediaType] = useState(null);
+  const [mediaCaption, setMediaCaption] = useState("");
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // Live timer interval to re-render relative last seen
   useEffect(() => {
     const timer = setInterval(() => {
       setTick((t) => (t + 1) % 1000000);
-    }, 10000); // 10s tick
+    }, 10000);
     return () => clearInterval(timer);
   }, []);
 
@@ -59,7 +94,7 @@ const ChatPage = () => {
   const inputRef = useRef(null);
 
   const isMobileRef = useRef(
-    typeof window !== "undefined" && window.innerWidth < 768,
+    typeof window !== "undefined" && window.innerWidth < 768
   );
   const isConversationPushedRef = useRef(false);
 
@@ -73,6 +108,50 @@ const ChatPage = () => {
   useEffect(() => {
     messagesRef.current = Array.isArray(messages) ? messages : [];
   }, [messages]);
+
+  /* ═══ In-Chat Search Matches ═══ */
+  const searchMatches = useMemo(() => {
+    if (!inChatSearchQuery.trim() || !messages?.length) return [];
+    const q = inChatSearchQuery.trim().toLowerCase();
+    return messages.filter(
+      (m) =>
+        m.message &&
+        !m.isDeletedForEveryone &&
+        m.message.toLowerCase().includes(q)
+    );
+  }, [inChatSearchQuery, messages]);
+
+  const activeSearchMessageId = useMemo(() => {
+    if (!searchMatches.length) return null;
+    const clampedIndex = Math.min(
+      Math.max(0, activeMatchIndex),
+      searchMatches.length - 1
+    );
+    return searchMatches[clampedIndex]?._id || null;
+  }, [searchMatches, activeMatchIndex]);
+
+  const handleNextSearchMatch = () => {
+    if (!searchMatches.length) return;
+    setActiveMatchIndex((prev) => (prev + 1) % searchMatches.length);
+  };
+
+  const handlePrevSearchMatch = () => {
+    if (!searchMatches.length) return;
+    setActiveMatchIndex(
+      (prev) => (prev - 1 + searchMatches.length) % searchMatches.length
+    );
+  };
+
+  useEffect(() => {
+    setActiveMatchIndex(0);
+  }, [inChatSearchQuery]);
+
+  useEffect(() => {
+    // Reset search when changing user
+    setShowInChatSearch(false);
+    setInChatSearchQuery("");
+    setActiveMatchIndex(0);
+  }, [selectedUser?._id]);
 
   useEffect(() => {
     const socket = getSocketInstance();
@@ -114,7 +193,6 @@ const ChatPage = () => {
       const isMobile = window.innerWidth < 768;
       if (isMobile) {
         if (!showContacts) {
-          // If in conversation view on mobile, pressing device back goes to side panel
           setShowContacts(true);
           isConversationPushedRef.current = false;
         }
@@ -138,7 +216,7 @@ const ChatPage = () => {
         setShowContacts(false);
       }
     },
-    [dispatch],
+    [dispatch]
   );
 
   /* ---------- ROUTE CHANGE: ON MOBILE SHOW CONTACTS FIRST ---------- */
@@ -202,7 +280,264 @@ const ChatPage = () => {
     selectedUser,
   ]);
 
-  /* ---------- SEND ---------- */
+  /* ═══ VOICE NOTE RECORDING HANDLERS ═══ */
+  const startRecording = async () => {
+    if (isRecording) return;
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        toast.error("Audio recording is not supported in this browser.");
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "audio/mp4";
+
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.start(200);
+      setIsRecording(true);
+      setRecordingTime(0);
+
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error("Microphone access error:", err);
+      toast.error("Microphone access was denied. Please allow microphone permissions.");
+    }
+  };
+
+  const cancelRecording = () => {
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((track) => track.stop());
+      audioStreamRef.current = null;
+    }
+    setIsRecording(false);
+    setRecordingTime(0);
+    audioChunksRef.current = [];
+  };
+
+  const sendVoiceNote = async () => {
+    if (!isRecording || !mediaRecorderRef.current) return;
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+
+    const duration = recordingTime;
+
+    mediaRecorderRef.current.onstop = async () => {
+      const audioBlob = new Blob(audioChunksRef.current, {
+        type: mediaRecorderRef.current.mimeType || "audio/webm",
+      });
+
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach((track) => track.stop());
+        audioStreamRef.current = null;
+      }
+
+      if (!audioBlob || audioBlob.size < 100) {
+        toast.error("Recording was too short.");
+        setIsRecording(false);
+        setRecordingTime(0);
+        return;
+      }
+
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const optimisticMsg = {
+        _id: tempId,
+        senderId: user._id,
+        receiverId: selectedUser._id,
+        mediaType: "audio",
+        mediaUrl: URL.createObjectURL(audioBlob),
+        audioDuration: duration,
+        message: "",
+        createdAt: new Date().toISOString(),
+        status: "sending",
+        __optimistic: true,
+      };
+
+      const nextList = [...(messagesRef.current || []), optimisticMsg];
+      messagesRef.current = nextList;
+      dispatch(setMessages(nextList));
+      playMessageSound();
+
+      setIsRecording(false);
+      setRecordingTime(0);
+
+      try {
+        const formData = new FormData();
+        formData.append("file", audioBlob, "voice-note.webm");
+        formData.append("audioDuration", duration);
+        if (replyingTo?._id) {
+          formData.append("replyToId", replyingTo._id);
+        }
+
+        const res = await axios.post(
+          apiUrl(`/api/v1/message/send/${selectedUser._id}`),
+          formData,
+          {
+            headers: { "Content-Type": "multipart/form-data" },
+            withCredentials: true,
+          }
+        );
+
+        if (res.data.success) {
+          const realMsg = res.data.newMessage || res.data.message;
+          if (realMsg?._id) {
+            const latest = messagesRef.current || [];
+            const hasReal = latest.some((m) => m._id === realMsg._id);
+            const updated = hasReal
+              ? latest.filter((m) => m._id !== tempId)
+              : latest.map((m) =>
+                  m._id === tempId
+                    ? { ...realMsg, status: realMsg.status || "sent" }
+                    : m
+                );
+            messagesRef.current = updated;
+            dispatch(setMessages(updated));
+          }
+        }
+      } catch (err) {
+        const latest = messagesRef.current || [];
+        messagesRef.current = latest.filter((m) => m._id !== tempId);
+        dispatch(setMessages(messagesRef.current));
+        toast.error(getErrorMessage(err, "Unable to send voice note."));
+      }
+    };
+
+    mediaRecorderRef.current.stop();
+  };
+
+  /* ═══ MEDIA ATTACHMENT HANDLERS ═══ */
+  const handleMediaFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("File size must be under 50MB.");
+      return;
+    }
+
+    const isVideo = file.type.startsWith("video");
+    const isImage = file.type.startsWith("image");
+
+    if (!isImage && !isVideo) {
+      toast.error("Only photos and videos can be shared.");
+      return;
+    }
+
+    setSelectedMediaFile(file);
+    setMediaType(isVideo ? "video" : "image");
+    setMediaPreviewUrl(URL.createObjectURL(file));
+    setMediaCaption(textMessage);
+    setTextMessage("");
+
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const cancelMediaModal = () => {
+    if (mediaPreviewUrl) URL.revokeObjectURL(mediaPreviewUrl);
+    setSelectedMediaFile(null);
+    setMediaPreviewUrl(null);
+    setMediaType(null);
+    setMediaCaption("");
+    setUploadingMedia(false);
+  };
+
+  const sendMediaMessage = async () => {
+    if (!selectedMediaFile || !selectedUser?._id || uploadingMedia) return;
+
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const previewUrl = mediaPreviewUrl;
+    const currentMediaType = mediaType;
+    const optimisticMsg = {
+      _id: tempId,
+      senderId: user._id,
+      receiverId: selectedUser._id,
+      mediaType: currentMediaType,
+      mediaUrl: previewUrl,
+      message: mediaCaption.trim(),
+      createdAt: new Date().toISOString(),
+      status: "sending",
+      __optimistic: true,
+    };
+
+    const nextList = [...(messagesRef.current || []), optimisticMsg];
+    messagesRef.current = nextList;
+    dispatch(setMessages(nextList));
+    playMessageSound();
+
+    const fileToSend = selectedMediaFile;
+    const captionToSend = mediaCaption.trim();
+    const replyToSend = replyingTo?._id;
+
+    // Close preview modal without revoking previewUrl so optimisticMsg renders instantly
+    setSelectedMediaFile(null);
+    setMediaPreviewUrl(null);
+    setMediaType(null);
+    setMediaCaption("");
+    setReplyingTo(null);
+
+    try {
+      setUploadingMedia(true);
+      const formData = new FormData();
+      formData.append("file", fileToSend);
+      if (captionToSend) formData.append("textMessage", captionToSend);
+      if (replyToSend) formData.append("replyToId", replyToSend);
+
+      const res = await axios.post(
+        apiUrl(`/api/v1/message/send/${selectedUser._id}`),
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+          withCredentials: true,
+        }
+      );
+
+      if (res.data.success) {
+        const realMsg = res.data.newMessage || res.data.message;
+        if (realMsg?._id) {
+          const latest = messagesRef.current || [];
+          const hasReal = latest.some((m) => m._id === realMsg._id);
+          const updated = hasReal
+            ? latest.filter((m) => m._id !== tempId)
+            : latest.map((m) =>
+                m._id === tempId
+                  ? { ...realMsg, status: realMsg.status || "sent" }
+                  : m
+              );
+          messagesRef.current = updated;
+          dispatch(setMessages(updated));
+        }
+      }
+    } catch (err) {
+      const latest = messagesRef.current || [];
+      messagesRef.current = latest.filter((m) => m._id !== tempId);
+      dispatch(setMessages(messagesRef.current));
+      toast.error(getErrorMessage(err, "Unable to send media file."));
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
+
+  /* ---------- SEND TEXT ---------- */
   const sendMessageHandler = async (receiverId) => {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       toast.error("You're offline. Reconnect to internet to send messages.");
@@ -229,6 +564,7 @@ const ChatPage = () => {
       senderId: user._id,
       receiverId,
       message: text,
+      mediaType: "text",
       replyTo,
       createdAt: new Date().toISOString(),
       status: "sending",
@@ -249,7 +585,7 @@ const ChatPage = () => {
       const res = await axios.post(
         apiUrl(`/api/v1/message/send/${receiverId}`),
         { textMessage: text, replyToId: replyTo?.messageId },
-        { withCredentials: true },
+        { withCredentials: true }
       );
 
       if (res.data.success) {
@@ -262,7 +598,7 @@ const ChatPage = () => {
             : latest.map((m) =>
                 m._id === tempId
                   ? { ...realMsg, status: realMsg.status || "sent" }
-                  : m,
+                  : m
               );
           messagesRef.current = updated;
           dispatch(setMessages(updated));
@@ -311,19 +647,17 @@ const ChatPage = () => {
     .map((c) => c.user)
     .filter((u) => u?._id);
   const conversationUserIds = new Set(
-    conversationUsers.map((u) => u._id.toString()),
+    conversationUsers.map((u) => u._id.toString())
   );
   const contacts = [
     ...conversationUsers,
-    ...suggestedUsers.filter(
-      (u) => !conversationUserIds.has(u._id?.toString()),
-    ),
+    ...suggestedUsers.filter((u) => !conversationUserIds.has(u._id?.toString())),
   ];
 
   const filteredUsers = contacts.filter((u) =>
     `${u.fullName || ""} ${u.username}`
       .toLowerCase()
-      .includes(searchQuery.toLowerCase()),
+      .includes(searchQuery.toLowerCase())
   );
 
   const getConversationForUser = (userId) =>
@@ -337,7 +671,6 @@ const ChatPage = () => {
           collapsed ? "is-collapsed" : ""
         }`}
       >
-        {/* desktop collapse toggle */}
         <button
           type="button"
           className="nova-chat__collapse"
@@ -407,9 +740,7 @@ const ChatPage = () => {
             contacts.length === 0 &&
             (conversationRequest.error || suggestedUserRequest.error) && (
               <ErrorState
-                message={
-                  conversationRequest.error || suggestedUserRequest.error
-                }
+                message={conversationRequest.error || suggestedUserRequest.error}
                 onRetry={() => {
                   conversationRequest.retry();
                   suggestedUserRequest.retry();
@@ -467,10 +798,10 @@ const ChatPage = () => {
                     {isOnline
                       ? "Online"
                       : (liveLastSeen[u?._id] || u?.lastSeen)
-                        ? formatLastSeen(liveLastSeen[u?._id] || u?.lastSeen)
-                        : hasConversation
-                          ? "Tap to chat"
-                          : "Suggested"}
+                      ? formatLastSeen(liveLastSeen[u?._id] || u?.lastSeen)
+                      : hasConversation
+                      ? "Tap to chat"
+                      : "Suggested"}
                   </span>
                 </span>
 
@@ -500,6 +831,7 @@ const ChatPage = () => {
         <section
           className={`nova-chat__window ${!showContacts ? "is-visible" : ""}`}
         >
+          {/* Header */}
           <div className="nova-chat__window-head">
             <button
               type="button"
@@ -545,22 +877,107 @@ const ChatPage = () => {
                       ? "Online"
                       : formatLastSeen(
                           liveLastSeen[selectedUser?._id] ||
-                          selectedUser?.lastSeen ||
-                          conversationUsers.find((c) => c._id === selectedUser?._id)?.lastSeen
+                            selectedUser?.lastSeen ||
+                            conversationUsers.find(
+                              (c) => c._id === selectedUser?._id
+                            )?.lastSeen
                         )}
                   </span>
                 </span>
               </span>
             </ChatUserMenu>
+
+            {/* In-Chat Search Toggle Button */}
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowInChatSearch((prev) => !prev);
+                  if (!showInChatSearch) {
+                    setInChatSearchQuery("");
+                  }
+                }}
+                className={`p-2 rounded-full transition-colors cursor-pointer ${
+                  showInChatSearch
+                    ? "bg-[var(--primary)] text-white shadow-sm"
+                    : "text-white/70 hover:text-white hover:bg-white/10"
+                }`}
+                title="Search messages in conversation"
+                aria-label="Search messages"
+              >
+                <Search className="size-4" strokeWidth={2.2} />
+              </button>
+            </div>
           </div>
 
+          {/* ═══ In-Chat Message Search Bar ═══ */}
+          {showInChatSearch && (
+            <div className="px-4 py-2 bg-[var(--surface-2)]/90 backdrop-blur-md border-b border-[var(--border)]/60 flex items-center gap-2 animate-in slide-in-from-top-2 duration-150 z-20">
+              <div className="relative flex-1 flex items-center">
+                <Search className="size-3.5 text-white/50 absolute left-3" />
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Search in this chat…"
+                  value={inChatSearchQuery}
+                  onChange={(e) => setInChatSearchQuery(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-full pl-8 pr-16 py-1.5 text-xs text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                />
+                {inChatSearchQuery && (
+                  <span className="absolute right-3 text-[10.5px] font-semibold text-white/60 select-none">
+                    {searchMatches.length > 0
+                      ? `${activeMatchIndex + 1} of ${searchMatches.length}`
+                      : "0 of 0"}
+                  </span>
+                )}
+              </div>
+
+              {searchMatches.length > 0 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={handlePrevSearchMatch}
+                    className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
+                    title="Previous match"
+                  >
+                    <ChevronUp className="size-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNextSearchMatch}
+                    className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
+                    title="Next match"
+                  >
+                    <ChevronDown className="size-3.5" />
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowInChatSearch(false);
+                  setInChatSearchQuery("");
+                }}
+                className="p-1 rounded-full text-white/60 hover:text-white transition-colors"
+                title="Close search"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Messages container */}
           <div className="nova-chat__messages">
             <Messages
               selectedUser={selectedUser}
               onReplyMessage={setReplyingTo}
+              searchQuery={inChatSearchQuery}
+              activeSearchId={activeSearchMessageId}
             />
           </div>
 
+          {/* Composer */}
           <div className="nova-chat__composer">
             {replyingTo && (
               <div className="nova-chat__reply">
@@ -585,44 +1002,211 @@ const ChatPage = () => {
               </div>
             )}
 
-            <div className="nova-chat__composer-row">
-              <div className="nova-chat__input-wrap">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  name="chat-message"
-                  autoComplete="off"
-                  autoCorrect="on"
-                  spellCheck="true"
-                  data-form-type="other"
-                  value={textMessage}
-                  onChange={messageChangeHandler}
-                  placeholder="Write a message…"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      sendMessageHandler(selectedUser?._id);
-                    }
-                  }}
-                  className="nova-chat__input"
-                />
-              </div>
+            {/* Hidden file input for Photo / Video attachment */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,video/*"
+              className="hidden"
+              onChange={handleMediaFileSelect}
+            />
 
-              <button
-                onClick={() => sendMessageHandler(selectedUser?._id)}
-                disabled={!textMessage.trim() || sending}
-                aria-label="Send message"
-                className="nova-chat__send"
-              >
-                <Send
-                  className={`size-4 transition-transform duration-300 ${
-                    sending ? "translate-x-1 -translate-y-1 opacity-70" : ""
-                  }`}
-                  strokeWidth={2.2}
-                />
-              </button>
-            </div>
+            {/* If recording voice, show sleek live voice recorder bar */}
+            {isRecording ? (
+              <div className="flex items-center gap-3 px-3 py-2 bg-gradient-to-r from-red-500/15 via-red-500/10 to-transparent border border-red-500/30 rounded-2xl animate-in fade-in duration-200">
+                <div className="flex items-center gap-2">
+                  <span className="size-2.5 rounded-full bg-red-500 animate-ping" />
+                  <span className="font-mono text-xs font-semibold text-red-400">
+                    {formatDuration(recordingTime)}
+                  </span>
+                </div>
+
+                <div className="flex-1 flex items-center justify-center gap-1 h-6 px-3">
+                  {[...Array(16)].map((_, i) => (
+                    <span
+                      key={i}
+                      className="w-1 bg-red-400/80 rounded-full animate-pulse"
+                      style={{
+                        height: `${Math.max(20, Math.sin(i + recordingTime * 2) * 80 + 30)}%`,
+                        animationDelay: `${(i % 5) * 120}ms`,
+                      }}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={cancelRecording}
+                  className="p-2 rounded-full text-red-400 hover:bg-red-500/20 transition-colors"
+                  title="Cancel voice recording"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={sendVoiceNote}
+                  className="nova-chat__send bg-emerald-600 hover:bg-emerald-500 text-white"
+                  title="Send voice message"
+                >
+                  <Send className="size-4" strokeWidth={2.2} />
+                </button>
+              </div>
+            ) : (
+              <div className="nova-chat__composer-row">
+                {/* Media Attachment Button */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+                  title="Attach photo or video"
+                  aria-label="Attach media"
+                >
+                  <Paperclip className="size-4.5" strokeWidth={2.2} />
+                </button>
+
+                <div className="nova-chat__input-wrap">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    name="chat-message"
+                    autoComplete="off"
+                    autoCorrect="on"
+                    spellCheck="true"
+                    data-form-type="other"
+                    value={textMessage}
+                    onChange={messageChangeHandler}
+                    placeholder="Write a message…"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessageHandler(selectedUser?._id);
+                      }
+                    }}
+                    className="nova-chat__input"
+                  />
+                </div>
+
+                {/* If text is typed, show Send button; otherwise show WhatsApp-style Microphone button */}
+                {textMessage.trim() ? (
+                  <button
+                    onClick={() => sendMessageHandler(selectedUser?._id)}
+                    disabled={!textMessage.trim() || sending}
+                    aria-label="Send message"
+                    className="nova-chat__send"
+                  >
+                    <Send
+                      className={`size-4 transition-transform duration-300 ${
+                        sending ? "translate-x-1 -translate-y-1 opacity-70" : ""
+                      }`}
+                      strokeWidth={2.2}
+                    />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={startRecording}
+                    className="nova-chat__send bg-white/10 hover:bg-[var(--primary)] text-white transition-all cursor-pointer"
+                    title="Record voice note"
+                    aria-label="Record voice note"
+                  >
+                    <Mic className="size-4" strokeWidth={2.2} />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
+
+          {/* ═══ Media Attachment Preview Modal ═══ */}
+          {selectedMediaFile && mediaPreviewUrl && (
+            <div
+              className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-150 select-none"
+              onClick={cancelMediaModal}
+            >
+              <div
+                className="w-full max-w-lg rounded-2xl bg-[#18181b] border border-white/10 p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                    <ImageIcon className="size-4 text-[var(--primary)]" />
+                    <span>Send {mediaType === "video" ? "Video" : "Photo"}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={cancelMediaModal}
+                    className="p-1 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+
+                {/* Media Preview Box */}
+                <div className="relative rounded-xl overflow-hidden bg-black/60 flex items-center justify-center max-h-80 border border-white/10">
+                  {mediaType === "video" ? (
+                    <video
+                      src={mediaPreviewUrl}
+                      controls
+                      className="max-h-80 w-auto rounded-xl object-contain"
+                    />
+                  ) : (
+                    <img
+                      src={mediaPreviewUrl}
+                      alt="Preview"
+                      className="max-h-80 w-auto rounded-xl object-contain"
+                    />
+                  )}
+                </div>
+
+                {/* Caption Input */}
+                <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                  <input
+                    type="text"
+                    value={mediaCaption}
+                    onChange={(e) => setMediaCaption(e.target.value)}
+                    placeholder="Add a caption…"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        sendMediaMessage();
+                      }
+                    }}
+                    className="flex-1 bg-transparent text-sm text-white placeholder-white/40 focus:outline-none"
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={cancelMediaModal}
+                    disabled={uploadingMedia}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={sendMediaMessage}
+                    disabled={uploadingMedia}
+                    className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[var(--primary)] hover:opacity-90 text-xs font-semibold text-white transition-opacity active:scale-95 disabled:opacity-50 cursor-pointer"
+                  >
+                    {uploadingMedia ? (
+                      <>
+                        <Loader2 className="size-3.5 animate-spin" />
+                        <span>Sending…</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="size-3.5" />
+                        <span>Send</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
       ) : (
         <section className="nova-chat__empty-window">

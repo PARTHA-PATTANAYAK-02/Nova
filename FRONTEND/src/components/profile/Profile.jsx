@@ -23,11 +23,15 @@ import {
   UserCheck,
   MoreHorizontal,
   Trash2,
+  Plus,
+  Loader2,
   Home,
   Maximize2,
   Volume2,
   VolumeX,
   X,
+  Check,
+  Sparkles,
 } from "lucide-react";
 import {
   Dialog,
@@ -116,6 +120,113 @@ const Profile = () => {
   const [viewedStoryIds, setViewedStoryIds] = useState(getGlobalViewedItemIds);
   const [followLoading, setFollowLoading] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+
+  /* ═══ Highlights State ═══ */
+  const [highlights, setHighlights] = useState([]);
+  const [loadingHighlights, setLoadingHighlights] = useState(false);
+  const [activeHighlightViewer, setActiveHighlightViewer] = useState(null);
+  const [newHighlightOpen, setNewHighlightOpen] = useState(false);
+  const [newHighlightTitle, setNewHighlightTitle] = useState("");
+  const [creatingHighlight, setCreatingHighlight] = useState(false);
+  const [deleteHighlightTarget, setDeleteHighlightTarget] = useState(null);
+  const [selectedHighlightStories, setSelectedHighlightStories] = useState([]);
+  const [selectedHighlightCover, setSelectedHighlightCover] = useState("");
+  const [userStoriesArchive, setUserStoriesArchive] = useState([]);
+  const [loadingStoriesArchive, setLoadingStoriesArchive] = useState(false);
+
+  useEffect(() => {
+    if (userId && isValidObjectId(userId)) {
+      setLoadingHighlights(true);
+      axios
+        .get(apiUrl(`/api/v1/story/highlights/user/${userId}`), {
+          withCredentials: true,
+        })
+        .then((res) => {
+          if (res.data?.success) {
+            setHighlights(res.data.highlights || []);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setLoadingHighlights(false));
+    }
+  }, [userId]);
+
+  const handleOpenHighlight = (highlight) => {
+    if (!highlight || !highlight.stories?.length) {
+      toast.info("This highlight has no stories yet.");
+      return;
+    }
+    const highlightStoryGroup = {
+      _id: highlight._id,
+      user: userProfile || user,
+      items: highlight.stories.map((s) => ({
+        _id: s.storyId || s._id,
+        image: s.image,
+        mediaType: s.mediaType || "image",
+        caption: s.caption || "",
+        createdAt: s.createdAt,
+        poll: s.poll,
+        questionSticker: s.questionSticker,
+        sharedPost: s.sharedPost,
+      })),
+    };
+    setActiveHighlightViewer({
+      stories: [highlightStoryGroup],
+      userIndex: 0,
+      itemIndex: 0,
+    });
+  };
+
+  const handleCreateHighlightFromProfile = async () => {
+    if (!newHighlightTitle.trim() || creatingHighlight) return;
+    try {
+      setCreatingHighlight(true);
+      const coverUrl =
+        selectedHighlightCover ||
+        selectedHighlightStories[0]?.image ||
+        profileStory?.items?.[0]?.image ||
+        userProfile?.posts?.[0]?.image ||
+        userProfile?.profilePicture ||
+        "";
+      const storyIds = selectedHighlightStories.map((s) => s._id || s.storyId);
+
+      const res = await axios.post(
+        apiUrl("/api/v1/story/highlight"),
+        {
+          name: newHighlightTitle.trim(),
+          cover: coverUrl,
+          storyIds: storyIds.length > 0 ? storyIds : undefined,
+          storyId: storyIds[0] || profileStory?.items?.[0]?._id || undefined,
+        },
+        { withCredentials: true }
+      );
+      if (res.data?.success) {
+        toast.success(`Highlight "${newHighlightTitle.trim()}" created!`);
+        setHighlights((prev) => [res.data.highlight, ...prev]);
+        setNewHighlightTitle("");
+        setSelectedHighlightStories([]);
+        setSelectedHighlightCover("");
+        setNewHighlightOpen(false);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Unable to create highlight.");
+    } finally {
+      setCreatingHighlight(false);
+    }
+  };
+
+  const handleDeleteHighlight = async (highlightId) => {
+    try {
+      await axios.delete(apiUrl(`/api/v1/story/highlight/${highlightId}`), {
+        withCredentials: true,
+      });
+      setHighlights((prev) => prev.filter((h) => h._id !== highlightId));
+      setDeleteHighlightTarget(null);
+      toast.success("Highlight removed");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Unable to delete highlight.");
+    }
+  };
 
   useEffect(() => {
     const handleGlobalSync = () => {
@@ -521,6 +632,60 @@ const Profile = () => {
         </div>
       </section>
 
+      {/* ══════════════ INSTAGRAM STORY HIGHLIGHTS BAR ══════════════ */}
+      {highlights.length > 0 && (
+        <div className="nova-profile__highlights px-4 sm:px-6 py-4 max-w-4xl mx-auto w-full select-none">
+          <div className="flex items-center gap-4 overflow-x-auto scroll-hide pb-2 pt-1">
+            {/* List of Highlights */}
+            {highlights.map((hl) => (
+              <div
+                key={hl._id}
+                className="relative flex flex-col items-center gap-1.5 shrink-0 group cursor-pointer outline-none"
+              >
+                <button
+                  type="button"
+                  onClick={() => handleOpenHighlight(hl)}
+                  className="size-16 sm:size-18 rounded-full p-[2.5px] bg-gradient-to-tr from-amber-500/80 via-pink-500/80 to-purple-600/80 hover:scale-105 active:scale-95 transition-transform shadow-md"
+                >
+                  <div className="size-full rounded-full overflow-hidden bg-[var(--surface)] ring-2 ring-[var(--surface)]">
+                    {hl.cover ? (
+                      <img
+                        src={hl.cover}
+                        alt={hl.name}
+                        className="size-full object-cover"
+                      />
+                    ) : (
+                      <div className="size-full flex items-center justify-center bg-gradient-to-tr from-purple-500/20 to-pink-500/20 text-lg">
+                        ✨
+                      </div>
+                    )}
+                  </div>
+                </button>
+
+                <span className="text-[11px] sm:text-xs font-semibold text-[var(--foreground)] truncate max-w-[76px] text-center">
+                  {hl.name}
+                </span>
+
+                {/* Owner Delete Highlight Option */}
+                {isLoggedInUserProfile && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteHighlightTarget(hl);
+                    }}
+                    title="Delete highlight"
+                    className="absolute -top-1 -right-1 size-5 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  >
+                    <X className="size-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ══════════════ TABS — CENTERED ══════════════ */}
       <div className="nova-profile__tabs-wrap">
         <div className="nova-profile__tabs">
@@ -701,6 +866,14 @@ const Profile = () => {
           onOpenProfile={() => setProfileStoryOpen(false)}
         />
       )}
+      {activeHighlightViewer && (
+        <StoryViewer
+          stories={activeHighlightViewer.stories}
+          initialUserIndex={activeHighlightViewer.userIndex}
+          initialItemIndex={activeHighlightViewer.itemIndex}
+          onClose={() => setActiveHighlightViewer(null)}
+        />
+      )}
 
       <Dialog open={photoOpen} onOpenChange={setPhotoOpen}>
         <DialogContent
@@ -867,6 +1040,244 @@ const Profile = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ═══ Create Story Highlight Dialog ═══ */}
+      <Dialog open={newHighlightOpen} onOpenChange={setNewHighlightOpen}>
+        <DialogContent className="w-full max-w-md p-0 overflow-hidden border border-white/10 bg-[#161722]/95 backdrop-blur-2xl rounded-3xl shadow-[0_32px_80px_rgba(0,0,0,0.85)]">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-white/5">
+            <div className="flex items-center gap-2.5">
+              <div className="size-8 rounded-full bg-gradient-to-tr from-amber-500 via-pink-500 to-purple-600 flex items-center justify-center text-white shadow-md">
+                <Plus className="size-4" strokeWidth={2.5} />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-semibold text-white">
+                  New Highlight
+                </DialogTitle>
+                <p className="text-[11px] text-white/50">
+                  Save stories or photos to your profile
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setNewHighlightOpen(false)}
+              className="size-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+
+          <div className="p-5 space-y-4">
+            {/* Live Highlight Circle Preview */}
+            <div className="flex flex-col items-center justify-center py-2">
+              <div className="relative size-20 sm:size-22 rounded-full p-[3px] bg-gradient-to-tr from-amber-500 via-pink-500 to-purple-600 shadow-xl group">
+                <div className="size-full rounded-full overflow-hidden bg-[#181926] ring-2 ring-[#161722] flex items-center justify-center">
+                  {selectedHighlightCover ||
+                  selectedHighlightStories[0]?.image ||
+                  profileStory?.items?.[0]?.image ||
+                  userProfile?.posts?.[0]?.image ? (
+                    <img
+                      src={
+                        selectedHighlightCover ||
+                        selectedHighlightStories[0]?.image ||
+                        profileStory?.items?.[0]?.image ||
+                        userProfile?.posts?.[0]?.image
+                      }
+                      alt="Highlight cover preview"
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <Sparkles className="size-7 text-pink-400" />
+                  )}
+                </div>
+              </div>
+              <span className="text-xs font-semibold text-white mt-2 truncate max-w-[140px]">
+                {newHighlightTitle.trim() || "Highlight Name"}
+              </span>
+            </div>
+
+            {/* Title Input */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-white/80">
+                Highlight Name <span className="text-pink-400">*</span>
+              </label>
+              <input
+                type="text"
+                maxLength={30}
+                value={newHighlightTitle}
+                onChange={(e) => setNewHighlightTitle(e.target.value)}
+                placeholder="e.g. Travel, Gym, Moments, Vibes..."
+                autoFocus
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/40 text-sm focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newHighlightTitle.trim()) {
+                    handleCreateHighlightFromProfile();
+                  }
+                }}
+              />
+            </div>
+
+            {/* Select from Active Stories (if available) */}
+            {profileStory?.items?.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-medium text-white/80">
+                  <span>Select Stories</span>
+                  <span className="text-[11px] text-white/40">
+                    {selectedHighlightStories.length} selected
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scroll-hide">
+                  {profileStory.items.map((item) => {
+                    const isSelected = selectedHighlightStories.some(
+                      (s) => s._id === item._id || s.storyId === item._id
+                    );
+                    return (
+                      <button
+                        key={item._id}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedHighlightStories((prev) =>
+                              prev.filter(
+                                (s) => s._id !== item._id && s.storyId !== item._id
+                              )
+                            );
+                            if (selectedHighlightCover === item.image) {
+                              setSelectedHighlightCover("");
+                            }
+                          } else {
+                            setSelectedHighlightStories((prev) => [...prev, item]);
+                            if (!selectedHighlightCover) {
+                              setSelectedHighlightCover(item.image);
+                            }
+                          }
+                        }}
+                        className={`relative size-16 rounded-xl overflow-hidden shrink-0 border-2 transition-all cursor-pointer ${
+                          isSelected
+                            ? "border-[var(--primary)] ring-2 ring-[var(--primary)]/50 scale-95"
+                            : "border-white/10 opacity-75 hover:opacity-100"
+                        }`}
+                      >
+                        <img
+                          src={item.image}
+                          alt="Story"
+                          className="size-full object-cover"
+                        />
+                        {isSelected && (
+                          <div className="absolute inset-0 bg-[var(--primary)]/30 flex items-center justify-center">
+                            <div className="size-5 rounded-full bg-[var(--primary)] text-white flex items-center justify-center shadow-md">
+                              <Check className="size-3" strokeWidth={3} />
+                            </div>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Select from Posts as Cover (if available) */}
+            {userProfile?.posts?.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-medium text-white/80">
+                  <span>Choose Cover from Posts</span>
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scroll-hide">
+                  {userProfile.posts.slice(0, 10).map((post) => {
+                    const isCover = selectedHighlightCover === post.image;
+                    return (
+                      <button
+                        key={post._id}
+                        type="button"
+                        onClick={() => setSelectedHighlightCover(post.image)}
+                        className={`relative size-14 rounded-xl overflow-hidden shrink-0 border-2 transition-all cursor-pointer ${
+                          isCover
+                            ? "border-[var(--primary)] ring-2 ring-[var(--primary)]/50 scale-95"
+                            : "border-white/10 opacity-75 hover:opacity-100"
+                        }`}
+                      >
+                        <img
+                          src={post.image}
+                          alt="Post"
+                          className="size-full object-cover"
+                        />
+                        {isCover && (
+                          <div className="absolute inset-0 bg-[var(--primary)]/30 flex items-center justify-center">
+                            <div className="size-4 rounded-full bg-[var(--primary)] text-white flex items-center justify-center shadow-md">
+                              <Check className="size-2.5" strokeWidth={3} />
+                            </div>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-white/10 bg-white/5">
+            <button
+              type="button"
+              onClick={() => {
+                setNewHighlightOpen(false);
+                setNewHighlightTitle("");
+                setSelectedHighlightStories([]);
+                setSelectedHighlightCover("");
+              }}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!newHighlightTitle.trim() || creatingHighlight}
+              onClick={handleCreateHighlightFromProfile}
+              className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-amber-500 via-pink-500 to-purple-600 hover:opacity-95 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg flex items-center gap-2 cursor-pointer"
+            >
+              {creatingHighlight && <Loader2 className="size-3.5 animate-spin" />}
+              <span>{creatingHighlight ? "Creating…" : "Create Highlight"}</span>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Delete Highlight Confirmation Dialog ═══ */}
+      <Dialog
+        open={Boolean(deleteHighlightTarget)}
+        onOpenChange={(open) => !open && setDeleteHighlightTarget(null)}
+      >
+        <DialogContent className="max-w-sm p-5 border border-white/10 bg-[#161720]/95 backdrop-blur-2xl rounded-2xl shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold text-white">
+              Delete Highlight?
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-white/60 mt-1">
+            Are you sure you want to delete &ldquo;{deleteHighlightTarget?.name}&rdquo;?
+            This will remove the highlight from your profile.
+          </p>
+          <div className="flex items-center justify-end gap-2.5 mt-5">
+            <button
+              type="button"
+              onClick={() => setDeleteHighlightTarget(null)}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDeleteHighlight(deleteHighlightTarget._id)}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-red-600 hover:bg-red-700 active:scale-95 transition-all shadow-md cursor-pointer"
+            >
+              Delete
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 };

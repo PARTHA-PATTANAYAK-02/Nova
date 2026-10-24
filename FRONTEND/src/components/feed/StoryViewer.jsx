@@ -1,6 +1,22 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { X, Send, Eye, Heart, MessageCircle, ChevronUp, Sparkles, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import {
+  X,
+  Send,
+  Eye,
+  Heart,
+  ChevronUp,
+  Sparkles,
+  Trash2,
+  Bookmark,
+  BarChart2,
+  HelpCircle,
+  ExternalLink,
+  Plus,
+  Check,
+  Loader2,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import axios from "axios";
 import { toast } from "sonner";
@@ -10,7 +26,7 @@ import { getSocketInstance } from "@/redux/socketSlice";
 import { getDisplayName } from "@/lib/utils";
 import { markStoryItemAsViewed } from "@/lib/story";
 
-const IMAGE_DURATION = 8000; // 8s for images
+const IMAGE_DURATION = 8000;
 const STORY_REACTIONS = ["❤️", "🔥", "😂", "😮", "😢", "👏"];
 
 const formatTime = (iso) => {
@@ -47,6 +63,21 @@ const StoryViewer = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeletingStory, setIsDeletingStory] = useState(false);
 
+  /* Interactive Poll State */
+  const [pollsByItem, setPollsByItem] = useState({});
+  const [votingPoll, setVotingPoll] = useState(false);
+
+  /* Interactive Question Sticker State */
+  const [questionAnswer, setQuestionAnswer] = useState("");
+  const [submittingQuestion, setSubmittingQuestion] = useState(false);
+
+  /* Save to Highlights State */
+  const [showHighlightSheet, setShowHighlightSheet] = useState(false);
+  const [userHighlights, setUserHighlights] = useState([]);
+  const [loadingHighlights, setLoadingHighlights] = useState(false);
+  const [newHighlightTitle, setNewHighlightTitle] = useState("");
+  const [creatingHighlight, setCreatingHighlight] = useState(false);
+
   const { user } = useSelector((state) => state.auth);
 
   const holdTimerRef = useRef(null);
@@ -64,16 +95,35 @@ const StoryViewer = ({
     setItemDuration(IMAGE_DURATION);
     setPaused(false);
     setShowViewersSheet(false);
+    setShowHighlightSheet(false);
     setReplyText("");
+    setQuestionAnswer("");
   }, [currentItem?._id]);
 
-  /* ---------- BURST FLOATING EMOJIS (INSTAGRAM STYLE) ---------- */
+  // Load author's highlights when opening highlight sheet
+  useEffect(() => {
+    if (showHighlightSheet && user?._id) {
+      setLoadingHighlights(true);
+      axios
+        .get(apiUrl(`/api/v1/story/highlights/user/${user._id}`), {
+          withCredentials: true,
+        })
+        .then((res) => {
+          if (res.data?.success) {
+            setUserHighlights(res.data.highlights || []);
+          }
+        })
+        .finally(() => setLoadingHighlights(false));
+    }
+  }, [showHighlightSheet, user?._id]);
+
+  /* ---------- BURST FLOATING EMOJIS ---------- */
   const triggerBurst = useCallback((emoji) => {
     const burstCount = 6;
     const newItems = Array.from({ length: burstCount }).map((_, i) => ({
       id: `${Date.now()}-${i}-${Math.random()}`,
       emoji,
-      left: 65 + (Math.random() * 25 - 12), // center around right side
+      left: 65 + (Math.random() * 25 - 12),
       rot: `${Math.floor(Math.random() * 36 - 18)}deg`,
       delay: `${i * 90}ms`,
     }));
@@ -138,7 +188,6 @@ const StoryViewer = ({
         }));
       }
 
-      // If we are currently watching this story item and a reaction arrives:
       if (currentItem?._id?.toString() === storyId && update.latestReaction?.emoji) {
         triggerBurst(update.latestReaction.emoji);
       }
@@ -146,14 +195,14 @@ const StoryViewer = ({
       onReactionChangeRef.current?.(
         storyId,
         update.reactions?.find((r) => r.userId?.toString() === user?._id)?.emoji || null,
-        update.reactionDetails,
+        update.reactionDetails
       );
     };
 
     const handleStoryReply = (data) => {
       if (data.storyId?.toString() === currentItem?._id?.toString()) {
         toast.custom(
-          (t) => (
+          () => (
             <div className="flex items-center gap-3 bg-black/90 text-white px-4 py-2.5 rounded-2xl border border-white/20 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-2">
               <Avatar className="size-8 ring-1 ring-white/30">
                 <AvatarImage src={data.sender?.profilePicture} />
@@ -167,17 +216,28 @@ const StoryViewer = ({
               </div>
             </div>
           ),
-          { duration: 4000 },
+          { duration: 4000 }
         );
+      }
+    };
+
+    const handleStoryPollUpdated = (data) => {
+      if (data.storyId && data.poll) {
+        setPollsByItem((prev) => ({
+          ...prev,
+          [data.storyId.toString()]: data.poll,
+        }));
       }
     };
 
     socket.on("storyReactionUpdated", handleStoryReaction);
     socket.on("storyReplyReceived", handleStoryReply);
+    socket.on("storyPollUpdated", handleStoryPollUpdated);
 
     return () => {
       socket.off("storyReactionUpdated", handleStoryReaction);
       socket.off("storyReplyReceived", handleStoryReply);
+      socket.off("storyPollUpdated", handleStoryPollUpdated);
     };
   }, [currentItem?._id, user?._id, triggerBurst]);
 
@@ -193,8 +253,11 @@ const StoryViewer = ({
   /* ---------- KEYBOARD ---------- */
   useEffect(() => {
     const onKey = (e) => {
-      // Don't intercept arrow keys if typing in reply input
-      if (document.activeElement === inputRef.current) return;
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA"
+      )
+        return;
       if (e.key === "Escape") onClose();
       else if (e.key === "ArrowRight") goNext();
       else if (e.key === "ArrowLeft") goPrev();
@@ -265,7 +328,7 @@ const StoryViewer = ({
       const response = await axios.post(
         apiUrl(`/api/v1/story/${currentItem._id}/reaction`),
         { emoji: nextReaction },
-        { withCredentials: true },
+        { withCredentials: true }
       );
 
       setReactionByMe((prev) => ({
@@ -297,7 +360,7 @@ const StoryViewer = ({
       await axios.post(
         apiUrl(`/api/v1/story/${currentItem._id}/reply`),
         { message: messageToSend },
-        { withCredentials: true },
+        { withCredentials: true }
       );
       setReplyText("");
       inputRef.current?.blur();
@@ -307,6 +370,98 @@ const StoryViewer = ({
       toast.error(error.response?.data?.message || "Unable to send reply.");
     } finally {
       setSendingReply(false);
+    }
+  };
+
+  /* ---------- VOTE ON POLL ---------- */
+  const handleVotePoll = async (optionIndex) => {
+    if (!currentItem?._id || votingPoll) return;
+    try {
+      setVotingPoll(true);
+      const res = await axios.post(
+        apiUrl(`/api/v1/story/${currentItem._id}/poll/vote`),
+        { optionIndex },
+        { withCredentials: true }
+      );
+      if (res.data?.success && res.data.poll) {
+        setPollsByItem((prev) => ({
+          ...prev,
+          [currentItem._id]: res.data.poll,
+        }));
+        toast.success("Vote recorded!");
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Unable to vote.");
+    } finally {
+      setVotingPoll(false);
+    }
+  };
+
+  /* ---------- SUBMIT QUESTION RESPONSE ---------- */
+  const handleSendQuestionResponse = async () => {
+    if (!questionAnswer.trim() || submittingQuestion || !currentItem?._id) return;
+    try {
+      setSubmittingQuestion(true);
+      const res = await axios.post(
+        apiUrl(`/api/v1/story/${currentItem._id}/question/respond`),
+        { response: questionAnswer.trim() },
+        { withCredentials: true }
+      );
+      if (res.data?.success) {
+        toast.success("Sent to author!");
+        setQuestionAnswer("");
+        setPaused(false);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Unable to send response.");
+    } finally {
+      setSubmittingQuestion(false);
+    }
+  };
+
+  /* ---------- ADD STORY TO HIGHLIGHT ---------- */
+  const handleAddToHighlight = async (highlightId) => {
+    if (!currentItem?._id) return;
+    try {
+      const res = await axios.post(
+        apiUrl(`/api/v1/story/highlight/${highlightId}/add`),
+        { storyId: currentItem._id },
+        { withCredentials: true }
+      );
+      if (res.data?.success) {
+        toast.success("Saved to Highlights!");
+        setShowHighlightSheet(false);
+        setPaused(false);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Unable to save to highlight.");
+    }
+  };
+
+  const handleCreateNewHighlight = async () => {
+    if (!newHighlightTitle.trim() || !currentItem?._id || creatingHighlight) return;
+    try {
+      setCreatingHighlight(true);
+      const res = await axios.post(
+        apiUrl("/api/v1/story/highlight"),
+        {
+          name: newHighlightTitle.trim(),
+          storyId: currentItem._id,
+          cover: currentItem.image,
+        },
+        { withCredentials: true }
+      );
+      if (res.data?.success) {
+        toast.success(`Highlight "${newHighlightTitle.trim()}" created!`);
+        setUserHighlights((prev) => [res.data.highlight, ...prev]);
+        setNewHighlightTitle("");
+        setShowHighlightSheet(false);
+        setPaused(false);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Unable to create highlight.");
+    } finally {
+      setCreatingHighlight(false);
     }
   };
 
@@ -323,7 +478,6 @@ const StoryViewer = ({
       setShowDeleteConfirm(false);
       onDeleteStory?.(storyId);
 
-      // If user has other story items, advance or retreat; otherwise close
       if (currentStory.items.length > 1) {
         if (itemIndex >= currentStory.items.length - 1) {
           setItemIndex((i) => Math.max(i - 1, 0));
@@ -350,6 +504,10 @@ const StoryViewer = ({
     ? reactionByMe[currentItem._id]
     : currentItem.reactionByMe;
 
+  const pollData = pollsByItem[currentItem._id] || currentItem.poll;
+  const questionData = currentItem.questionSticker;
+  const sharedPostData = currentItem.sharedPost;
+
   const viewer = (
     <div
       className="fixed inset-0 z-[9999] flex select-none items-center justify-center bg-black/90 p-0 backdrop-blur-xl animate-in fade-in duration-200 md:p-6"
@@ -364,7 +522,105 @@ const StoryViewer = ({
         onPointerDown={(event) => event.stopPropagation()}
       >
         {/* STORY MEDIA */}
-        {currentItem.mediaType === "video" ? (
+        {sharedPostData ? (
+          <div className="relative h-full w-full flex flex-col items-center justify-center p-4 overflow-hidden bg-gradient-to-b from-[#1c1d2e] via-[#10111d] to-[#07080f]">
+            {/* Ambient subtle color orbs behind the card */}
+            <div className="absolute -top-20 -left-20 size-72 rounded-full bg-purple-600/20 blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-20 -right-20 size-72 rounded-full bg-pink-600/15 blur-3xl pointer-events-none" />
+
+            {/* If the story creator added a thought / text note, show as sticker above the card */}
+            {currentItem.caption && (
+              <div
+                className="z-20 mb-3 max-w-[85%] text-center animate-in fade-in slide-in-from-top-2 duration-300 pointer-events-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="inline-block px-4 py-2 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/20 text-white text-xs sm:text-sm font-medium shadow-2xl tracking-wide leading-snug">
+                  {currentItem.caption}
+                </div>
+              </div>
+            )}
+
+            {/* The Reshared Post Card */}
+            <div
+              className="relative z-20 w-[90%] max-w-[340px] rounded-2xl bg-[#141522]/95 border border-white/15 backdrop-blur-2xl shadow-2xl overflow-hidden transition-all pointer-events-auto select-none"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header: Author Info */}
+              <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-white/10 bg-white/[0.02]">
+                <Link
+                  to={`/profile/${sharedPostData.author?._id}`}
+                  onClick={() => onClose()}
+                  className="flex items-center gap-2.5 min-w-0 hover:opacity-85 transition-opacity"
+                >
+                  <Avatar className="size-8 ring-1.5 ring-purple-500/40 shadow">
+                    <AvatarImage src={sharedPostData.author?.profilePicture} />
+                    <AvatarFallback className="bg-zinc-800 text-white font-bold text-xs">
+                      {sharedPostData.author?.fullName?.[0] || sharedPostData.author?.username?.[0] || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 text-left">
+                    <p className="text-xs font-semibold text-white truncate leading-tight">
+                      {sharedPostData.author?.fullName || sharedPostData.author?.username}
+                    </p>
+                    <p className="text-[10px] text-zinc-400 truncate leading-tight">
+                      @{sharedPostData.author?.username || "user"}
+                    </p>
+                  </div>
+                </Link>
+
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-[10px] font-medium text-zinc-300">
+                  <Sparkles className="size-2.5 text-purple-400" />
+                  <span>Post</span>
+                </div>
+              </div>
+
+              {/* Media preview */}
+              <div className="relative aspect-square w-full bg-black/80 overflow-hidden flex items-center justify-center">
+                {sharedPostData.mediaType === "video" ? (
+                  <video
+                    src={sharedPostData.image}
+                    className="size-full object-cover"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                  />
+                ) : (
+                  <img
+                    src={sharedPostData.image}
+                    alt="Post"
+                    className="size-full object-cover"
+                    draggable={false}
+                  />
+                )}
+              </div>
+
+              {/* Caption snippet if post has one */}
+              {sharedPostData.caption && (
+                <div className="px-3.5 pt-2 pb-1 text-left">
+                  <p className="text-xs text-zinc-300 line-clamp-2 leading-relaxed">
+                    <span className="font-semibold text-white mr-1.5">
+                      {sharedPostData.author?.username}
+                    </span>
+                    {sharedPostData.caption}
+                  </p>
+                </div>
+              )}
+
+              {/* View Post link */}
+              <div className="p-2.5 pt-2">
+                <Link
+                  to={`/post/${sharedPostData._id}`}
+                  onClick={() => onClose()}
+                  className="w-full py-2 rounded-xl bg-gradient-to-r from-purple-600/80 to-pink-600/80 hover:from-purple-600 hover:to-pink-600 border border-white/20 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-[0.98] cursor-pointer"
+                >
+                  <span>View Post</span>
+                  <ExternalLink className="size-3" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        ) : currentItem.mediaType === "video" ? (
           <video
             key={currentItem._id}
             src={currentItem.image}
@@ -392,13 +648,11 @@ const StoryViewer = ({
           />
         ) : (
           <div className="relative h-full w-full flex items-center justify-center overflow-hidden bg-black">
-            {/* Ambient blurred backdrop: fills any letterbox margin with matching color ambiance */}
             <div
               aria-hidden="true"
               className="absolute inset-0 bg-cover bg-center blur-3xl opacity-50 scale-125 pointer-events-none"
               style={{ backgroundImage: `url(${currentItem.image})` }}
             />
-            {/* Full uncropped image, crisp & natural dimensions */}
             <img
               src={currentItem.image}
               alt=""
@@ -407,6 +661,116 @@ const StoryViewer = ({
             />
           </div>
         )}
+
+        {/* ═══ INTERACTIVE POLL STICKER CARD ═══ */}
+        {pollData?.question && (
+          <div
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-[84%] max-w-xs bg-black/80 border border-white/20 backdrop-blur-xl rounded-2xl p-4 shadow-2xl pointer-events-auto select-none animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-center gap-1.5 pb-2 border-b border-white/10 text-amber-400 text-xs font-bold uppercase tracking-wider">
+              <BarChart2 className="size-3.5" />
+              <span>Voting Poll</span>
+            </div>
+            <p className="text-center font-bold text-white text-sm my-3 leading-snug">
+              {pollData.question}
+            </p>
+
+            <div className="space-y-2">
+              {pollData.options.map((option, idx) => {
+                const total = pollData.totalVotes || 0;
+                const count = option.voteCount || 0;
+                const percent = total > 0 ? Math.round((count / total) * 100) : 0;
+                const hasVoted = pollData.options.some((o) => o.votedByMe);
+
+                return (
+                  <button
+                    key={option._id || idx}
+                    type="button"
+                    disabled={votingPoll}
+                    onClick={() => handleVotePoll(idx)}
+                    className={`relative w-full overflow-hidden rounded-xl py-2.5 px-3.5 text-left border transition-all cursor-pointer ${
+                      option.votedByMe
+                        ? "border-amber-400 bg-amber-400/20 text-white font-bold shadow-md"
+                        : "border-white/20 bg-white/10 hover:bg-white/15 text-white/90"
+                    }`}
+                  >
+                    {hasVoted && (
+                      <div
+                        className="absolute inset-y-0 left-0 bg-white/20 transition-all duration-500 rounded-xl"
+                        style={{ width: `${percent}%` }}
+                      />
+                    )}
+                    <div className="relative z-10 flex items-center justify-between text-xs font-semibold">
+                      <span className="truncate pr-2">{option.text}</span>
+                      {hasVoted && (
+                        <span className="font-mono text-xs font-bold text-amber-300">
+                          {percent}%
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="text-center text-[10.5px] text-white/60 mt-2 font-medium">
+              {pollData.totalVotes || 0}{" "}
+              {pollData.totalVotes === 1 ? "vote" : "votes"}
+            </p>
+          </div>
+        )}
+
+        {/* ═══ INTERACTIVE QUESTION STICKER (ASK ME ANYTHING) ═══ */}
+        {questionData?.question && (
+          <div
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-[84%] max-w-xs bg-gradient-to-br from-pink-500/85 via-purple-600/85 to-indigo-600/85 border border-white/25 backdrop-blur-xl rounded-2xl p-4 shadow-2xl pointer-events-auto select-none text-center animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-center gap-1.5 text-white/90 text-xs font-bold uppercase tracking-wider pb-1.5">
+              <HelpCircle className="size-3.5" />
+              <span>Question</span>
+            </div>
+
+            <p className="font-extrabold text-white text-sm my-2 drop-shadow">
+              {questionData.question}
+            </p>
+
+            {!isOwnStory ? (
+              <div className="mt-2.5 flex items-center gap-1.5 bg-white/20 border border-white/30 rounded-xl p-1 pl-3">
+                <input
+                  type="text"
+                  value={questionAnswer}
+                  onChange={(e) => setQuestionAnswer(e.target.value)}
+                  onFocus={() => setPaused(true)}
+                  onBlur={() => setPaused(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleSendQuestionResponse();
+                    }
+                  }}
+                  placeholder="Type a response…"
+                  className="flex-1 bg-transparent text-xs text-white placeholder-white/60 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleSendQuestionResponse}
+                  disabled={!questionAnswer.trim() || submittingQuestion}
+                  className="size-7 rounded-lg bg-white text-purple-700 flex items-center justify-center hover:bg-white/90 active:scale-95 transition-all disabled:opacity-40 cursor-pointer"
+                >
+                  <Send className="size-3.5 fill-current" />
+                </button>
+              </div>
+            ) : (
+              <div className="mt-2 py-1.5 px-3 rounded-xl bg-black/30 border border-white/15 text-xs text-white/90 font-medium">
+                {questionData.responsesCount || 0} response(s) received
+              </div>
+            )}
+          </div>
+        )}
+
+
 
         {/* TOP & BOTTOM SCRIM GRADIENTS */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/75 via-transparent to-black/85" />
@@ -421,7 +785,7 @@ const StoryViewer = ({
           onPointerLeave={handlePointerCancel}
         />
 
-        {/* FLOATING BURST EMOJIS (INSTAGRAM FLYING HEARTS) */}
+        {/* FLOATING BURST EMOJIS */}
         <div className="pointer-events-none absolute inset-0 z-40 overflow-hidden">
           {floatingEmojis.map((item) => (
             <span
@@ -520,8 +884,8 @@ const StoryViewer = ({
           </div>
         </div>
 
-        {/* CAPTION (IF PRESENT) */}
-        {currentItem.caption && (
+        {/* CAPTION */}
+        {!sharedPostData && currentItem.caption && (
           <div className="absolute bottom-28 left-4 right-4 z-20 text-center text-sm leading-relaxed text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] font-medium">
             <span className="bg-black/45 px-3.5 py-1.5 rounded-2xl backdrop-blur-md border border-white/10 inline-block">
               {currentItem.caption}
@@ -529,9 +893,8 @@ const StoryViewer = ({
           </div>
         )}
 
-        {/* BOTTOM ACTION BAR - INSTAGRAM STYLE */}
+        {/* BOTTOM ACTION BAR */}
         <div className="absolute bottom-4 left-3 right-3 z-30 flex flex-col gap-2.5 pb-safe">
-          {/* Quick Reaction Emojis Ribbon (For non-owners) */}
           {!isOwnStory && (
             <div className="flex items-center justify-center gap-1.5 py-1 px-2 rounded-full bg-black/40 border border-white/15 backdrop-blur-xl shadow-lg w-fit mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300">
               {STORY_REACTIONS.map((emoji) => (
@@ -552,7 +915,6 @@ const StoryViewer = ({
             </div>
           )}
 
-          {/* Interactive Reply Input (For viewers) OR Viewers/Reactions Sheet Trigger (For Story Owner) */}
           {!isOwnStory ? (
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
@@ -586,7 +948,6 @@ const StoryViewer = ({
                 </button>
               </div>
 
-              {/* Heart quick tap button */}
               <button
                 type="button"
                 onClick={() => handleStoryReaction("❤️")}
@@ -601,7 +962,7 @@ const StoryViewer = ({
               </button>
             </div>
           ) : (
-            /* STORY OWNER CONTROLS: REAL-TIME VIEWERS & REACTIONS DRAWER */
+            /* STORY OWNER ACTIONS: VIEWERS & HIGHLIGHT */
             <div className="flex items-center justify-between gap-2 px-1">
               <button
                 type="button"
@@ -620,25 +981,123 @@ const StoryViewer = ({
                 <ChevronUp className="size-3.5 text-white/60" />
               </button>
 
-              <div className="flex items-center -space-x-1.5 overflow-hidden">
-                {currentReactions.slice(0, 3).map((r, i) => (
-                  <span
-                    key={`${r.user?._id || i}`}
-                    className="relative size-6 rounded-full border border-black bg-white/20 text-xs flex items-center justify-center overflow-hidden"
-                  >
-                    {r.user?.profilePicture ? (
-                      <img src={r.user.profilePicture} alt="" className="size-full object-cover" />
-                    ) : (
-                      r.emoji || "❤️"
-                    )}
-                  </span>
-                ))}
-              </div>
+              {/* ═══ SAVE TO PROFILE HIGHLIGHT BUTTON ═══ */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowHighlightSheet(true);
+                  setPaused(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-black/60 hover:bg-black/80 border border-white/20 text-white backdrop-blur-xl active:scale-95 transition-all text-xs font-semibold shadow-xl cursor-pointer"
+              >
+                <Bookmark className="size-3.5 text-amber-400" />
+                <span>Highlight</span>
+              </button>
             </div>
           )}
         </div>
 
-        {/* INSTAGRAM-STYLE REAL-TIME VIEWERS / REACTIONS SLIDE-UP DRAWER */}
+        {/* ═══ ADD TO HIGHLIGHT SLIDE-UP SHEET ═══ */}
+        {isOwnStory && showHighlightSheet && (
+          <div
+            className="absolute inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-md animate-in fade-in duration-200"
+            onClick={() => {
+              setShowHighlightSheet(false);
+              setPaused(false);
+            }}
+          >
+            <div
+              className="flex flex-col max-h-[75%] w-full rounded-t-[28px] border-t border-white/15 bg-black/90 p-4 text-white shadow-2xl backdrop-blur-2xl animate-in slide-in-from-bottom duration-300 space-y-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mx-auto h-1 w-10 rounded-full bg-white/30 mb-1" />
+
+              <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Bookmark className="size-4 text-amber-400" />
+                  <h3 className="text-sm font-semibold tracking-wide">
+                    Save to Highlights
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowHighlightSheet(false);
+                    setPaused(false);
+                  }}
+                  className="size-7 rounded-full flex items-center justify-center bg-white/10 text-white/80 hover:text-white cursor-pointer"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              {/* Existing highlights */}
+              {loadingHighlights ? (
+                <div className="py-6 flex justify-center">
+                  <Loader2 className="size-5 animate-spin text-white/50" />
+                </div>
+              ) : userHighlights.length > 0 ? (
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  <p className="text-[11px] font-medium text-white/70">
+                    Choose existing highlight:
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {userHighlights.map((hl) => (
+                      <button
+                        key={hl._id}
+                        type="button"
+                        onClick={() => handleAddToHighlight(hl._id)}
+                        className="flex items-center gap-2.5 p-2 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 text-left transition-colors cursor-pointer"
+                      >
+                        <div className="size-9 rounded-full overflow-hidden bg-white/20 border border-white/20 shrink-0">
+                          {hl.cover ? (
+                            <img src={hl.cover} alt="" className="size-full object-cover" />
+                          ) : (
+                            <div className="size-full flex items-center justify-center text-xs">⭐</div>
+                          )}
+                        </div>
+                        <span className="text-xs font-semibold text-white truncate">
+                          {hl.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Create New Highlight Input */}
+              <div className="pt-2 border-t border-white/10 space-y-2">
+                <p className="text-[11px] font-medium text-white/70">
+                  Or create a new highlight:
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newHighlightTitle}
+                    onChange={(e) => setNewHighlightTitle(e.target.value.slice(0, 30))}
+                    placeholder="e.g. Travel, Fitness, Memories..."
+                    className="flex-1 bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-white/40 outline-none focus:border-amber-400"
+                  />
+                  <button
+                    type="button"
+                    disabled={!newHighlightTitle.trim() || creatingHighlight}
+                    onClick={handleCreateNewHighlight}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-pink-500 hover:opacity-90 text-white text-xs font-semibold transition-opacity active:scale-95 disabled:opacity-40 cursor-pointer flex items-center gap-1"
+                  >
+                    {creatingHighlight ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Plus className="size-3.5" />
+                    )}
+                    <span>Save</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ VIEWERS & ACTIVITY DRAWER ═══ */}
         {isOwnStory && showViewersSheet && (
           <div
             className="absolute inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-md animate-in fade-in duration-200"
@@ -651,7 +1110,6 @@ const StoryViewer = ({
               className="flex flex-col max-h-[70%] w-full rounded-t-[28px] border-t border-white/15 bg-black/90 p-4 text-white shadow-2xl backdrop-blur-2xl animate-in slide-in-from-bottom duration-300"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Drawer Handle */}
               <div className="mx-auto h-1 w-10 rounded-full bg-white/30 mb-3" />
 
               <div className="flex items-center justify-between border-b border-white/10 pb-3">
@@ -674,7 +1132,6 @@ const StoryViewer = ({
                 </button>
               </div>
 
-              {/* Viewers & Reactors List */}
               <div className="overflow-y-auto py-2 divide-y divide-white/5 space-y-1">
                 {currentReactions.length === 0 ? (
                   <div className="py-12 text-center text-xs text-white/60">

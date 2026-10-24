@@ -8,7 +8,7 @@ import { io } from "socket.io-client";
 import { useDispatch, useSelector } from "react-redux";
 import { setSocketConnected, setSocketInstance } from "./redux/socketSlice";
 import { setAuthUser, updateUserLastSeen } from "./redux/authSlice";
-import { appendMessage, setOnlineUsers } from "./redux/chatSlice";
+import { appendMessage, setOnlineUsers, deleteMessageForEveryone, deleteMessageForMe } from "./redux/chatSlice";
 import {
   removeNotification,
   setLikeNotification,
@@ -302,9 +302,33 @@ function App() {
 
         if (belongsToActiveChat) {
           dispatch(appendMessage(message));
+          if (
+            message.senderId === activeUserId &&
+            window.location.pathname === "/chat"
+          ) {
+            axios
+              .patch(
+                apiUrl(`/api/v1/message/read/${activeUserId}`),
+                {},
+                { withCredentials: true },
+              )
+              .catch(() => {});
+          }
         }
         if (message.senderId !== user?._id) {
           playMessageSound();
+        }
+      });
+
+      socketio.on("messageDeletedForEveryone", ({ messageId, deletedAt }) => {
+        if (messageId) {
+          dispatch(deleteMessageForEveryone({ messageId, deletedAt }));
+        }
+      });
+
+      socketio.on("messageDeletedForMe", ({ messageId }) => {
+        if (messageId) {
+          dispatch(deleteMessageForMe({ messageId }));
         }
       });
 

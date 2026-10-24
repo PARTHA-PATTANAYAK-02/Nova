@@ -78,6 +78,17 @@ const chatSlice = createSlice({
         (m) => m._id?.toString() !== messageId.toString(),
       );
     },
+    markMessagesAsSeenByReader: (state, action) => {
+      const readerId = action.payload?.readerId || action.payload;
+      if (!readerId) return;
+      state.messages = state.messages.map((m) => {
+        const receiverId = typeof m.receiverId === "object" ? m.receiverId?._id : m.receiverId;
+        if (receiverId?.toString() === readerId.toString() && m.status !== "seen") {
+          return { ...m, status: "seen" };
+        }
+        return m;
+      });
+    },
     deleteMessageForEveryone: (state, action) => {
       const { messageId, deletedAt } = action.payload || {};
       if (!messageId) return;
@@ -87,6 +98,8 @@ const chatSlice = createSlice({
             ...m,
             isDeletedForEveryone: true,
             message: "This message was deleted",
+            mediaUrl: "",
+            mediaType: "text",
             storyRef: null,
             reactions: [],
             deletedAt: deletedAt || new Date().toISOString(),
@@ -94,6 +107,21 @@ const chatSlice = createSlice({
         }
         return m;
       });
+    },
+    toggleStarMessageLocal: (state, action) => {
+      const { messageId, userId } = action.payload || {};
+      if (!messageId || !userId) return;
+      const message = state.messages.find((m) => m._id?.toString() === messageId.toString());
+      if (message) {
+        if (!message.starredBy) message.starredBy = [];
+        const uidStr = userId.toString();
+        const hasStarred = message.starredBy.some((id) => id?.toString() === uidStr);
+        if (hasStarred) {
+          message.starredBy = message.starredBy.filter((id) => id?.toString() !== uidStr);
+        } else {
+          message.starredBy.push(userId);
+        }
+      }
     },
   },
 });
@@ -107,6 +135,8 @@ export const {
   clearReactionNotice,
   markStoryAsUnavailable,
   deleteMessageForMe,
+  markMessagesAsSeenByReader,
   deleteMessageForEveryone,
+  toggleStarMessageLocal,
 } = chatSlice.actions;
 export default chatSlice.reducer;

@@ -8,9 +8,10 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link } from "react-router-dom";
-import { Send, MessageCircle, Loader2, Heart, Bookmark } from "lucide-react";
+import { Send, SendHorizontal, MessageCircle, Loader2, Heart, Bookmark } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import Comment from "@/components/comments/Comment";
+import ShareDialog from "@/components/feed/ShareDialog";
 import axios from "axios";
 import { toast } from "sonner";
 import { setPosts } from "@/redux/postSlice";
@@ -147,6 +148,11 @@ const CommentDialog = ({ open, setOpen }) => {
       setSaving(false);
     }
   };
+
+  /* ─── SHARE DIALOG STATE ─── */
+  const [shareOpen, setShareOpen] = useState(false);
+
+
 
   /* ─── COMMENTS SORT ─── */
   useEffect(() => {
@@ -345,7 +351,8 @@ const CommentDialog = ({ open, setOpen }) => {
   const showSkeleton = loading && !postDetail;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <>
+      <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
         className="nova-comment-dialog !flex flex-col md:flex-row max-w-[96vw] md:max-w-5xl p-0 h-[92vh] md:h-[84vh] overflow-hidden !gap-0 !rounded-3xl"
         onOpenAutoFocus={(e) => e.preventDefault()}
@@ -595,6 +602,24 @@ const CommentDialog = ({ open, setOpen }) => {
                     </span>
                   </div>
 
+                  {/* Share button (matches feed post, opens ShareDialog) */}
+                  <button
+                    type="button"
+                    onClick={() => setShareOpen(true)}
+                    aria-label="Share post"
+                    title="Share post"
+                    className="nova-comment-dialog__stat hover:text-[var(--primary)] transition-colors cursor-pointer group/share"
+                  >
+                    <SendHorizontal
+                      className="size-[18px] group-hover/share:scale-110 transition-transform"
+                      strokeWidth={2}
+                    />
+                    <span className="nova-comment-dialog__stat-count text-xs">
+                      Share
+                    </span>
+                  </button>
+
+
                   <button
                     type="button"
                     onClick={handleSaveToggle}
@@ -648,7 +673,15 @@ const CommentDialog = ({ open, setOpen }) => {
         </div>
       </DialogContent>
     </Dialog>
-  );
+
+    {/* Share Dialog (Share to Story, Send to Friends, Copy Link) */}
+    <ShareDialog
+      open={shareOpen}
+      onOpenChange={setShareOpen}
+      post={post}
+    />
+  </>
+);
 };
 
 export default CommentDialog;

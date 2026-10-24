@@ -1,33 +1,40 @@
-import { setMessages, updateMessageReactions, updateMessageStatus } from "@/redux/chatSlice";
+import {
+  markMessagesAsSeenByReader,
+  updateMessageReactions,
+  updateMessageStatus,
+  deleteMessageForEveryone,
+  deleteMessageForMe,
+} from "@/redux/chatSlice";
 import { getSocketInstance } from "@/redux/socketSlice";
-import { useEffect } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
 const useGetRTM = () => {
   const dispatch = useDispatch();
   const { connected } = useSelector((store) => store.socketio);
-  const { messages } = useSelector((store) => store.chat);
   const { selectedUser, user } = useSelector((store) => store.auth);
   const socket = getSocketInstance();
   const [isTyping, setIsTyping] = useState(false);
 
   useEffect(() => {
-    if (!selectedUser) return; // Prevent errors if selectedUser is not set
+    if (!selectedUser) return;
 
     const handleMessageStatus = (statusUpdate) => {
       dispatch(updateMessageStatus(statusUpdate));
     };
+
     const handleMessageReactionUpdate = (reactionUpdate) => {
       const participants = [reactionUpdate.senderId, reactionUpdate.receiverId];
       if (
         participants.includes(user?._id?.toString()) &&
         participants.includes(selectedUser._id.toString())
       ) {
-        dispatch(updateMessageReactions({
-          ...reactionUpdate,
-          conversationUserId: selectedUser._id.toString(),
-        }));
+        dispatch(
+          updateMessageReactions({
+            ...reactionUpdate,
+            conversationUserId: selectedUser._id.toString(),
+          })
+        );
       }
     };
 
@@ -44,20 +51,20 @@ const useGetRTM = () => {
     };
 
     const handleMessagesRead = ({ readerId }) => {
-      if (readerId === selectedUser._id) {
-        dispatch(
-          setMessages(
-            messages.map((message) =>
-              message.senderId === user?._id
-                ? {
-                    ...message,
-                    status: "seen",
-                    readAt: new Date().toISOString(),
-                  }
-                : message,
-            ),
-          ),
-        );
+      if (readerId?.toString() === selectedUser._id?.toString()) {
+        dispatch(markMessagesAsSeenByReader({ readerId }));
+      }
+    };
+
+    const handleDeletedForEveryone = ({ messageId, deletedAt }) => {
+      if (messageId) {
+        dispatch(deleteMessageForEveryone({ messageId, deletedAt }));
+      }
+    };
+
+    const handleDeletedForMe = ({ messageId }) => {
+      if (messageId) {
+        dispatch(deleteMessageForMe({ messageId }));
       }
     };
 
@@ -66,6 +73,8 @@ const useGetRTM = () => {
     socket?.on("messagesRead", handleMessagesRead);
     socket?.on("messageStatus", handleMessageStatus);
     socket?.on("messageReactionUpdated", handleMessageReactionUpdate);
+    socket?.on("messageDeletedForEveryone", handleDeletedForEveryone);
+    socket?.on("messageDeletedForMe", handleDeletedForMe);
 
     return () => {
       socket?.off("userTyping", handleUserTyping);
@@ -73,9 +82,11 @@ const useGetRTM = () => {
       socket?.off("messagesRead", handleMessagesRead);
       socket?.off("messageStatus", handleMessageStatus);
       socket?.off("messageReactionUpdated", handleMessageReactionUpdate);
+      socket?.off("messageDeletedForEveryone", handleDeletedForEveryone);
+      socket?.off("messageDeletedForMe", handleDeletedForMe);
       setIsTyping(false);
     };
-  }, [messages, selectedUser, user?._id, dispatch, socket, connected]);
+  }, [selectedUser, user?._id, dispatch, socket, connected]);
 
   return { isTyping };
 };

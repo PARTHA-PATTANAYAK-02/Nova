@@ -14,8 +14,21 @@ const messageSchema = new mongoose.Schema(
     },
     message: {
       type: String,
-      required: true,
       trim: true,
+      default: "",
+    },
+    mediaType: {
+      type: String,
+      enum: ["text", "image", "video", "audio"],
+      default: "text",
+    },
+    mediaUrl: {
+      type: String,
+      default: "",
+    },
+    audioDuration: {
+      type: Number,
+      default: 0,
     },
     storyRef: {
       storyId: {
@@ -82,6 +95,10 @@ const messageSchema = new mongoose.Schema(
         type: String,
         required: true,
       },
+    }],
+    starredBy: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
     }],
   },
   { timestamps: true },

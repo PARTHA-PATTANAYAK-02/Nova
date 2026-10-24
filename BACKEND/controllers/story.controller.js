@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import cloudinary from "../utils/cloudinary.js";
 import { Story } from "../models/story.model.js";
 import { User } from "../models/user.model.js";
+import { Post } from "../models/post.model.js";
+import { Highlight } from "../models/highlight.model.js";
 import { Message } from "../models/message.model.js";
 import { Conversation } from "../models/conversation.model.js";
 import { emitToUser, getReceiverSocketId, io } from "../socket/socket.js";
@@ -16,7 +18,6 @@ const getVideoDurationFromBuffer = (buffer) => {
   if (!Buffer.isBuffer(buffer) || buffer.length < 16) return null;
 
   try {
-    // 1. MP4 / MOV container (ISO BMFF): scan boxes for 'moov' -> 'mvhd'
     let offset = 0;
     while (offset + 8 <= buffer.length) {
       let size = buffer.readUInt32BE(offset);
@@ -69,7 +70,6 @@ const getVideoDurationFromBuffer = (buffer) => {
   }
 
   try {
-    // 2. WebM / Matroska EBML: search for Duration element [0x44, 0x89]
     for (let i = 0; i < Math.min(buffer.length - 10, 50000); i++) {
       if (buffer[i] === 0x44 && buffer[i + 1] === 0x89) {
         const lenByte = buffer[i + 2];
@@ -132,20 +132,80 @@ const serializeStoryGroups = (stories, viewerId) => {
       caption: story.caption,
       createdAt: story.createdAt,
       expiresAt: story.expiresAt,
-      viewedByMe: story.views?.some((view) => getReferenceId(view.userId) === viewerId?.toString()) || false,
-      reactionByMe: story.reactions?.find((reaction) => getReferenceId(reaction.userId) === viewerId?.toString())?.emoji || null,
+      poll: story.poll?.question
+        ? {
+            question: story.poll.question,
+            options: (story.poll.options || []).map((opt, optIdx) => ({
+              _id: opt._id || String(optIdx),
+              text: opt.text,
+              voteCount: (opt.votes || []).length,
+              votedByMe: (opt.votes || []).some(
+                (vId) => (vId?._id || vId)?.toString() === viewerId?.toString()
+              ),
+            })),
+            totalVotes: (story.poll.options || []).reduce(
+              (acc, opt) => acc + (opt.votes?.length || 0),
+              0
+            ),
+          }
+        : null,
+      questionSticker: story.questionSticker?.question
+        ? {
+            question: story.questionSticker.question,
+            responsesCount: (story.questionSticker.responses || []).length,
+            responses: isStoryAuthor
+              ? (story.questionSticker.responses || []).map((r) => ({
+                  _id: r._id,
+                  response: r.response,
+                  user:
+                    r.userId && typeof r.userId === "object"
+                      ? {
+                          _id: r.userId._id,
+                          username: r.userId.username,
+                          fullName: r.userId.fullName,
+                          profilePicture: r.userId.profilePicture,
+                        }
+                      : null,
+                  createdAt: r.createdAt,
+                }))
+              : [],
+          }
+        : null,
+      sharedPost: story.sharedPost
+        ? {
+            _id: story.sharedPost._id,
+            image: story.sharedPost.image,
+            mediaType: story.sharedPost.mediaType || "image",
+            caption: story.sharedPost.caption,
+            author: story.sharedPost.author
+              ? {
+                  _id: story.sharedPost.author._id,
+                  username: story.sharedPost.author.username,
+                  fullName: story.sharedPost.author.fullName,
+                  profilePicture: story.sharedPost.author.profilePicture,
+                }
+              : null,
+          }
+        : null,
+      viewedByMe:
+        story.views?.some((view) => getReferenceId(view.userId) === viewerId?.toString()) ||
+        false,
+      reactionByMe:
+        story.reactions?.find((reaction) => getReferenceId(reaction.userId) === viewerId?.toString())
+          ?.emoji || null,
       reactions: (story.reactions || []).map(({ emoji }) => emoji),
       reactionDetails: isStoryAuthor
         ? (story.reactions || []).map((reaction) => ({
             emoji: reaction.emoji,
-            user: reaction.userId && typeof reaction.userId === "object"
-              ? {
-                  _id: reaction.userId._id,
-                  username: reaction.userId.username,
-                  fullName: reaction.userId.fullName,
-                  profilePicture: reaction.userId.profilePicture,
-                }
-              : null,
+            user:
+              reaction.userId && typeof reaction.userId === "object"
+                ? {
+                    _id: reaction.userId._id,
+                    username: reaction.userId.username,
+                    fullName: reaction.userId.fullName,
+                    profilePicture: reaction.userId.profilePicture,
+                  }
+                : null,
           }))
         : [],
     });
@@ -154,6 +214,7 @@ const serializeStoryGroups = (stories, viewerId) => {
   return [...byAuthor.values()];
 };
 
+/* ═══ CREATE STORY (supports Poll, Question Sticker, & Save to Highlights) ═══ */
 export const createStory = async (req, res) => {
   let uploadedPublicId;
   let uploadedResourceType = "image";
@@ -222,6 +283,43 @@ export const createStory = async (req, res) => {
       return res.status(400).json({ success: false, message: "Story videos must be 30 seconds or shorter" });
     }
 
+    // Parse Interactive Stickers (Poll / Question Sticker) if provided
+    let pollData = undefined;
+    if (req.body.poll) {
+      try {
+        const parsedPoll = typeof req.body.poll === "string" ? JSON.parse(req.body.poll) : req.body.poll;
+        if (parsedPoll?.question && Array.isArray(parsedPoll?.options) && parsedPoll.options.length >= 2) {
+          pollData = {
+            question: parsedPoll.question.trim(),
+            options: parsedPoll.options.map((opt) => ({
+              text: typeof opt === "string" ? opt.trim() : opt.text?.trim() || "",
+              votes: [],
+            })),
+          };
+        }
+      } catch (err) {
+        console.error("Poll parse error:", err);
+      }
+    }
+
+    let questionStickerData = undefined;
+    if (req.body.questionSticker) {
+      try {
+        const parsedQuestion =
+          typeof req.body.questionSticker === "string"
+            ? JSON.parse(req.body.questionSticker)
+            : req.body.questionSticker;
+        if (parsedQuestion?.question) {
+          questionStickerData = {
+            question: parsedQuestion.question.trim(),
+            responses: [],
+          };
+        }
+      } catch (err) {
+        console.error("Question sticker parse error:", err);
+      }
+    }
+
     const story = await Story.create({
       image: uploadResult.secure_url,
       mediaType: resourceType,
@@ -229,10 +327,59 @@ export const createStory = async (req, res) => {
       resourceType,
       audience,
       caption,
+      poll: pollData,
+      questionSticker: questionStickerData,
       author: req.id,
       expiresAt: new Date(Date.now() + STORY_LIFETIME_MS),
     });
+
+    // If user selected to save to Highlight during creation
+    const highlightName = req.body.highlightName?.trim();
+    const highlightId = req.body.highlightId?.trim();
+    if (highlightName || highlightId) {
+      try {
+        let highlight;
+        if (highlightId && mongoose.isValidObjectId(highlightId)) {
+          highlight = await Highlight.findOne({ _id: highlightId, author: req.id });
+        }
+        if (!highlight && highlightName) {
+          highlight = await Highlight.create({
+            author: req.id,
+            name: highlightName,
+            cover: story.image,
+            stories: [],
+          });
+        }
+        if (highlight) {
+          highlight.stories.push({
+            storyId: story._id,
+            image: story.image,
+            mediaType: story.mediaType,
+            caption: story.caption,
+            poll: story.poll,
+            questionSticker: story.questionSticker,
+            createdAt: story.createdAt,
+          });
+          if (!highlight.cover) highlight.cover = story.image;
+          await highlight.save();
+
+          story.highlightIds.push(highlight._id);
+          await story.save();
+        }
+      } catch (hlErr) {
+        console.error("Error auto-adding story to highlight:", hlErr);
+      }
+    }
+
     await story.populate({ path: "author", select: "username fullName profilePicture" });
+
+    // Emit realtime event to followers so their story bar updates
+    const authorUser = await User.findById(req.id).select("followers");
+    if (authorUser?.followers) {
+      authorUser.followers.forEach((followerId) => {
+        emitToUser(followerId, "newStory", { authorId: req.id });
+      });
+    }
 
     return res.status(201).json({
       success: true,
@@ -240,7 +387,6 @@ export const createStory = async (req, res) => {
       story: serializeStoryGroups([story], req.id)[0],
     });
   } catch (error) {
-    // Avoid keeping a Cloudinary asset if its database record could not be made.
     if (uploadedPublicId) {
       try {
         await cloudinary.uploader.destroy(uploadedPublicId, {
@@ -256,6 +402,433 @@ export const createStory = async (req, res) => {
   }
 };
 
+/* ═══ SHARE POST TO STORY ═══ */
+export const sharePostToStory = async (req, res) => {
+  try {
+    const {
+      postId,
+      caption = "",
+      audience = "public",
+      highlightName,
+      highlightId,
+    } = req.body;
+
+    if (!mongoose.isValidObjectId(postId)) {
+      return res.status(400).json({ success: false, message: "Invalid post ID" });
+    }
+
+    const post = await Post.findById(postId).populate("author", "username fullName profilePicture");
+    if (!post) {
+      return res.status(404).json({ success: false, message: "Post not found" });
+    }
+
+    const safeAudience = audience === "followers" ? "followers" : "public";
+
+    const story = await Story.create({
+      image: post.image,
+      mediaType: post.mediaType || "image",
+      imagePublicId: post.mediaPublicId || "shared_post",
+      resourceType: post.mediaType || "image",
+      audience: safeAudience,
+      caption: caption.trim(),
+      sharedPost: post._id,
+      author: req.id,
+      expiresAt: new Date(Date.now() + STORY_LIFETIME_MS),
+    });
+
+    // If user chose to save to Highlight during share
+    const cleanHlName = highlightName?.trim();
+    const cleanHlId = highlightId?.trim();
+    if (cleanHlName || cleanHlId) {
+      try {
+        let highlight;
+        if (cleanHlId && mongoose.isValidObjectId(cleanHlId)) {
+          highlight = await Highlight.findOne({ _id: cleanHlId, author: req.id });
+        }
+        if (!highlight && cleanHlName) {
+          highlight = await Highlight.create({
+            author: req.id,
+            name: cleanHlName,
+            cover: post.image,
+            stories: [],
+          });
+        }
+        if (highlight) {
+          highlight.stories.push({
+            storyId: story._id,
+            image: story.image,
+            mediaType: story.mediaType,
+            caption: story.caption,
+            sharedPost: story.sharedPost,
+            createdAt: story.createdAt,
+          });
+          if (!highlight.cover) highlight.cover = story.image;
+          await highlight.save();
+
+          story.highlightIds.push(highlight._id);
+          await story.save();
+        }
+      } catch (hlErr) {
+        console.error("Error auto-adding shared story to highlight:", hlErr);
+      }
+    }
+
+    await story.populate({ path: "author", select: "username fullName profilePicture" });
+    await story.populate({
+      path: "sharedPost",
+      populate: { path: "author", select: "username fullName profilePicture" },
+    });
+
+    // Notify followers
+    const authorUser = await User.findById(req.id).select("followers");
+    if (authorUser?.followers) {
+      authorUser.followers.forEach((followerId) => {
+        emitToUser(followerId, "newStory", { authorId: req.id });
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Post shared to your story!",
+      story: serializeStoryGroups([story], req.id)[0],
+    });
+  } catch (error) {
+    console.error("sharePostToStory error:", error);
+    return res.status(500).json({ success: false, message: "Unable to share post to story" });
+  }
+};
+
+/* ═══ VOTE ON STORY POLL ═══ */
+export const voteStoryPoll = async (req, res) => {
+  try {
+    const storyId = req.params.id;
+    const { optionIndex } = req.body;
+
+    if (!mongoose.isValidObjectId(storyId)) {
+      return res.status(400).json({ success: false, message: "Invalid story ID" });
+    }
+
+    const story = await Story.findById(storyId);
+    if (!story || !story.poll?.question) {
+      return res.status(404).json({ success: false, message: "Story poll not found" });
+    }
+
+    const options = story.poll.options;
+    if (typeof optionIndex !== "number" || optionIndex < 0 || optionIndex >= options.length) {
+      return res.status(400).json({ success: false, message: "Invalid poll option index" });
+    }
+
+    // Remove user's previous vote from all options
+    options.forEach((opt) => {
+      opt.votes = (opt.votes || []).filter((vId) => vId.toString() !== req.id.toString());
+    });
+
+    // Add vote to chosen option
+    options[optionIndex].votes.push(req.id);
+    await story.save();
+
+    const formattedPoll = {
+      question: story.poll.question,
+      options: options.map((opt, idx) => ({
+        _id: opt._id || String(idx),
+        text: opt.text,
+        voteCount: opt.votes.length,
+        votedByMe: opt.votes.some((vId) => vId.toString() === req.id.toString()),
+      })),
+      totalVotes: options.reduce((acc, opt) => acc + opt.votes.length, 0),
+    };
+
+    // Broadcast poll update to viewers in real time
+    io.emit("storyPollUpdated", {
+      storyId: story._id,
+      poll: formattedPoll,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Vote recorded",
+      poll: formattedPoll,
+    });
+  } catch (error) {
+    console.error("voteStoryPoll error:", error);
+    return res.status(500).json({ success: false, message: "Unable to record vote" });
+  }
+};
+
+/* ═══ RESPOND TO QUESTION STICKER (Ask Me Anything) ═══ */
+export const respondToQuestionSticker = async (req, res) => {
+  try {
+    const storyId = req.params.id;
+    const { response } = req.body;
+
+    if (!mongoose.isValidObjectId(storyId)) {
+      return res.status(400).json({ success: false, message: "Invalid story ID" });
+    }
+    if (!response?.trim()) {
+      return res.status(400).json({ success: false, message: "Response cannot be empty" });
+    }
+
+    const story = await Story.findById(storyId);
+    if (!story || !story.questionSticker?.question) {
+      return res.status(404).json({ success: false, message: "Question sticker not found" });
+    }
+
+    story.questionSticker.responses.push({
+      userId: req.id,
+      response: response.trim(),
+      createdAt: new Date(),
+    });
+    await story.save();
+
+    // Notify author
+    const sender = await User.findById(req.id).select("username fullName profilePicture");
+    emitToUser(story.author, "notification", {
+      type: "story_question_response",
+      userId: req.id,
+      storyId: story._id,
+      message: `${sender?.fullName || sender?.username || "Someone"} answered your story question: "${response.trim()}"`,
+      createdAt: new Date(),
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Response sent to author!",
+    });
+  } catch (error) {
+    console.error("respondToQuestionSticker error:", error);
+    return res.status(500).json({ success: false, message: "Unable to send response" });
+  }
+};
+
+/* ═══ HIGHLIGHTS MANAGEMENT ═══ */
+export const createHighlight = async (req, res) => {
+  try {
+    const { name, storyId, storyIds, cover } = req.body;
+    if (!name?.trim()) {
+      return res.status(400).json({ success: false, message: "Highlight name is required" });
+    }
+
+    let initialStories = [];
+    let coverUrl = cover || "";
+
+    const rawIds = Array.isArray(storyIds) ? storyIds : storyId ? [storyId] : [];
+    const validIds = rawIds.filter((id) => mongoose.isValidObjectId(id));
+
+    if (validIds.length > 0) {
+      const stories = await Story.find({ _id: { $in: validIds } });
+      for (const story of stories) {
+        initialStories.push({
+          storyId: story._id,
+          image: story.image,
+          mediaType: story.mediaType,
+          caption: story.caption,
+          poll: story.poll,
+          questionSticker: story.questionSticker,
+          sharedPost: story.sharedPost,
+          createdAt: story.createdAt,
+        });
+      }
+      if (!coverUrl && initialStories[0]?.image) {
+        coverUrl = initialStories[0].image;
+      }
+    }
+
+    // If no stories were selected but a cover image was provided
+    if (initialStories.length === 0 && coverUrl) {
+      initialStories.push({
+        image: coverUrl,
+        mediaType: "image",
+        caption: name.trim(),
+        createdAt: new Date(),
+      });
+    }
+
+    const highlight = await Highlight.create({
+      author: req.id,
+      name: name.trim(),
+      cover: coverUrl,
+      stories: initialStories,
+    });
+
+    if (validIds.length > 0) {
+      await Story.updateMany(
+        { _id: { $in: validIds } },
+        { $addToSet: { highlightIds: highlight._id } }
+      );
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Highlight created!",
+      highlight,
+    });
+  } catch (error) {
+    console.error("createHighlight error:", error);
+    return res.status(500).json({ success: false, message: "Unable to create highlight" });
+  }
+};
+
+export const getUserHighlights = async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    if (!mongoose.isValidObjectId(userId)) {
+      return res.status(400).json({ success: false, message: "Invalid user ID" });
+    }
+
+    const highlights = await Highlight.find({ author: userId })
+      .populate({
+        path: "stories.sharedPost",
+        populate: { path: "author", select: "username fullName profilePicture" },
+      })
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      highlights,
+    });
+  } catch (error) {
+    console.error("getUserHighlights error:", error);
+    return res.status(500).json({ success: false, message: "Unable to load highlights" });
+  }
+};
+
+export const getHighlightById = async (req, res) => {
+  try {
+    const highlightId = req.params.id;
+    if (!mongoose.isValidObjectId(highlightId)) {
+      return res.status(400).json({ success: false, message: "Invalid highlight ID" });
+    }
+
+    const highlight = await Highlight.findById(highlightId)
+      .populate("author", "username fullName profilePicture")
+      .populate({
+        path: "stories.sharedPost",
+        populate: { path: "author", select: "username fullName profilePicture" },
+      });
+    if (!highlight) {
+      return res.status(404).json({ success: false, message: "Highlight not found" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      highlight,
+    });
+  } catch (error) {
+    console.error("getHighlightById error:", error);
+    return res.status(500).json({ success: false, message: "Unable to load highlight" });
+  }
+};
+
+export const addStoryToHighlight = async (req, res) => {
+  try {
+    const highlightId = req.params.id;
+    const { storyId } = req.body;
+
+    if (!mongoose.isValidObjectId(highlightId) || !mongoose.isValidObjectId(storyId)) {
+      return res.status(400).json({ success: false, message: "Invalid IDs" });
+    }
+
+    const highlight = await Highlight.findOne({ _id: highlightId, author: req.id });
+    if (!highlight) {
+      return res.status(404).json({ success: false, message: "Highlight not found" });
+    }
+
+    const story = await Story.findById(storyId);
+    if (!story) {
+      return res.status(404).json({ success: false, message: "Story not found" });
+    }
+
+    // Check if story is already added
+    const alreadyExists = highlight.stories.some(
+      (s) => (s.storyId || s._id)?.toString() === story._id.toString()
+    );
+
+    if (!alreadyExists) {
+      highlight.stories.push({
+        storyId: story._id,
+        image: story.image,
+        mediaType: story.mediaType,
+        caption: story.caption,
+        poll: story.poll,
+        questionSticker: story.questionSticker,
+        sharedPost: story.sharedPost,
+        createdAt: story.createdAt,
+      });
+      if (!highlight.cover) highlight.cover = story.image;
+      await highlight.save();
+
+      await Story.findByIdAndUpdate(story._id, {
+        $addToSet: { highlightIds: highlight._id },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Added to highlight!",
+      highlight,
+    });
+  } catch (error) {
+    console.error("addStoryToHighlight error:", error);
+    return res.status(500).json({ success: false, message: "Unable to add to highlight" });
+  }
+};
+
+export const deleteHighlight = async (req, res) => {
+  try {
+    const highlightId = req.params.id;
+    if (!mongoose.isValidObjectId(highlightId)) {
+      return res.status(400).json({ success: false, message: "Invalid highlight ID" });
+    }
+
+    const highlight = await Highlight.findOne({ _id: highlightId, author: req.id });
+    if (!highlight) {
+      return res.status(404).json({ success: false, message: "Highlight not found" });
+    }
+
+    await Highlight.deleteOne({ _id: highlightId });
+    await Story.updateMany(
+      { highlightIds: highlightId },
+      { $pull: { highlightIds: highlightId } }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Highlight deleted",
+    });
+  } catch (error) {
+    console.error("deleteHighlight error:", error);
+    return res.status(500).json({ success: false, message: "Unable to delete highlight" });
+  }
+};
+
+/* ═══ MY STORIES ARCHIVE FOR HIGHLIGHTS ═══ */
+export const getMyStoriesArchive = async (req, res) => {
+  try {
+    const stories = await Story.find({ author: req.id })
+      .sort({ createdAt: -1 })
+      .limit(60);
+    return res.status(200).json({
+      success: true,
+      stories: stories.map((s) => ({
+        _id: s._id,
+        image: s.image,
+        mediaType: s.mediaType || "image",
+        caption: s.caption || "",
+        createdAt: s.createdAt,
+        expiresAt: s.expiresAt,
+        poll: s.poll,
+        questionSticker: s.questionSticker,
+        sharedPost: s.sharedPost,
+      })),
+    });
+  } catch (error) {
+    console.error("getMyStoriesArchive error:", error);
+    return res.status(500).json({ success: false, message: "Unable to load stories" });
+  }
+};
+
+
+/* ═══ FEED STORIES ═══ */
 export const getStoriesForFeed = async (req, res) => {
   try {
     const requestedUserIds = String(req.query.userIds || "")
@@ -283,7 +856,12 @@ export const getStoriesForFeed = async (req, res) => {
     })
       .sort({ createdAt: -1 })
       .populate({ path: "author", select: "username fullName profilePicture" })
-      .populate({ path: "reactions.userId", select: "username fullName profilePicture" });
+      .populate({ path: "reactions.userId", select: "username fullName profilePicture" })
+      .populate({
+        path: "sharedPost",
+        populate: { path: "author", select: "username fullName profilePicture" },
+      })
+      .populate({ path: "questionSticker.responses.userId", select: "username fullName profilePicture" });
 
     return res.status(200).json({
       success: true,
@@ -494,16 +1072,21 @@ export const deleteStory = async (req, res) => {
       return res.status(403).json({ success: false, message: "You are not authorized to delete this story" });
     }
 
-    // Remove from Cloudinary if possible
-    try {
-      const publicId = story.imagePublicId;
-      if (publicId) {
-        await cloudinary.uploader.destroy(publicId, {
-          resource_type: story.resourceType === "video" ? "video" : "image",
-        });
+    // Only destroy Cloudinary asset if this story isn't saved to highlights or a shared post
+    if (
+      (!story.highlightIds || story.highlightIds.length === 0) &&
+      !story.sharedPost
+    ) {
+      try {
+        const publicId = story.imagePublicId;
+        if (publicId && publicId !== "shared_post") {
+          await cloudinary.uploader.destroy(publicId, {
+            resource_type: story.resourceType === "video" ? "video" : "image",
+          });
+        }
+      } catch (destroyError) {
+        console.error("Cloudinary asset deletion error during deleteStory:", destroyError);
       }
-    } catch (destroyError) {
-      console.error("Cloudinary asset deletion error during deleteStory:", destroyError);
     }
 
     await Story.deleteOne({ _id: story._id });
@@ -552,7 +1135,12 @@ export const getStoryById = async (req, res) => {
       expiresAt: { $gt: new Date() },
     })
       .populate({ path: "author", select: "username fullName profilePicture" })
-      .populate({ path: "reactions.userId", select: "username fullName profilePicture" });
+      .populate({ path: "reactions.userId", select: "username fullName profilePicture" })
+      .populate({
+        path: "sharedPost",
+        populate: { path: "author", select: "username fullName profilePicture" },
+      })
+      .populate({ path: "questionSticker.responses.userId", select: "username fullName profilePicture" });
 
     if (!story) {
       return res.status(404).json({

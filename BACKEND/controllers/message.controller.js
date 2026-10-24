@@ -1,8 +1,10 @@
+import sharp from "sharp";
 import { Conversation } from "../models/conversation.model.js";
 import { emitToUser, getReceiverSocketId, getReceiverSocketIds, io } from "../socket/socket.js";
 import { Message } from "../models/message.model.js";
 import { Story } from "../models/story.model.js";
 import { User } from "../models/user.model.js";
+import cloudinary from "../utils/cloudinary.js";
 import mongoose from "mongoose";
 import { createAndEmitNotification } from "../utils/notifications.js";
 import { Notification } from "../models/notification.model.js";
@@ -34,8 +36,9 @@ export const sendMessage = async (req, res) => {
   try {
     const senderId = req.id;
     const receiverId = req.params.id;
-    const message = req.body.textMessage?.trim();
+    const textMessage = req.body.textMessage?.trim() || "";
     const replyToId = req.body.replyToId;
+    const file = req.file;
 
     if (!mongoose.isValidObjectId(receiverId)) {
       return res
@@ -43,10 +46,45 @@ export const sendMessage = async (req, res) => {
         .json({ success: false, message: "Invalid recipient" });
     }
 
-    if (!message) {
+    let mediaType = "text";
+    let mediaUrl = "";
+    let audioDuration = Number(req.body.audioDuration) || 0;
+
+    if (file) {
+      let uploadBuffer = file.buffer;
+      if (file.mimetype.startsWith("audio/")) {
+        mediaType = "audio";
+      } else if (file.mimetype.startsWith("video/")) {
+        mediaType = "video";
+      } else {
+        mediaType = "image";
+        try {
+          uploadBuffer = await sharp(file.buffer)
+            .rotate()
+            .resize({ width: 1440, height: 1440, fit: "inside", withoutEnlargement: true })
+            .jpeg({ quality: 80, mozjpeg: true })
+            .toBuffer();
+        } catch (compressionError) {
+          console.warn("Image compression fallback to raw buffer:", compressionError?.message);
+          uploadBuffer = file.buffer;
+        }
+      }
+
+      const uploadResult = await new Promise((resolve, reject) => {
+        cloudinary.uploader
+          .upload_stream(
+            { folder: "nova/chat", resource_type: "auto" },
+            (error, result) => (error ? reject(error) : resolve(result)),
+          )
+          .end(uploadBuffer);
+      });
+      mediaUrl = uploadResult.secure_url;
+    }
+
+    if (!textMessage && !mediaUrl) {
       return res
         .status(400)
-        .json({ success: false, message: "Message cannot be empty" });
+        .json({ success: false, message: "Message or media is required" });
     }
     if (senderId === receiverId) {
       return res
@@ -99,10 +137,22 @@ export const sendMessage = async (req, res) => {
     }
 
     const receiverSocketIds = getReceiverSocketIds(receiverId);
+    const fallbackText =
+      mediaType === "audio"
+        ? "🎤 Voice message"
+        : mediaType === "video"
+        ? "🎥 Video"
+        : mediaType === "image"
+        ? "📷 Photo"
+        : "";
+
     const newMessage = await Message.create({
       senderId,
       receiverId,
-      message,
+      message: textMessage || fallbackText,
+      mediaType,
+      mediaUrl,
+      audioDuration,
       replyTo,
       status: receiverSocketIds.length > 0 ? "delivered" : "sent",
     });
@@ -431,6 +481,8 @@ export const deleteMessage = async (req, res) => {
 
       message.isDeletedForEveryone = true;
       message.message = "This message was deleted";
+      message.mediaUrl = "";
+      message.mediaType = "text";
       message.storyRef = null;
       message.reactions = [];
       message.deletedAt = new Date();
@@ -444,6 +496,18 @@ export const deleteMessage = async (req, res) => {
         messageId: message._id,
         deletedAt: message.deletedAt,
       });
+
+      const conv = await Conversation.findOne({ messages: message._id });
+      if (conv && conv.lastMessage?.toString() === message._id.toString()) {
+        emitToUser(message.senderId, "conversationUpdated", {
+          conversationId: conv._id,
+          lastMessage: message,
+        });
+        emitToUser(message.receiverId, "conversationUpdated", {
+          conversationId: conv._id,
+          lastMessage: message,
+        });
+      }
 
       return res.status(200).json({
         success: true,
@@ -474,3 +538,34 @@ export const deleteMessage = async (req, res) => {
     return res.status(500).json({ success: false, message: "Unable to delete message" });
   }
 };
+
+export const toggleStarMessage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ success: false, message: "Invalid message ID" });
+    }
+    const message = await Message.findById(id);
+    if (!message) {
+      return res.status(404).json({ success: false, message: "Message not found" });
+    }
+    const userIdStr = req.id.toString();
+    const isStarred = (message.starredBy || []).some((uid) => uid.toString() === userIdStr);
+    if (isStarred) {
+      message.starredBy = message.starredBy.filter((uid) => uid.toString() !== userIdStr);
+    } else {
+      if (!message.starredBy) message.starredBy = [];
+      message.starredBy.push(req.id);
+    }
+    await message.save();
+    return res.status(200).json({
+      success: true,
+      messageId: message._id,
+      isStarred: !isStarred,
+    });
+  } catch (error) {
+    console.error("toggleStarMessage error:", error);
+    return res.status(500).json({ success: false, message: "Unable to star message" });
+  }
+};
+

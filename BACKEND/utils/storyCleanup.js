@@ -38,6 +38,18 @@ export const cleanupExpiredStories = async () => {
   try {
     const expiredStories = await Story.find({
       expiresAt: { $lte: new Date() },
+      $or: [
+        { sharedPost: { $exists: false } },
+        { sharedPost: null },
+      ],
+      $and: [
+        {
+          $or: [
+            { highlightIds: { $exists: false } },
+            { highlightIds: { $size: 0 } },
+          ],
+        },
+      ],
     })
       .select("_id image imagePublicId resourceType")
       .limit(100)

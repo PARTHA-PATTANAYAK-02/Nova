@@ -8,12 +8,14 @@ import {
   reactToMessage,
   sendMessage,
   deleteMessage,
+  toggleStarMessage,
 } from "../controllers/message.controller.js";
 
 const router = express.Router();
 
-router.route("/send/:id").post(isAuthenticated, sendMessage);
+router.route("/send/:id").post(isAuthenticated, upload.single("file"), sendMessage);
 router.route("/delete/:id").post(isAuthenticated, deleteMessage);
+router.route("/star/:id").post(isAuthenticated, toggleStarMessage);
 router.route("/all/:id").get(isAuthenticated, getMessage);
 router.route("/conversations").get(isAuthenticated, getConversations);
 router.route("/read/:id").patch(isAuthenticated, markMessagesAsRead);
