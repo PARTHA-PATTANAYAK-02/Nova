@@ -1,15 +1,16 @@
 import React, { useEffect } from "react";
 import { useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 
 const ProtectedRoutes = ({ children }) => {
   const { user } = useSelector((store) => store.auth);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    if (!user) navigate("/login");
-  }, [user, navigate]);
+    if (!user) navigate("/login", { state: { from: location } });
+  }, [user, navigate, location]);
 
   if (!user) {
     return (

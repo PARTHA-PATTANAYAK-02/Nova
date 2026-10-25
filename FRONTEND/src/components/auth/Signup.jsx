@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "sonner";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   Loader2,
   ArrowRight,
@@ -38,6 +38,11 @@ const Signup = () => {
   const { user } = useSelector((store) => store.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const isFromPost = Boolean(
+    location.state?.from?.pathname?.startsWith("/post/")
+  );
 
   const changeEventHandler = (e) =>
     setInput({ ...input, [e.target.name]: e.target.value });
@@ -112,7 +117,10 @@ const Signup = () => {
       if (res.data.success) {
         setOtpSuccess(true);
         dispatch(setAuthUser(res.data.user));
-        setTimeout(() => navigate("/welcome/setup", { replace: true }), 900);
+        const redirectPath = location.state?.from?.pathname
+          ? location.state.from.pathname + (location.state.from.search || "")
+          : "/welcome/setup";
+        setTimeout(() => navigate(redirectPath, { replace: true }), 900);
       }
     } catch (error) {
       setOtpError(true);
@@ -126,9 +134,15 @@ const Signup = () => {
   };
 
   useEffect(() => {
-    if (user)
-      navigate(user.username ? "/" : "/welcome/setup", { replace: true });
-  }, [navigate, user]);
+    if (user) {
+      const redirectPath = location.state?.from?.pathname
+        ? location.state.from.pathname + (location.state.from.search || "")
+        : user.username
+        ? "/"
+        : "/welcome/setup";
+      navigate(redirectPath, { replace: true });
+    }
+  }, [navigate, user, location]);
 
   const backToDetails = () => {
     setOtp("");
@@ -169,9 +183,23 @@ const Signup = () => {
               <div className="nv-form-head">
                 <h1 className="nv-form-title">Create account</h1>
                 <p className="nv-form-sub">
-                  A minute to set up. A lifetime of moments.
+                  {isFromPost
+                    ? "Sign up to view the shared post"
+                    : "A minute to set up. A lifetime of moments."}
                 </p>
               </div>
+
+              {isFromPost && (
+                <div className="mb-4 p-3.5 rounded-2xl bg-gradient-to-r from-purple-500/15 via-pink-500/15 to-amber-500/15 border border-purple-500/30 text-left animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="flex items-center gap-2 mb-1 text-pink-400 font-semibold text-xs">
+                    <Sparkles className="size-3.5" />
+                    <span>Create account to view shared post</span>
+                  </div>
+                  <p className="text-xs text-[var(--foreground)] font-medium leading-relaxed">
+                    Register in seconds to unlock this post. Once verified, you'll be taken straight to it!
+                  </p>
+                </div>
+              )}
 
               <div
                 style={{
@@ -318,7 +346,10 @@ const Signup = () => {
               </button>
 
               <p className="nv-form-switch">
-                Already have an account? <Link to="/login">Sign in</Link>
+                Already have an account?{" "}
+                <Link to="/login" state={{ from: location.state?.from }}>
+                  Sign in
+                </Link>
               </p>
 
               <p className="nv-form-terms">

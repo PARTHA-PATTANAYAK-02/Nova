@@ -31,6 +31,7 @@ const ForgotPassword = lazy(() => import("@/components/auth/ForgotPassword"));
 const NotFound = lazy(() => import("@/components/common/NotFound"));
 const ProfileSetup = lazy(() => import("@/components/onboarding/ProfileSetup"));
 const WelcomeScreen = lazy(() => import("@/components/onboarding/WelcomeScreen"));
+const PostDetailPage = lazy(() => import("@/components/feed/PostDetailPage"));
 
 const RouteSuspense = ({ children }) => (
   <Suspense
@@ -115,6 +116,14 @@ const browserRouter = createBrowserRouter([
         ),
       },
     ],
+  },
+  {
+    path: "/post/:id",
+    element: (
+      <RouteSuspense>
+        <PostDetailPage />
+      </RouteSuspense>
+    ),
   },
   {
     path: "/login",

@@ -49,6 +49,13 @@ import useGetRTM from "@/hooks/useGetRTM";
 import { ErrorState, LoadingState } from "@/components/common/RequestState";
 import EmojiPicker from "./EmojiPicker";
 import StoryViewer from "@/components/feed/StoryViewer";
+import InChatPostCard from "./InChatPostCard";
+
+const extractPostId = (text) => {
+  if (!text || typeof text !== "string") return null;
+  const match = text.match(/(?:https?:\/\/[^\s]+)?\/post\/([a-f0-9]{24})/i);
+  return match ? match[1] : null;
+};
 
 const isSameUser = (a, b) => {
   if (!a || !b) return false;
@@ -1364,12 +1371,33 @@ const Messages = ({
                             />
                           )}
 
-                          {/* Message text with in-chat search highlighting */}
-                          {msg.message && (
-                            <p className="nova-msg__text">
-                              {renderHighlightedText(msg.message, searchQuery)}
-                            </p>
-                          )}
+                          {/* Message text / In-Chat Rich Post Preview */}
+                          {(() => {
+                            const sharedPostId = extractPostId(msg.message);
+                            if (sharedPostId) {
+                              const companionText = (msg.message || "")
+                                .replace(/(?:https?:\/\/[^\s]+)?\/post\/[a-f0-9]{24}[^\s]*/gi, "")
+                                .trim();
+                              return (
+                                <>
+                                  {companionText && (
+                                    <p className="nova-msg__text mb-2">
+                                      {renderHighlightedText(companionText, searchQuery)}
+                                    </p>
+                                  )}
+                                  <InChatPostCard postId={sharedPostId} isMine={isMine} />
+                                </>
+                              );
+                            }
+                            if (msg.message) {
+                              return (
+                                <p className="nova-msg__text">
+                                  {renderHighlightedText(msg.message, searchQuery)}
+                                </p>
+                              );
+                            }
+                            return null;
+                          })()}
 
                           <div
                             className={`nova-msg__meta ${

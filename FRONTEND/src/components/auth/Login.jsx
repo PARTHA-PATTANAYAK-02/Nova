@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "sonner";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Loader2, ArrowRight, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { setAuthUser } from "@/redux/authSlice";
@@ -15,10 +15,18 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const { user } = useSelector((store) => store.auth);
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useDispatch();
 
   const changeEventHandler = (e) =>
     setInput({ ...input, [e.target.name]: e.target.value });
+
+  const getRedirectPath = () => {
+    if (location.state?.from?.pathname) {
+      return location.state.from.pathname + (location.state.from.search || "");
+    }
+    return "/welcome";
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,7 +38,7 @@ const Login = () => {
       });
       if (res.data.success) {
         dispatch(setAuthUser(res.data.user));
-        navigate("/welcome", { replace: true });
+        navigate(getRedirectPath(), { replace: true });
         setInput({ email: "", password: "" });
       }
     } catch (error) {
@@ -43,8 +51,12 @@ const Login = () => {
   };
 
   useEffect(() => {
-    if (user) navigate("/welcome", { replace: true });
+    if (user) navigate(getRedirectPath(), { replace: true });
   }, [navigate, user]);
+
+  const isFromPost = Boolean(
+    location.state?.from?.pathname?.startsWith("/post/")
+  );
 
   return (
     <div className="nv-split">
@@ -65,9 +77,23 @@ const Login = () => {
           <div className="nv-form-head">
             <h1 className="nv-form-title">Sign in</h1>
             <p className="nv-form-sub">
-              Welcome back. Continue where you left off.
+              {isFromPost
+                ? "Sign in to unlock the shared post"
+                : "Welcome back. Continue where you left off."}
             </p>
           </div>
+
+          {isFromPost && (
+            <div className="mb-4 p-3.5 rounded-2xl bg-gradient-to-r from-purple-500/15 via-pink-500/15 to-amber-500/15 border border-purple-500/30 text-left animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="flex items-center gap-2 mb-1 text-purple-400 font-semibold text-xs">
+                <Lock className="size-3.5" />
+                <span>Post requires Nova account</span>
+              </div>
+              <p className="text-xs text-[var(--foreground)] font-medium leading-relaxed">
+                Log in below to view the shared post. You'll be taken straight to it!
+              </p>
+            </div>
+          )}
 
           {/* Email */}
           <div className="nv-field has-icon">
@@ -146,7 +172,10 @@ const Login = () => {
           </button>
 
           <p className="nv-form-switch">
-            New to Nova? <Link to="/signup">Create an account</Link>
+            New to Nova?{" "}
+            <Link to="/signup" state={{ from: location.state?.from }}>
+              Create an account
+            </Link>
           </p>
 
           <p className="nv-form-terms">
