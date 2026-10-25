@@ -46,6 +46,19 @@ export const sendMessage = async (req, res) => {
         .json({ success: false, message: "Invalid recipient" });
     }
 
+    const recipient = await User.findById(receiverId).select("whoCanMessage followers");
+    if (recipient?.whoCanMessage === "followers") {
+      const isFollower = (recipient.followers || []).some(
+        (f) => (f?._id || f)?.toString() === senderId.toString(),
+      );
+      if (!isFollower) {
+        return res.status(403).json({
+          success: false,
+          message: "This user only accepts direct messages from their followers.",
+        });
+      }
+    }
+
     let mediaType = "text";
     let mediaUrl = "";
     let audioDuration = Number(req.body.audioDuration) || 0;
@@ -409,12 +422,6 @@ export const reactToMessage = async (req, res) => {
     });
     if (!message) {
       return res.status(404).json({ success: false, message: "Message not found" });
-    }
-    if (message.senderId.toString() === req.id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "You can only react to messages sent by the other person",
-      });
     }
 
     const existing = message.reactions.find(

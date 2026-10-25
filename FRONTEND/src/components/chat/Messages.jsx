@@ -407,7 +407,9 @@ const WhatsAppMessagePopover = ({
   const isMine = isSameUser(message.senderId, currentUser?._id);
   const isDeleted = Boolean(message.isDeletedForEveryone);
   const hasText = Boolean(message.message && !isDeleted);
-  const hasMedia = Boolean(message.mediaUrl && !isDeleted);
+  const isVisualMedia = Boolean(
+    message.mediaUrl && !isDeleted && message.mediaType !== "audio"
+  );
 
   const popoverRef = useRef(null);
 
@@ -492,7 +494,6 @@ const WhatsAppMessagePopover = ({
       <div
         className="fixed inset-0 bg-black/40 backdrop-blur-[2px] cursor-pointer"
         onClick={onClose}
-        onTouchEnd={onClose}
       />
 
       {/* Floating Popover Container anchored directly at the bubble */}
@@ -500,9 +501,6 @@ const WhatsAppMessagePopover = ({
         ref={popoverRef}
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        onTouchEnd={(e) => e.stopPropagation()}
         style={{
           position: "fixed",
           top: `${coords.top}px`,
@@ -520,11 +518,6 @@ const WhatsAppMessagePopover = ({
               key={emoji}
               type="button"
               onClick={(e) => {
-                e.stopPropagation();
-                onReact(emoji);
-                onClose();
-              }}
-              onTouchEnd={(e) => {
                 e.stopPropagation();
                 onReact(emoji);
                 onClose();
@@ -568,8 +561,8 @@ const WhatsAppMessagePopover = ({
             </button>
           )}
 
-          {/* View Full Media */}
-          {hasMedia && (
+          {/* View Full Media (Images / Videos only, NOT Audio) */}
+          {isVisualMedia && (
             <button
               type="button"
               onClick={(e) => {
@@ -1551,7 +1544,6 @@ const Messages = ({
                                 disabled={Boolean(reactingMessageId)}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (isMine) return;
                                   handleReaction(msg, emoji);
                                 }}
                                 className={`nova-reaction-pill ${
@@ -1667,7 +1659,6 @@ const Messages = ({
           onPick={(emoji) => {
             const msg = messages.find((m) => m._id === openPickerFor);
             if (!msg) return;
-            if (isSameUser(msg.senderId, user?._id)) return;
             handleReaction(msg, emoji);
           }}
           onClose={() => {

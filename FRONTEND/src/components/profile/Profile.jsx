@@ -18,6 +18,7 @@ import {
   Moon,
   Pencil,
   KeyRound,
+  Lock,
   LogOut,
   UserPlus,
   UserCheck,
@@ -532,16 +533,6 @@ const Profile = () => {
               >
                 <QrCode className="size-4 text-cyan-400" strokeWidth={2.2} />
               </button>
-              <SettingsMenu
-                dark={dark}
-                toggleTheme={toggleTheme}
-                onEdit={() => navigate("/account/edit")}
-                onSecurity={() => navigate("/account/security")}
-                onSaved={() => setActiveTab("saved")}
-                onQrCode={() => setQrModalOpen(true)}
-                onLogout={handleLogout}
-                needsUsername={!user?.username}
-              />
             </>
           ) : (
             <>
@@ -789,14 +780,27 @@ const Profile = () => {
         </div>
       )}
 
-      {/* ══════════════ TABS — CENTERED ══════════════ */}
-      <div className="nova-profile__tabs-wrap">
-        <div className="nova-profile__tabs">
-          <button
-            type="button"
-            onClick={() => setActiveTab("posts")}
-            className={`nova-tab ${activeTab === "posts" ? "is-active" : ""}`}
-          >
+      {/* ══════════════ PRIVATE ACCOUNT LOCK SCREEN ══════════════ */}
+      {userProfile?.isPrivateLocked ? (
+        <div className="py-20 px-4 flex flex-col items-center justify-center text-center gap-3 max-w-md mx-auto">
+          <div className="size-16 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center text-primary shadow-xl shadow-primary/10 mb-1">
+            <Lock className="size-8" />
+          </div>
+          <h3 className="text-lg font-bold text-[var(--foreground)]">This Account is Private</h3>
+          <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">
+            Follow @{userProfile?.username || "this creator"} to view their photos, videos, and saved collections.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* ══════════════ TABS — CENTERED ══════════════ */}
+          <div className="nova-profile__tabs-wrap">
+            <div className="nova-profile__tabs">
+              <button
+                type="button"
+                onClick={() => setActiveTab("posts")}
+                className={`nova-tab ${activeTab === "posts" ? "is-active" : ""}`}
+              >
             <Grid3x3 className="size-3.5" strokeWidth={2} />
             Posts
           </button>
@@ -983,6 +987,8 @@ const Profile = () => {
           </p>
         </div>
       )}
+    </>
+  )}
 
       {profileStoryOpen && profileStory && (
         <StoryViewer

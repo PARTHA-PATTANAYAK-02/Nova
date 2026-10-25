@@ -34,6 +34,7 @@ const WelcomeScreen = lazy(() => import("@/components/onboarding/WelcomeScreen")
 const PostDetailPage = lazy(() => import("@/components/feed/PostDetailPage"));
 const HashtagExplorePage = lazy(() => import("@/components/feed/HashtagExplorePage"));
 const NotificationsPage = lazy(() => import("@/components/notifications/NotificationsPage"));
+const SettingsPage = lazy(() => import("@/components/settings/SettingsPage"));
 
 const RouteSuspense = ({ children }) => (
   <Suspense
@@ -143,6 +144,16 @@ const browserRouter = createBrowserRouter([
           <ProtectedRoutes>
             <RouteSuspense>
               <NotificationsPage />
+            </RouteSuspense>
+          </ProtectedRoutes>
+        ),
+      },
+      {
+        path: "/settings",
+        element: (
+          <ProtectedRoutes>
+            <RouteSuspense>
+              <SettingsPage />
             </RouteSuspense>
           </ProtectedRoutes>
         ),

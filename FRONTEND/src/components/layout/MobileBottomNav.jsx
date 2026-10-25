@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
-  Heart, Home, MessageCircle, PlusSquare, LogOut, Search, Compass, X, User, Trash2,
+  Heart, Home, MessageCircle, PlusSquare, LogOut, Search, Compass, Settings, X, User, Trash2,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
@@ -464,6 +464,23 @@ const MobileBottomNav = () => {
               {!user?.username && (
                 <span className="size-2 rounded-full bg-[var(--danger)]" />
               )}
+            </button>
+
+            <button
+              onClick={() => {
+                navigate("/settings");
+                setShowProfileMenu(false);
+              }}
+              className="
+                group w-full flex items-center gap-3 px-4 py-3
+                text-sm text-[var(--foreground)]
+                hover:bg-[var(--surface-2)] transition-all duration-200 outline-none
+              "
+            >
+              <span className="size-8 rounded-lg flex items-center justify-center bg-[var(--surface-2)] group-hover:bg-[var(--primary)]/12 transition-colors duration-200">
+                <Settings className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" strokeWidth={1.8} />
+              </span>
+              <span className="flex-1 text-left font-medium">Settings</span>
             </button>
 
             <div className="border-t border-[var(--border)]/60 p-1.5">

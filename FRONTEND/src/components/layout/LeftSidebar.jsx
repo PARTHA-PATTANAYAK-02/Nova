@@ -7,6 +7,7 @@ import {
   Bookmark,
   Compass,
   Search,
+  Settings,
   X,
   Trash2,
 } from "lucide-react";
@@ -107,7 +108,7 @@ const LeftSidebar = () => {
     },
     {
       kind: "explore",
-      icon: Compass,
+      icon: Search,
       text: "Explore",
       path: "/explore",
       isActiveOverride: () =>
@@ -131,6 +132,13 @@ const LeftSidebar = () => {
         location.state?.tab === "saved",
       action: () =>
         navigate(`/profile/${user?.username || user?._id}`, { state: { tab: "saved" } }),
+    },
+    {
+      kind: "settings",
+      icon: Settings,
+      text: "Settings",
+      path: "/settings",
+      action: () => navigate("/settings"),
     },
   ];
 
@@ -163,19 +171,20 @@ const LeftSidebar = () => {
         {/* ── LOGO ─────────────────────────────── */}
         <Link
           to="/"
-          className="relative z-10 flex items-center gap-3 px-5 h-20 shrink-0 group"
+          className="relative z-10 flex items-center justify-between px-5 h-16 shrink-0 group border-b border-[var(--border)]/40"
         >
-          <span className="nvs2-logo-orb shrink-0">
-            <span className="nvs2-logo-halo" aria-hidden="true" />
-            <img src="/logo.gif" alt="Nova" className="nvs2-logo-img" />
-          </span>
-          <span className="text-grad font-display text-[26px] font-semibold tracking-[-.02em] leading-none">
-            Nova
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="nvs2-logo-orb shrink-0">
+              <img src="/logo.gif" alt="Nova" className="nvs2-logo-img" />
+            </span>
+            <span className="text-grad font-display text-[23px] font-bold tracking-[-.02em] leading-none">
+              Nova
+            </span>
+          </div>
         </Link>
 
-        {/* ── NAV ──────────────────────────────── */}
-        <nav className="relative z-10 flex-1 min-h-0 flex flex-col gap-1 px-3 py-2 overflow-y-auto scroll-hide">
+        {/* ── NAV (BALANCED VERTICAL DISTRIBUTION - NO CLIPPING) ──── */}
+        <nav className="relative z-10 flex-1 flex flex-col justify-evenly px-3 py-2 min-h-0 select-none">
           {navItems.map((item, i) => {
             /* NOTIFICATIONS */
             if (item.type === "notifications") {
@@ -199,6 +208,11 @@ const LeftSidebar = () => {
                         )}
                       </span>
                       <span className="nvs2-nav-label">Notifications</span>
+                      {unreadCount > 0 && (
+                        <span className="ml-auto px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-pink-500/20 text-pink-400 border border-pink-500/30">
+                          {unreadCount}
+                        </span>
+                      )}
                     </button>
                   </PopoverTrigger>
 
@@ -358,21 +372,20 @@ const LeftSidebar = () => {
         </nav>
 
         {/* ── BOTTOM: CREATE + PROFILE ────────── */}
-        <div className="relative z-10 p-3 space-y-2 border-t border-[var(--border)]/60">
+        <div className="relative z-10 p-3 shrink-0 space-y-2 border-t border-[var(--border)]/50 bg-[var(--surface-2)]/30 backdrop-blur-md">
           <button
             onClick={() => setOpen(true)}
             className="
-              w-full h-11 rounded-2xl
+              w-full h-10 rounded-xl
               bg-grad-btn text-white
-              text-sm font-semibold
+              text-xs sm:text-sm font-bold tracking-wide
               flex items-center justify-center gap-2
-              shadow-[0_8px_20px_-8px_var(--glow-strong)]
-              hover:-translate-y-[2px] hover:brightness-[1.06]
-              hover:shadow-[0_14px_32px_-12px_var(--glow-strong)]
+              shadow-[0_8px_20px_-6px_var(--glow-strong)]
+              hover:-translate-y-[1px] hover:brightness-[1.08]
               active:scale-[.97]
-              transition-all duration-250 ease-[cubic-bezier(.2,.8,.2,1)]
+              transition-all duration-200 ease-[cubic-bezier(.2,.8,.2,1)]
+              border border-white/15
               outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/45
-              focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]
             "
           >
             <PlusSquare className="size-4" strokeWidth={2.2} />
@@ -383,26 +396,25 @@ const LeftSidebar = () => {
             onClick={() => navigate(`/profile/${user?.username || user?._id}`)}
             data-active={profileActive}
             className="
-              group w-full flex items-center gap-3
-              px-2 py-2 rounded-2xl
+              group w-full flex items-center gap-2.5
+              px-2.5 py-1.5 rounded-xl
               transition-all duration-200
-              hover:bg-[var(--surface-2)]/70
+              hover:bg-[var(--surface-2)]/80
               data-[active=true]:bg-[var(--surface-2)]
+              border border-transparent hover:border-[var(--border)]/60
               active:scale-[.98]
               outline-none
             "
           >
-            <span className="relative shrink-0 size-9">
-              <Avatar className="size-9">
+            <span className="relative shrink-0 size-8">
+              <Avatar className="size-8 ring-1 ring-white/10">
                 <AvatarImage src={user?.profilePicture} />
                 <AvatarFallback>{initial}</AvatarFallback>
               </Avatar>
-              {!user?.username && (
-                <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-[var(--danger)] border-2 border-[var(--background)]" />
-              )}
+              <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-500 ring-2 ring-[var(--surface)]" />
             </span>
             <div className="flex-1 min-w-0 text-left">
-              <p className="text-[13px] font-semibold text-[var(--foreground)] truncate leading-tight">
+              <p className="text-[13px] font-semibold text-[var(--foreground)] truncate leading-tight group-hover:text-primary transition-colors">
                 {getDisplayName(user)}
               </p>
               <p className="text-[11px] text-[var(--muted-foreground)] truncate mt-0.5">

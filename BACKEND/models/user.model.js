@@ -19,6 +19,10 @@ const userSchema = new mongoose.Schema(
     pinnedPosts: [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }],
     previousUsernames: [{ type: String, trim: true, lowercase: true }],
     lastSeen: { type: Date, default: Date.now },
+    isPrivate: { type: Boolean, default: false },
+    showLastSeen: { type: Boolean, default: true },
+    whoCanMessage: { type: String, enum: ["everyone", "followers"], default: "everyone" },
+    blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true },
 );

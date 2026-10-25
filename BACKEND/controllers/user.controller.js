@@ -518,6 +518,46 @@ export const logout = async (_, res) => {
   }
 };
 
+export const logoutOtherSessions = async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: "Enter your password to log out other sessions.",
+      });
+    }
+
+    const user = await User.findById(req.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "Account not found." });
+    }
+
+    const passwordMatches = await bcrypt.compare(password, user.password);
+    if (!passwordMatches) {
+      return res.status(401).json({
+        success: false,
+        message: "Incorrect password. Verification failed.",
+      });
+    }
+
+    const newAccessToken = generateAccessToken(user._id);
+    const newRefreshToken = generateRefreshToken(user._id);
+
+    return res
+      .cookie("token", newAccessToken, accessTokenCookieOptions)
+      .cookie("refreshToken", newRefreshToken, refreshTokenCookieOptions)
+      .status(200)
+      .json({
+        success: true,
+        message: "All other sessions have been logged out successfully.",
+      });
+  } catch (error) {
+    console.error("logoutOtherSessions error:", error);
+    return res.status(500).json({ success: false, message: "Unable to log out other sessions." });
+  }
+};
+
 export const getCurrentUser = async (req, res) => {
   try {
     const user = await User.findById(req.id).select("-password");
@@ -623,8 +663,30 @@ export const getProfile = async (req, res) => {
       });
     }
 
+    const requesterId = req.id?.toString();
+    const isOwner = user._id.toString() === requesterId;
+    const isFollowing = (user.followers || []).some(
+      (f) => (f?._id || f)?.toString() === requesterId
+    );
+
+    const isPrivateLocked = Boolean(user.isPrivate && !isOwner && !isFollowing);
+
+    const userObj = user.toObject();
+    if (isPrivateLocked) {
+      userObj.posts = [];
+      userObj.pinnedPosts = [];
+      userObj.bookmarks = [];
+      userObj.isPrivateLocked = true;
+    } else {
+      userObj.isPrivateLocked = false;
+    }
+
+    if (user.showLastSeen === false && !isOwner) {
+      userObj.lastSeen = null;
+    }
+
     return res.status(200).json({
-      user,
+      user: userObj,
       success: true,
     });
   } catch (error) {
@@ -702,6 +764,15 @@ export const editProfile = async (req, res) => {
       user.dateOfBirth = parsedDate;
     }
     if (website !== undefined) user.website = website.trim();
+    if (req.body.isPrivate !== undefined) {
+      user.isPrivate = req.body.isPrivate === "true" || req.body.isPrivate === true;
+    }
+    if (req.body.showLastSeen !== undefined) {
+      user.showLastSeen = req.body.showLastSeen === "true" || req.body.showLastSeen === true;
+    }
+    if (req.body.whoCanMessage !== undefined && ["everyone", "followers"].includes(req.body.whoCanMessage)) {
+      user.whoCanMessage = req.body.whoCanMessage;
+    }
     if (profilePicture) {
       const cloudResponse = await cloudinary.uploader.upload(
         getDataUri(profilePicture),

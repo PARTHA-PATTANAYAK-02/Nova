@@ -9,6 +9,7 @@ import {
   getSuggestedUsers,
   login,
   logout,
+  logoutOtherSessions,
   refreshToken,
   register,
   requestPasswordResetOtp,
@@ -41,6 +42,7 @@ router.route("/password/request-otp").post(requestPasswordResetOtp);
 router.route("/password/verify-otp").post(verifyPasswordResetOtp);
 router.route("/password/reset").post(resetPasswordWithOtp);
 router.route("/logout").get(logout);
+router.route("/sessions/logout-others").post(isAuthenticated, logoutOtherSessions);
 router.route("/account").delete(isAuthenticated, deleteAccount);
 router.route("/username/availability").get(isAuthenticated, checkUsernameAvailability);
 router.route("/:id/profile").get(isAuthenticated, getProfile);
