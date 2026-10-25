@@ -93,3 +93,11 @@ export const formatTimeAgo = (timestamp) => {
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
 };
 
+export const isSameUser = (a, b) => {
+  if (!a || !b) return false;
+  const idA = (a?._id || a)?.toString();
+  const idB = (b?._id || b)?.toString();
+  return Boolean(idA && idB && idA === idB);
+};
+
+

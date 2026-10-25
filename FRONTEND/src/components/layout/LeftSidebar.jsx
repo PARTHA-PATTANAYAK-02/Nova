@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  Heart,
+  Bell,
   Home,
   MessageCircle,
   PlusSquare,
@@ -197,7 +197,7 @@ const LeftSidebar = () => {
                       className="nvs2-nav-item group"
                     >
                       <span className="nvs2-nav-icon">
-                        <Heart className="size-[18px]" strokeWidth={1.8} />
+                        <Bell className="size-[18px]" strokeWidth={1.8} />
                         {unreadCount > 0 && (
                           <>
                             <span className="nvs2-nav-ping" aria-hidden />
@@ -267,7 +267,7 @@ const LeftSidebar = () => {
                       {likeNotification.length === 0 ? (
                         <div className="py-12 flex flex-col items-center justify-center text-center">
                           <div className="size-12 rounded-full bg-[var(--surface-2)] flex items-center justify-center mb-3">
-                            <Heart
+                            <Bell
                               className="h-5 w-5 text-[var(--muted-foreground)]"
                               strokeWidth={1.6}
                             />
@@ -403,7 +403,7 @@ const LeftSidebar = () => {
               data-[active=true]:bg-[var(--surface-2)]
               border border-transparent hover:border-[var(--border)]/60
               active:scale-[.98]
-              outline-none
+              outline-none cursor-pointer
             "
           >
             <span className="relative shrink-0 size-8">

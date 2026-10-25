@@ -240,6 +240,7 @@ const SettingsPage = () => {
   /* ═══════════════════════════════════════════════
      TAB 5: NOTIFICATIONS PREFERENCES
      ═══════════════════════════════════════════════ */
+  const [notifMessages, setNotifMessages] = useState(() => localStorage.getItem("nova_notif_messages") !== "false");
   const [notifLikes, setNotifLikes] = useState(() => localStorage.getItem("nova_notif_likes") !== "false");
   const [notifComments, setNotifComments] = useState(() => localStorage.getItem("nova_notif_comments") !== "false");
   const [notifReposts, setNotifReposts] = useState(() => localStorage.getItem("nova_notif_reposts") !== "false");
@@ -248,6 +249,9 @@ const SettingsPage = () => {
   const saveNotifPref = (key, val, setter) => {
     setter(val);
     localStorage.setItem(key, val ? "true" : "false");
+    window.dispatchEvent(
+      new CustomEvent("nova:notif-pref-changed", { detail: { key, value: val } })
+    );
     toast.success("Notification preference updated");
   };
 
@@ -312,6 +316,33 @@ const SettingsPage = () => {
     const stored = parseInt(localStorage.getItem("nova_session_minutes") || "35", 10);
     setTimeSpentMins(stored);
   }, []);
+
+  /* ═══════════════════════════════════════════════
+     LOGOUT MODAL & HANDLER
+     ═══════════════════════════════════════════════ */
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      setLoggingOut(true);
+      const res = await axios.get(apiUrl("/api/v1/user/logout"), {
+        withCredentials: true,
+      });
+      if (res.data?.success) {
+        dispatch(setAuthUser(null));
+        dispatch(setSelectedPost(null));
+        dispatch(setPosts([]));
+        navigate("/login");
+        toast.success(res.data.message || "Logged out successfully");
+      }
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Unable to log out. Please try again."));
+    } finally {
+      setLoggingOut(false);
+      setLogoutModalOpen(false);
+    }
+  };
 
   /* ═══════════════════════════════════════════════
      TAB 9: ACCOUNT & DANGER MODAL
@@ -418,6 +449,15 @@ const SettingsPage = () => {
                 </button>
               );
             })}
+
+            <button
+              type="button"
+              onClick={() => setLogoutModalOpen(true)}
+              className="shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-red-500/15 text-red-400 border border-red-500/30 transition-all cursor-pointer"
+            >
+              <LogOut className="size-3.5" />
+              <span>Log Out</span>
+            </button>
           </div>
 
           {/* Desktop vertical sidebar */}
@@ -430,7 +470,7 @@ const SettingsPage = () => {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`
-                    w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left transition-all duration-200 group
+                    w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left transition-all duration-200 group cursor-pointer
                     ${
                       isActive
                         ? "bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/20"
@@ -461,6 +501,26 @@ const SettingsPage = () => {
                 </button>
               );
             })}
+
+            <div className="my-1 h-px bg-[var(--border)]/60" />
+
+            <button
+              type="button"
+              onClick={() => setLogoutModalOpen(true)}
+              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all duration-200 group cursor-pointer"
+            >
+              <span className="p-2 rounded-lg bg-red-500/15 text-red-400 group-hover:scale-110 transition-transform">
+                <LogOut className="size-4" />
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs sm:text-sm font-semibold truncate leading-tight">
+                  Log Out
+                </p>
+                <p className="text-[10px] text-red-300/70 truncate">
+                  Sign out of your account
+                </p>
+              </div>
+            </button>
           </div>
         </div>
 
@@ -953,6 +1013,14 @@ const SettingsPage = () => {
               <div className="space-y-3">
                 {[
                   {
+                    id: "messages",
+                    label: "Direct & Chat Messages",
+                    desc: "Real-time notifications and alerts for incoming messages from all users",
+                    val: notifMessages,
+                    setter: setNotifMessages,
+                    key: "nova_notif_messages",
+                  },
+                  {
                     id: "likes",
                     label: "Likes on your posts",
                     desc: "When someone hearts your photos or videos",
@@ -1247,6 +1315,24 @@ const SettingsPage = () => {
                 </p>
               </div>
 
+              {/* Account Session & Sign Out */}
+              <div className="p-4 rounded-2xl bg-[var(--surface-2)]/50 border border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-[var(--foreground)]">Sign Out of Nova</p>
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    Log out of your active account session on this device.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLogoutModalOpen(true)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/30 transition-all active:scale-95 flex items-center gap-2 self-start sm:self-auto cursor-pointer"
+                >
+                  <LogOut className="size-4" />
+                  <span>Log Out</span>
+                </button>
+              </div>
+
               {/* Danger Zone: Delete Account */}
               <div className="p-5 rounded-2xl bg-red-500/10 border border-red-500/20 space-y-3">
                 <div className="flex items-center gap-2 text-red-400">
@@ -1304,6 +1390,46 @@ const SettingsPage = () => {
                       </button>
                     </div>
                   </form>
+                </DialogContent>
+              </Dialog>
+
+              {/* Log Out Confirmation Dialog */}
+              <Dialog open={logoutModalOpen} onOpenChange={setLogoutModalOpen}>
+                <DialogContent className="max-w-sm bg-[var(--surface)] border-[var(--border)] text-[var(--foreground)] p-6 rounded-3xl shadow-2xl">
+                  <DialogHeader>
+                    <div className="flex items-center gap-3">
+                      <div className="size-10 rounded-2xl bg-red-500/20 text-red-400 ring-1 ring-red-500/30 flex items-center justify-center shrink-0">
+                        <LogOut className="size-5" />
+                      </div>
+                      <DialogTitle className="text-base sm:text-lg font-bold text-[var(--foreground)]">
+                        Log Out of Nova?
+                      </DialogTitle>
+                    </div>
+                  </DialogHeader>
+
+                  <p className="text-xs text-[var(--muted-foreground)] pt-2 leading-relaxed">
+                    Are you sure you want to log out? You will need to log back in to access your messages, stories, and community feed.
+                  </p>
+
+                  <div className="flex items-center justify-end gap-2 pt-4">
+                    <button
+                      type="button"
+                      disabled={loggingOut}
+                      onClick={() => setLogoutModalOpen(false)}
+                      className="px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--foreground)] transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={loggingOut}
+                      onClick={handleLogout}
+                      className="px-4 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-500 text-white transition-colors flex items-center gap-1.5 shadow-lg shadow-red-600/20 cursor-pointer disabled:opacity-50"
+                    >
+                      {loggingOut ? <Loader2 className="size-3.5 animate-spin" /> : <LogOut className="size-3.5" />}
+                      <span>Log Out</span>
+                    </button>
+                  </div>
                 </DialogContent>
               </Dialog>
             </div>

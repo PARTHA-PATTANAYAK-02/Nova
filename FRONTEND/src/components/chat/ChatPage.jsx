@@ -19,20 +19,123 @@ import {
   Trash2,
   Loader2,
   Image as ImageIcon,
+  MoreVertical,
+  CheckSquare,
+  Check,
+  Copy,
+  Palette,
+  AlertTriangle,
+  User,
+  Bell,
+  BellOff,
+  Volume2,
+  VolumeX,
+  Star,
+  Forward,
+  Pin,
+  PinOff,
 } from "lucide-react";
 import Messages from "@/components/chat/Messages";
 import axios from "axios";
-import { setMessages } from "@/redux/chatSlice";
-import { getDisplayName, getErrorMessage, formatLastSeen } from "@/lib/utils";
+import {
+  setMessages,
+  deleteMultipleMessagesForMe,
+  clearAllMessages,
+  setPinnedMessage,
+  toggleStarMessageLocal,
+} from "@/redux/chatSlice";
+import { getDisplayName, getErrorMessage, formatLastSeen, isSameUser } from "@/lib/utils";
 import { toast } from "sonner";
 import { getSocketInstance } from "@/redux/socketSlice";
 import useGetConversations from "@/hooks/useGetConversations";
 import useGetSuggestedUsers from "@/hooks/useGetSuggestedUsers";
 import { ErrorState, LoadingState } from "@/components/common/RequestState";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { apiUrl } from "@/lib/api";
 import { playMessageSound } from "@/lib/sound";
 import ChatUserMenu from "@/components/chat/ChatUserMenu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+export const WALLPAPERS = [
+  {
+    id: "default",
+    name: "Cyber Grid",
+    desc: "Cosmic micro-dot matrix pattern",
+    style: {
+      backgroundColor: "var(--background)",
+      backgroundImage: "radial-gradient(rgba(148, 163, 184, 0.22) 1.2px, transparent 1.2px)",
+      backgroundSize: "22px 22px",
+    },
+    preview: "bg-[var(--surface-2)] border-white/20",
+  },
+  {
+    id: "neon_circuit",
+    name: "Neon Circuit",
+    desc: "Futuristic digital grid lines",
+    style: {
+      backgroundColor: "var(--background)",
+      backgroundImage:
+        "linear-gradient(to right, rgba(99, 102, 241, 0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(99, 102, 241, 0.12) 1px, transparent 1px)",
+      backgroundSize: "32px 32px",
+    },
+    preview: "bg-indigo-950/40 border-indigo-500/30",
+  },
+  {
+    id: "aurora_glow",
+    name: "Aurora Ambient",
+    desc: "Soft dual-tint atmospheric glow",
+    style: {
+      backgroundColor: "var(--background)",
+      backgroundImage:
+        "radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.14) 0%, transparent 45%), radial-gradient(circle at 85% 85%, rgba(168, 85, 247, 0.14) 0%, transparent 45%)",
+    },
+    preview: "bg-gradient-to-br from-cyan-950/40 via-purple-950/40 to-transparent border-cyan-500/30",
+  },
+  {
+    id: "geometric_cross",
+    name: "Isometric Cross",
+    desc: "Minimal cyberpunk cross points",
+    style: {
+      backgroundColor: "var(--background)",
+      backgroundImage:
+        "radial-gradient(rgba(139, 92, 246, 0.22) 1.5px, transparent 1.5px), radial-gradient(rgba(59, 130, 246, 0.18) 1.5px, transparent 1.5px)",
+      backgroundSize: "28px 28px",
+      backgroundPosition: "0 0, 14px 14px",
+    },
+    preview: "bg-purple-950/40 border-purple-500/30",
+  },
+  {
+    id: "cyber_diagonal",
+    name: "Carbon Matrix",
+    desc: "High-tech angled micro-weave",
+    style: {
+      backgroundColor: "var(--background)",
+      backgroundImage:
+        "repeating-linear-gradient(45deg, rgba(148, 163, 184, 0.08) 0px, rgba(148, 163, 184, 0.08) 1px, transparent 1px, transparent 10px)",
+    },
+    preview: "bg-slate-900/40 border-white/15",
+  },
+  {
+    id: "pure_clean",
+    name: "Clean Minimal",
+    desc: "Seamless background surface",
+    style: {
+      backgroundColor: "var(--background)",
+      backgroundImage: "none",
+    },
+    preview: "bg-[var(--surface)] border-[var(--border)]",
+  },
+];
 
 const formatDuration = (seconds) => {
   if (!seconds || isNaN(seconds)) return "0:00";
@@ -42,6 +145,10 @@ const formatDuration = (seconds) => {
 };
 
 const ChatPage = () => {
+  const { user, suggestedUsers, selectedUser } = useSelector((s) => s.auth);
+  const { onlineUsers, messages, pinnedMessage } = useSelector((s) => s.chat);
+  const dispatch = useDispatch();
+
   const [textMessage, setTextMessage] = useState("");
   const [replyingTo, setReplyingTo] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -84,6 +191,162 @@ const ChatPage = () => {
   }, []);
 
   const location = useLocation();
+  const navigate = useNavigate();
+
+  /* ═══ Multi-Select & Chat Settings State ═══ */
+  const [selectedMessageIds, setSelectedMessageIds] = useState([]);
+  const [chatMenuOpen, setChatMenuOpen] = useState(false);
+  const [wallpaperModalOpen, setWallpaperModalOpen] = useState(false);
+  const [clearChatModalOpen, setClearChatModalOpen] = useState(false);
+  const [multiDeleteModalOpen, setMultiDeleteModalOpen] = useState(false);
+  const [clearingChat, setClearingChat] = useState(false);
+  const [multiDeleting, setMultiDeleting] = useState(false);
+  const [chatWallpaper, setChatWallpaper] = useState(
+    () => localStorage.getItem("nova_chat_wallpaper") || "default"
+  );
+
+  /* ═══ Mute Notifications State for This Chat ═══ */
+  const [thisChatMuted, setThisChatMuted] = useState(false);
+
+  useEffect(() => {
+    if (!selectedUser?._id) return;
+    try {
+      const mutedList = JSON.parse(localStorage.getItem("nova_muted_chats") || "[]");
+      setThisChatMuted(mutedList.includes(selectedUser._id));
+    } catch {
+      setThisChatMuted(false);
+    }
+  }, [selectedUser?._id]);
+
+  const handleToggleMuteThisChat = () => {
+    if (!selectedUser?._id) return;
+    try {
+      const mutedList = JSON.parse(localStorage.getItem("nova_muted_chats") || "[]");
+      let nextList;
+      if (mutedList.includes(selectedUser._id)) {
+        nextList = mutedList.filter((id) => id !== selectedUser._id);
+        setThisChatMuted(false);
+        toast.success(`Notifications unmuted for ${getDisplayName(selectedUser)}`);
+      } else {
+        nextList = [...mutedList, selectedUser._id];
+        setThisChatMuted(true);
+        toast.success(`Notifications muted for ${getDisplayName(selectedUser)}`);
+      }
+      localStorage.setItem("nova_muted_chats", JSON.stringify(nextList));
+    } catch (e) {
+      console.error(e);
+    }
+    setChatMenuOpen(false);
+  };
+
+  /* ═══ Starred Messages State & Handlers ═══ */
+  const [starredModalOpen, setStarredModalOpen] = useState(false);
+  const [starredMessages, setStarredMessages] = useState([]);
+  const [loadingStarred, setLoadingStarred] = useState(false);
+
+  const handleOpenStarredModal = async () => {
+    if (!selectedUser?._id) return;
+    setStarredModalOpen(true);
+    setLoadingStarred(true);
+    try {
+      const res = await axios.get(
+        apiUrl(`/api/v1/message/starred/${selectedUser._id}`),
+        { withCredentials: true }
+      );
+      if (res.data?.success) {
+        setStarredMessages(res.data.messages || []);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to load starred messages");
+    } finally {
+      setLoadingStarred(false);
+    }
+  };
+
+  const handleUnstarFromModal = async (msgId) => {
+    try {
+      dispatch(toggleStarMessageLocal({ messageId: msgId, userId: user?._id }));
+      setStarredMessages((prev) => prev.filter((m) => m._id !== msgId));
+      await axios.post(apiUrl(`/api/v1/message/star/${msgId}`), {}, { withCredentials: true });
+      toast.success("Message unstarred");
+    } catch {
+      toast.error("Failed to unstar message");
+    }
+  };
+
+  const handleJumpToMessage = (msgId) => {
+    const el = document.getElementById(`message-${msgId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-primary/80");
+      setTimeout(() => el.classList.remove("ring-2", "ring-primary/80"), 2000);
+    } else {
+      toast.info("Message is further up in history");
+    }
+  };
+
+  /* ═══ Pin / Unpin Top Banner Handler ═══ */
+  const handleUnpinPinnedMessage = async () => {
+    if (!pinnedMessage?._id || !selectedUser?._id) return;
+    try {
+      const res = await axios.post(
+        apiUrl(`/api/v1/message/pin/${selectedUser._id}/${pinnedMessage._id}`),
+        {},
+        { withCredentials: true }
+      );
+      if (res.data?.success) {
+        dispatch(setPinnedMessage(null));
+        toast.success("Message unpinned");
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to unpin message");
+    }
+  };
+
+  /* ═══ Message Forwarding State & Handlers ═══ */
+  const [forwardModalOpen, setForwardModalOpen] = useState(false);
+  const [forwardTargetMessageIds, setForwardTargetMessageIds] = useState([]);
+  const [forwardSelectedUserIds, setForwardSelectedUserIds] = useState([]);
+  const [forwardSearchQuery, setForwardSearchQuery] = useState("");
+  const [forwarding, setForwarding] = useState(false);
+
+  const handleToggleForwardUser = (uId) => {
+    setForwardSelectedUserIds((prev) =>
+      prev.includes(uId) ? prev.filter((id) => id !== uId) : [...prev, uId]
+    );
+  };
+
+  const handleExecuteForward = async () => {
+    if (!forwardTargetMessageIds.length || !forwardSelectedUserIds.length || forwarding) return;
+    try {
+      setForwarding(true);
+      const res = await axios.post(
+        apiUrl("/api/v1/message/forward"),
+        {
+          messageIds: forwardTargetMessageIds,
+          targetUserIds: forwardSelectedUserIds,
+        },
+        { withCredentials: true }
+      );
+      if (res.data?.success) {
+        toast.success(
+          `Forwarded ${forwardTargetMessageIds.length} message${
+            forwardTargetMessageIds.length > 1 ? "s" : ""
+          } to ${forwardSelectedUserIds.length} recipient${
+            forwardSelectedUserIds.length > 1 ? "s" : ""
+          }`
+        );
+        setForwardModalOpen(false);
+        setForwardTargetMessageIds([]);
+        setForwardSelectedUserIds([]);
+        setSelectedMessageIds([]);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to forward messages");
+    } finally {
+      setForwarding(false);
+    }
+  };
 
   // On mobile: always show contacts side panel first unless explicitly opened for a specific user
   const [showContacts, setShowContacts] = useState(() => {
@@ -103,12 +366,8 @@ const ChatPage = () => {
   );
   const isConversationPushedRef = useRef(false);
 
-  const { user, suggestedUsers, selectedUser } = useSelector((s) => s.auth);
-  const { onlineUsers, messages } = useSelector((s) => s.chat);
-
   const conversationRequest = useGetConversations();
   const suggestedUserRequest = useGetSuggestedUsers();
-  const dispatch = useDispatch();
 
   useEffect(() => {
     messagesRef.current = Array.isArray(messages) ? messages : [];
@@ -152,11 +411,98 @@ const ChatPage = () => {
   }, [inChatSearchQuery]);
 
   useEffect(() => {
-    // Reset search when changing user
+    // Reset search and selection when changing user
     setShowInChatSearch(false);
     setInChatSearchQuery("");
     setActiveMatchIndex(0);
+    setSelectedMessageIds([]);
   }, [selectedUser?._id]);
+
+  /* ═══ Multi-Select Handlers ═══ */
+  const handleToggleSelectMessage = useCallback((id) => {
+    setSelectedMessageIds((prev) =>
+      prev.includes(id) ? prev.filter((mId) => mId !== id) : [...prev, id]
+    );
+  }, []);
+
+  const handleCopySelected = useCallback(() => {
+    const selectedTexts = messages
+      .filter((m) => selectedMessageIds.includes(m._id) && m.message && !m.isDeletedForEveryone)
+      .map((m) => m.message);
+    if (selectedTexts.length === 0) {
+      toast.info("No text to copy in selected messages");
+      return;
+    }
+    navigator.clipboard.writeText(selectedTexts.join("\n\n"));
+    toast.success(`Copied ${selectedTexts.length} message(s) to clipboard`);
+    setSelectedMessageIds([]);
+  }, [messages, selectedMessageIds]);
+
+  const handleSelectAllToggle = useCallback(() => {
+    if (selectedMessageIds.length === messages.length) {
+      setSelectedMessageIds([]);
+    } else {
+      setSelectedMessageIds(messages.map((m) => m._id));
+    }
+  }, [messages, selectedMessageIds]);
+
+  const canDeleteForEveryone = useMemo(() => {
+    if (!selectedMessageIds.length) return false;
+    return selectedMessageIds.every((id) => {
+      const m = messages.find((msg) => msg._id === id);
+      return m && isSameUser(m.senderId, user?._id) && !m.isDeletedForEveryone;
+    });
+  }, [selectedMessageIds, messages, user?._id]);
+
+  const handleExecuteMultiDelete = async (deleteType) => {
+    if (!selectedMessageIds.length || multiDeleting) return;
+    setMultiDeleting(true);
+    try {
+      const res = await axios.post(
+        apiUrl("/api/v1/message/delete-multiple"),
+        { messageIds: selectedMessageIds, deleteType },
+        { withCredentials: true }
+      );
+      if (res.data.success) {
+        dispatch(deleteMultipleMessagesForMe(selectedMessageIds));
+        toast.success(res.data.message || "Messages deleted");
+        setSelectedMessageIds([]);
+        setMultiDeleteModalOpen(false);
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to delete selected messages"));
+    } finally {
+      setMultiDeleting(false);
+    }
+  };
+
+  const handleClearChatHistory = async () => {
+    if (!selectedUser?._id || clearingChat) return;
+    setClearingChat(true);
+    try {
+      const res = await axios.post(
+        apiUrl(`/api/v1/message/clear/${selectedUser._id}`),
+        { deleteForEveryone: true },
+        { withCredentials: true }
+      );
+      if (res.data?.success) {
+        dispatch(clearAllMessages());
+        toast.success("Chat history permanently deleted from database and profile");
+        setClearChatModalOpen(false);
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to clear chat history"));
+    } finally {
+      setClearingChat(false);
+    }
+  };
+
+  const handleSelectWallpaper = (wpId) => {
+    setChatWallpaper(wpId);
+    localStorage.setItem("nova_chat_wallpaper", wpId);
+    toast.success("Chat wallpaper updated!");
+    setWallpaperModalOpen(false);
+  };
 
   useEffect(() => {
     const socket = getSocketInstance();
@@ -170,9 +516,14 @@ const ChatPage = () => {
         }));
       }
     };
+    const handleConversationPinnedUpdated = (data) => {
+      dispatch(setPinnedMessage(data?.pinnedMessage || null));
+    };
     socket.on("userLastSeen", handleUserLastSeen);
+    socket.on("conversationPinnedUpdated", handleConversationPinnedUpdated);
     return () => {
       socket.off("userLastSeen", handleUserLastSeen);
+      socket.off("conversationPinnedUpdated", handleConversationPinnedUpdated);
     };
   }, [dispatch]);
 
@@ -763,6 +1114,18 @@ const ChatPage = () => {
     ...suggestedUsers.filter((u) => !conversationUserIds.has(u._id?.toString())),
   ];
 
+  const forwardCandidates = useMemo(() => {
+    const q = forwardSearchQuery.trim().toLowerCase();
+    return contacts.filter((c) => {
+      if (!c?._id || c._id === user?._id) return false;
+      if (!q) return true;
+      return (
+        (c.fullName && c.fullName.toLowerCase().includes(q)) ||
+        (c.username && c.username.toLowerCase().includes(q))
+      );
+    });
+  }, [contacts, forwardSearchQuery, user?._id]);
+
   const filteredUsers = contacts.filter((u) =>
     `${u.fullName || ""} ${u.username}`
       .toLowerCase()
@@ -942,81 +1305,283 @@ const ChatPage = () => {
         >
           {/* Header */}
           <div className="nova-chat__window-head">
-            <button
-              type="button"
-              className="nova-chat__menu-btn md:hidden"
-              onClick={() => {
-                if (isConversationPushedRef.current) {
-                  window.history.back();
-                } else {
-                  setShowContacts(true);
-                }
-              }}
-              aria-label="Open chats menu"
-              title="Menu"
-            >
-              <Menu className="size-5" strokeWidth={2.2} />
-            </button>
-
-            <ChatUserMenu user={selectedUser}>
-              <span className="nova-chat__window-user">
-                <span className="nova-chat__window-avatar">
-                  <Avatar className="size-10">
-                    <AvatarImage src={selectedUser?.profilePicture} />
-                    <AvatarFallback>
-                      {getDisplayName(selectedUser, "U")
-                        .charAt(0)
-                        .toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  {onlineUsers.includes(selectedUser?._id) && (
-                    <span className="nova-chat__status-dot" />
-                  )}
-                </span>
-                <span className="nova-chat__window-meta">
-                  <span className="nova-chat__window-name">
-                    {getDisplayName(selectedUser)}
-                  </span>
-                  <span
-                    className={`nova-chat__window-sub ${
-                      onlineUsers.includes(selectedUser?._id) ? "is-online" : ""
-                    }`}
+            {selectedMessageIds.length > 0 ? (
+              /* ═══ WHATSAPP-STYLE MULTI-SELECTION ACTION BAR ═══ */
+              <div className="flex items-center justify-between w-full px-1 sm:px-2 animate-in fade-in duration-150 select-none">
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMessageIds([])}
+                    className="p-2 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                    title="Cancel selection"
                   >
-                    {onlineUsers.includes(selectedUser?._id)
-                      ? "Online"
-                      : formatLastSeen(
-                          liveLastSeen[selectedUser?._id] ||
-                            selectedUser?.lastSeen ||
-                            conversationUsers.find(
-                              (c) => c._id === selectedUser?._id
-                            )?.lastSeen
-                        )}
-                  </span>
-                </span>
-              </span>
-            </ChatUserMenu>
+                    <X className="size-5" strokeWidth={2.2} />
+                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-sm sm:text-base text-white">
+                      {selectedMessageIds.length}
+                    </span>
+                    <span className="text-xs sm:text-sm text-white/70">
+                      selected
+                    </span>
+                  </div>
+                </div>
 
-            {/* In-Chat Search Toggle Button */}
-            <div className="ml-auto flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowInChatSearch((prev) => !prev);
-                  if (!showInChatSearch) {
-                    setInChatSearchQuery("");
-                  }
-                }}
-                className={`p-2 rounded-full transition-colors cursor-pointer ${
-                  showInChatSearch
-                    ? "bg-[var(--primary)] text-white shadow-sm"
-                    : "text-white/70 hover:text-white hover:bg-white/10"
-                }`}
-                title="Search messages in conversation"
-                aria-label="Search messages"
-              >
-                <Search className="size-4" strokeWidth={2.2} />
-              </button>
-            </div>
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCopySelected}
+                    className="px-2.5 py-1.5 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
+                    title="Copy selected text"
+                  >
+                    <Copy className="size-4 text-emerald-400" />
+                    <span className="hidden sm:inline">Copy</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForwardTargetMessageIds(selectedMessageIds);
+                      setForwardSelectedUserIds([]);
+                      setForwardSearchQuery("");
+                      setForwardModalOpen(true);
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
+                    title="Forward selected messages"
+                  >
+                    <Forward className="size-4 text-sky-400" />
+                    <span className="hidden sm:inline">Forward</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSelectAllToggle}
+                    className="px-2.5 py-1.5 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
+                    title="Select all messages"
+                  >
+                    <CheckSquare className="size-4 text-cyan-400" />
+                    <span className="hidden sm:inline">
+                      {selectedMessageIds.length === messages.length
+                        ? "Deselect"
+                        : "Select All"}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setMultiDeleteModalOpen(true)}
+                    className="px-2.5 py-1.5 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-500/15 transition-colors flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
+                    title="Delete selected messages"
+                  >
+                    <Trash2 className="size-4" />
+                    <span className="hidden sm:inline">Delete</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* ═══ NORMAL CHAT HEADER ═══ */
+              <>
+                <button
+                  type="button"
+                  className="nova-chat__menu-btn md:hidden"
+                  onClick={() => {
+                    if (isConversationPushedRef.current) {
+                      window.history.back();
+                    } else {
+                      setShowContacts(true);
+                    }
+                  }}
+                  aria-label="Open chats menu"
+                  title="Menu"
+                >
+                  <Menu className="size-5" strokeWidth={2.2} />
+                </button>
+
+                <ChatUserMenu user={selectedUser}>
+                  <span className="nova-chat__window-user">
+                    <span className="nova-chat__window-avatar">
+                      <Avatar className="size-10">
+                        <AvatarImage src={selectedUser?.profilePicture} />
+                        <AvatarFallback>
+                          {getDisplayName(selectedUser, "U")
+                            .charAt(0)
+                            .toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      {onlineUsers.includes(selectedUser?._id) && (
+                        <span className="nova-chat__status-dot" />
+                      )}
+                    </span>
+                    <span className="nova-chat__window-meta">
+                      <span className="nova-chat__window-name">
+                        {getDisplayName(selectedUser)}
+                      </span>
+                      <span
+                        className={`nova-chat__window-sub ${
+                          onlineUsers.includes(selectedUser?._id) ? "is-online" : ""
+                        }`}
+                      >
+                        {onlineUsers.includes(selectedUser?._id)
+                          ? "Online"
+                          : formatLastSeen(
+                              liveLastSeen[selectedUser?._id] ||
+                                selectedUser?.lastSeen ||
+                                conversationUsers.find(
+                                  (c) => c._id === selectedUser?._id
+                                )?.lastSeen
+                            )}
+                      </span>
+                    </span>
+                  </span>
+                </ChatUserMenu>
+
+                {/* Right Action Icons: Search & 3-Dots Settings */}
+                <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowInChatSearch((prev) => !prev);
+                      if (!showInChatSearch) {
+                        setInChatSearchQuery("");
+                      }
+                    }}
+                    className={`p-2 rounded-full transition-colors cursor-pointer ${
+                      showInChatSearch
+                        ? "bg-[var(--primary)] text-white shadow-sm"
+                        : "text-white/70 hover:text-white hover:bg-white/10"
+                    }`}
+                    title="Search messages in conversation"
+                    aria-label="Search messages"
+                  >
+                    <Search className="size-4" strokeWidth={2.2} />
+                  </button>
+
+                  {/* 3-Dots Chat Settings Popover */}
+                  <Popover open={chatMenuOpen} onOpenChange={setChatMenuOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="p-2 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                        title="Chat options & settings"
+                        aria-label="Chat options"
+                      >
+                        <MoreVertical className="size-4" strokeWidth={2.2} />
+                      </button>
+                    </PopoverTrigger>
+
+                    <PopoverContent
+                      side="bottom"
+                      align="end"
+                      sideOffset={8}
+                      className="w-56 p-1.5 rounded-2xl bg-[var(--surface)]/95 backdrop-blur-2xl border border-[var(--border)] shadow-2xl shadow-black/50 z-50 flex flex-col gap-0.5"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChatMenuOpen(false);
+                          setWallpaperModalOpen(true);
+                        }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-all text-left cursor-pointer"
+                      >
+                        <Palette className="size-4 text-purple-400" />
+                        <span>Change Wallpaper</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChatMenuOpen(false);
+                          setShowInChatSearch(true);
+                        }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-all text-left cursor-pointer"
+                      >
+                        <Search className="size-4 text-cyan-400" />
+                        <span>Search in Chat</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChatMenuOpen(false);
+                          handleOpenStarredModal();
+                        }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-all text-left cursor-pointer"
+                      >
+                        <Star className="size-4 text-amber-400" />
+                        <span>Starred Messages</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChatMenuOpen(false);
+                          if (messages?.length > 0) {
+                            setSelectedMessageIds([messages[messages.length - 1]._id]);
+                          }
+                        }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-all text-left cursor-pointer"
+                      >
+                        <CheckSquare className="size-4 text-emerald-400" />
+                        <span>Select Messages</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChatMenuOpen(false);
+                          navigate(`/profile/${selectedUser?.username || selectedUser?._id}`);
+                        }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-all text-left cursor-pointer"
+                      >
+                        <User className="size-4 text-indigo-400" />
+                        <span>View Profile</span>
+                      </button>
+
+                      <div className="my-1 h-px bg-[var(--border)]/60" />
+
+                      {/* ═══ Mute / Unmute Notifications for this chat ═══ */}
+                      <button
+                        type="button"
+                        onClick={handleToggleMuteThisChat}
+                        className="flex items-center justify-between w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-all text-left cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          {thisChatMuted ? (
+                            <Bell className="size-4 text-emerald-400" />
+                          ) : (
+                            <BellOff className="size-4 text-amber-400" />
+                          )}
+                          <span>{thisChatMuted ? "Unmute Notifications" : "Mute Notifications"}</span>
+                        </div>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            thisChatMuted
+                              ? "bg-amber-500/20 text-amber-300"
+                              : "bg-white/10 text-white/60"
+                          }`}
+                        >
+                          {thisChatMuted ? "Muted" : "Active"}
+                        </span>
+                      </button>
+
+                      <div className="my-1 h-px bg-[var(--border)]/60" />
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChatMenuOpen(false);
+                          setClearChatModalOpen(true);
+                        }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-red-400 hover:bg-red-500/10 transition-all text-left cursor-pointer"
+                      >
+                        <Trash2 className="size-4" />
+                        <span>Clear Chat History</span>
+                      </button>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </>
+            )}
           </div>
 
           {/* ═══ In-Chat Message Search Bar ═══ */}
@@ -1076,6 +1641,42 @@ const ChatPage = () => {
             </div>
           )}
 
+          {/* ═══ Pinned Message Banner ═══ */}
+          {pinnedMessage && (
+            <div className="px-4 py-2 bg-[var(--surface-2)]/95 backdrop-blur-xl border-b border-[var(--border)]/70 flex items-center justify-between gap-3 z-10 animate-in slide-in-from-top-2 duration-200">
+              <button
+                type="button"
+                onClick={() => handleJumpToMessage(pinnedMessage._id)}
+                className="flex-1 flex items-center gap-2.5 text-left overflow-hidden cursor-pointer group"
+              >
+                <div className="size-7 rounded-lg bg-violet-500/20 text-violet-400 ring-1 ring-violet-500/40 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <Pin className="size-3.5" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider flex items-center gap-1">
+                    Pinned Message
+                  </span>
+                  <span className="text-xs text-[var(--foreground)] truncate font-medium">
+                    {pinnedMessage.message ||
+                      (pinnedMessage.mediaUrl
+                        ? pinnedMessage.mediaType === "audio"
+                          ? "Voice Note"
+                          : "Media Attachment"
+                        : "Pinned message")}
+                  </span>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={handleUnpinPinnedMessage}
+                className="p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                title="Unpin message"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          )}
+
           {/* Messages container */}
           <div className="nova-chat__messages">
             <Messages
@@ -1083,6 +1684,15 @@ const ChatPage = () => {
               onReplyMessage={setReplyingTo}
               searchQuery={inChatSearchQuery}
               activeSearchId={activeSearchMessageId}
+              selectedMessageIds={selectedMessageIds}
+              onToggleSelectMessage={handleToggleSelectMessage}
+              currentWallpaper={chatWallpaper}
+              onForwardSingleMessage={(msg) => {
+                setForwardTargetMessageIds([msg._id]);
+                setForwardSelectedUserIds([]);
+                setForwardSearchQuery("");
+                setForwardModalOpen(true);
+              }}
             />
           </div>
 
@@ -1343,6 +1953,392 @@ const ChatPage = () => {
           </p>
         </section>
       )}
+
+      {/* ═══ Multi-Delete Messages Dialog ═══ */}
+      <Dialog open={multiDeleteModalOpen} onOpenChange={setMultiDeleteModalOpen}>
+        <DialogContent className="max-w-sm bg-[var(--surface)] border-[var(--border)] text-[var(--foreground)] p-5 rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-[var(--foreground)] flex items-center gap-2">
+              <Trash2 className="size-4 text-red-400" />
+              Delete {selectedMessageIds.length}{" "}
+              {selectedMessageIds.length === 1 ? "Message" : "Messages"}?
+            </DialogTitle>
+          </DialogHeader>
+
+          <p className="text-xs text-[var(--muted-foreground)] pt-1">
+            {canDeleteForEveryone
+              ? "You can delete these messages for yourself or for everyone in this chat."
+              : "Delete these messages for yourself? They will still be visible to other participants."}
+          </p>
+
+          <div className="flex flex-col gap-2 pt-3">
+            {canDeleteForEveryone && (
+              <button
+                type="button"
+                disabled={multiDeleting}
+                onClick={() => handleExecuteMultiDelete("everyone")}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-500 text-white transition-colors active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {multiDeleting ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="size-3.5" />
+                )}
+                Delete for Everyone
+              </button>
+            )}
+
+            <button
+              type="button"
+              disabled={multiDeleting}
+              onClick={() => handleExecuteMultiDelete("me")}
+              className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--foreground)] border border-[var(--border)] transition-colors active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {multiDeleting ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
+              Delete for Me
+            </button>
+
+            <button
+              type="button"
+              disabled={multiDeleting}
+              onClick={() => setMultiDeleteModalOpen(false)}
+              className="w-full py-2 px-4 rounded-xl text-xs font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Clear Chat History Confirmation Dialog (Double-safety Enter Protection) ═══ */}
+      <Dialog open={clearChatModalOpen} onOpenChange={setClearChatModalOpen}>
+        <DialogContent className="max-w-md bg-[var(--surface)] border-[var(--border)] text-[var(--foreground)] p-6 rounded-3xl shadow-2xl shadow-black/80">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="size-11 rounded-2xl bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/40 flex items-center justify-center shrink-0">
+                <AlertTriangle className="size-6 animate-pulse" />
+              </div>
+              <div>
+                <DialogTitle className="text-base sm:text-lg font-bold text-[var(--foreground)]">
+                  Delete All Chat History?
+                </DialogTitle>
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  Permanent Database & Profile Deletion
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="py-3 text-xs sm:text-sm text-[var(--muted-foreground)] leading-relaxed space-y-2.5">
+            <p>
+              Are you sure you want to permanently delete all messages in your conversation with{" "}
+              <span className="font-bold text-[var(--foreground)]">
+                {getDisplayName(selectedUser)}
+              </span>
+              ?
+            </p>
+            <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs flex items-start gap-2.5">
+              <AlertTriangle className="size-4 shrink-0 mt-0.5 text-rose-400" />
+              <span className="leading-relaxed">
+                All messages and attachments will be deleted directly from the database and both profiles. This action cannot be reversed.
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-3">
+            {/* NO / CANCEL: ACTIVE & FOCUSED BY DEFAULT TO PREVENT ACCIDENTAL ENTER KEY DELETE */}
+            <button
+              type="button"
+              autoFocus
+              disabled={clearingChat}
+              onClick={() => setClearChatModalOpen(false)}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90 ring-2 ring-primary/40 focus:ring-4 focus:ring-primary/60 transition-all cursor-pointer shadow-md text-center"
+            >
+              No, Keep Messages
+            </button>
+
+            {/* YES / DELETE BUTTON */}
+            <button
+              type="button"
+              disabled={clearingChat}
+              onClick={handleClearChatHistory}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-rose-600 hover:bg-rose-500 text-white transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-rose-950/50"
+            >
+              {clearingChat ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Trash2 className="size-4" />
+              )}
+              <span>Yes, Delete Everything</span>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Chat Wallpaper Dialog ═══ */}
+      <Dialog open={wallpaperModalOpen} onOpenChange={setWallpaperModalOpen}>
+        <DialogContent className="max-w-md bg-[var(--surface)] border-[var(--border)] text-[var(--foreground)] p-5 rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-[var(--foreground)] flex items-center gap-2">
+              <Palette className="size-5 text-primary" />
+              Choose Chat Wallpaper
+            </DialogTitle>
+          </DialogHeader>
+
+          <p className="text-xs text-[var(--muted-foreground)] pt-0.5">
+            Personalize your messaging background with futuristic cyberpunk themes.
+          </p>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-3 max-h-80 overflow-y-auto pr-1">
+            {WALLPAPERS.map((wp) => {
+              const isCurrent = chatWallpaper === wp.id;
+              return (
+                <button
+                  key={wp.id}
+                  type="button"
+                  onClick={() => handleSelectWallpaper(wp.id)}
+                  className={`relative p-2.5 rounded-2xl border transition-all text-left flex flex-col gap-2 group cursor-pointer ${
+                    isCurrent
+                      ? "border-primary ring-2 ring-primary/40 bg-primary/10"
+                      : "border-[var(--border)] hover:border-white/30 bg-[var(--surface-2)]/60"
+                  }`}
+                >
+                  <div
+                    className={`w-full h-16 rounded-xl border ${wp.preview} flex items-center justify-center relative overflow-hidden`}
+                  >
+                    {isCurrent && (
+                      <span className="size-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-md">
+                        <Check className="size-3.5" strokeWidth={3} />
+                      </span>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-[var(--foreground)] truncate">
+                      {wp.name}
+                    </p>
+                    <p className="text-[10px] text-[var(--muted-foreground)] truncate">
+                      {wp.desc}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Starred Messages Dialog ═══ */}
+      <Dialog open={starredModalOpen} onOpenChange={setStarredModalOpen}>
+        <DialogContent className="max-w-md bg-[var(--surface)] border-[var(--border)] text-[var(--foreground)] p-5 sm:p-6 rounded-3xl shadow-2xl shadow-black/80 max-h-[85vh] flex flex-col">
+          <DialogHeader className="shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="size-10 rounded-2xl bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/30 flex items-center justify-center shrink-0">
+                <Star className="size-5 fill-amber-400" />
+              </div>
+              <div>
+                <DialogTitle className="text-base sm:text-lg font-bold text-[var(--foreground)]">
+                  Starred Messages
+                </DialogTitle>
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  {starredMessages.length} starred in this conversation
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto py-3 space-y-2.5 min-h-[160px] pr-1">
+            {loadingStarred ? (
+              <div className="h-40 flex items-center justify-center">
+                <Loader2 className="size-6 animate-spin text-amber-400" />
+              </div>
+            ) : starredMessages.length === 0 ? (
+              <div className="h-44 flex flex-col items-center justify-center text-center p-4">
+                <div className="size-12 rounded-full bg-amber-500/10 text-amber-400/60 flex items-center justify-center mb-2">
+                  <Star className="size-6" />
+                </div>
+                <p className="text-sm font-semibold text-[var(--foreground)]">No starred messages</p>
+                <p className="text-xs text-[var(--muted-foreground)] mt-1 max-w-[240px]">
+                  Tap the star option on any message to save it here for fast reference.
+                </p>
+              </div>
+            ) : (
+              starredMessages.map((msg) => {
+                const isMsgMine = isSameUser(msg.senderId, user?._id);
+                return (
+                  <div
+                    key={msg._id}
+                    className="p-3 rounded-2xl bg-[var(--surface-2)]/80 hover:bg-[var(--surface-2)] border border-[var(--border)] transition-all flex flex-col gap-1.5 group"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-amber-400">
+                        {isMsgMine ? "You" : getDisplayName(selectedUser)}
+                      </span>
+                      <span className="text-[10px] text-[var(--muted-foreground)]">
+                        {new Date(msg.createdAt).toLocaleDateString([], {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-[var(--foreground)] leading-relaxed break-words line-clamp-3">
+                      {msg.message ||
+                        (msg.mediaUrl
+                          ? msg.mediaType === "audio"
+                            ? "🎵 Voice Note"
+                            : "📷 Photo/Video"
+                          : "")}
+                    </p>
+
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-white/5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStarredModalOpen(false);
+                          handleJumpToMessage(msg._id);
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-[var(--foreground)] hover:bg-white/10 transition-colors cursor-pointer"
+                      >
+                        Go to message
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUnstarFromModal(msg._id)}
+                        className="px-2 py-1 rounded-lg text-[11px] font-semibold text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer flex items-center gap-1"
+                        title="Unstar message"
+                      >
+                        <Trash2 className="size-3" />
+                        <span>Unstar</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Forward Messages Dialog ═══ */}
+      <Dialog open={forwardModalOpen} onOpenChange={setForwardModalOpen}>
+        <DialogContent className="max-w-md bg-[var(--surface)] border-[var(--border)] text-[var(--foreground)] p-5 sm:p-6 rounded-3xl shadow-2xl shadow-black/80 max-h-[85vh] flex flex-col">
+          <DialogHeader className="shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="size-10 rounded-2xl bg-sky-500/20 text-sky-400 ring-1 ring-sky-500/30 flex items-center justify-center shrink-0">
+                <Forward className="size-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base sm:text-lg font-bold text-[var(--foreground)]">
+                  Forward Message{forwardTargetMessageIds.length > 1 ? "s" : ""}
+                </DialogTitle>
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  Select friends or conversations to share with
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {/* Search Box */}
+          <div className="relative my-2 shrink-0">
+            <Search className="size-4 text-white/50 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search contacts..."
+              value={forwardSearchQuery}
+              onChange={(e) => setForwardSearchQuery(e.target.value)}
+              className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-xl pl-9 pr-3 py-2 text-xs text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-1 focus:ring-sky-400"
+            />
+          </div>
+
+          {/* Contacts List */}
+          <div className="flex-1 overflow-y-auto py-1 space-y-1 min-h-[180px] max-h-[260px] pr-1">
+            {forwardCandidates.length === 0 ? (
+              <p className="text-xs text-center text-[var(--muted-foreground)] py-8">
+                No matching friends or conversations found.
+              </p>
+            ) : (
+              forwardCandidates.map((c) => {
+                const isSelected = forwardSelectedUserIds.includes(c._id);
+                return (
+                  <button
+                    key={c._id}
+                    type="button"
+                    onClick={() => handleToggleForwardUser(c._id)}
+                    className={`w-full p-2.5 rounded-2xl flex items-center justify-between gap-3 text-left transition-all cursor-pointer ${
+                      isSelected
+                        ? "bg-sky-500/15 border border-sky-500/30"
+                        : "hover:bg-[var(--surface-2)] border border-transparent"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar className="size-9 shrink-0">
+                        <AvatarImage src={c.profilePicture} />
+                        <AvatarFallback>
+                          {getDisplayName(c, "U").charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-[var(--foreground)] truncate">
+                          {getDisplayName(c)}
+                        </p>
+                        <p className="text-[10px] text-[var(--muted-foreground)] truncate">
+                          @{c.username}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`size-5 rounded-lg flex items-center justify-center shrink-0 border transition-all ${
+                        isSelected
+                          ? "bg-sky-500 border-sky-500 text-white shadow-sm"
+                          : "border-[var(--border)] bg-[var(--surface-2)]"
+                      }`}
+                    >
+                      {isSelected && <Check className="size-3.5 stroke-[3]" />}
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          {/* Action Footer */}
+          <div className="flex items-center justify-between gap-3 pt-3 border-t border-[var(--border)] shrink-0">
+            <span className="text-xs font-medium text-[var(--muted-foreground)]">
+              {forwardSelectedUserIds.length} recipient
+              {forwardSelectedUserIds.length !== 1 ? "s" : ""} selected
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setForwardModalOpen(false)}
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={forwardSelectedUserIds.length === 0 || forwarding}
+                onClick={handleExecuteForward}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-sky-500 hover:bg-sky-400 active:scale-95 text-white transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-lg shadow-sky-500/20 cursor-pointer"
+              >
+                {forwarding ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Forward className="size-3.5" />
+                )}
+                <span>Send</span>
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

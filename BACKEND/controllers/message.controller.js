@@ -309,9 +309,18 @@ export const getMessage = async (req, res) => {
     // Return in ascending chronological order for client display
     messages.reverse();
 
+    let pinnedMessage = null;
+    if (conversation.pinnedMessage) {
+      pinnedMessage = await Message.findById(conversation.pinnedMessage);
+      if (pinnedMessage?.deletedFor?.includes(req.id) || pinnedMessage?.isDeletedForEveryone) {
+        pinnedMessage = null;
+      }
+    }
+
     return res.status(200).json({
       success: true,
       messages,
+      pinnedMessage,
       hasMore,
       nextCursor: hasMore && messages.length > 0 ? messages[0]._id : null,
     });
@@ -578,6 +587,292 @@ export const toggleStarMessage = async (req, res) => {
   } catch (error) {
     console.error("toggleStarMessage error:", error);
     return res.status(500).json({ success: false, message: "Unable to star message" });
+  }
+};
+
+export const deleteMultipleMessages = async (req, res) => {
+  try {
+    const { messageIds, deleteType } = req.body;
+    const userId = req.id;
+    if (!Array.isArray(messageIds) || messageIds.length === 0) {
+      return res.status(400).json({ success: false, message: "No messages specified" });
+    }
+
+    const messages = await Message.find({ _id: { $in: messageIds } });
+    if (!messages.length) {
+      return res.status(404).json({ success: false, message: "Messages not found" });
+    }
+
+    const processedIds = [];
+    for (const message of messages) {
+      const isSender = message.senderId.toString() === userId.toString();
+      const isReceiver = message.receiverId.toString() === userId.toString();
+      if (!isSender && !isReceiver) continue;
+
+      if (deleteType === "everyone" && isSender) {
+        message.isDeletedForEveryone = true;
+        message.message = "This message was deleted";
+        message.mediaUrl = "";
+        message.mediaType = "text";
+        message.storyRef = null;
+        message.reactions = [];
+        message.deletedAt = new Date();
+        await message.save();
+
+        emitToUser(message.senderId, "messageDeletedForEveryone", {
+          messageId: message._id,
+          deletedAt: message.deletedAt,
+        });
+        emitToUser(message.receiverId, "messageDeletedForEveryone", {
+          messageId: message._id,
+          deletedAt: message.deletedAt,
+        });
+        processedIds.push(message._id);
+      } else {
+        // Delete for me
+        if (!message.deletedFor.some((id) => id.toString() === userId.toString())) {
+          message.deletedFor.push(userId);
+          await message.save();
+        }
+        emitToUser(userId, "messageDeletedForMe", {
+          messageId: message._id,
+        });
+        processedIds.push(message._id);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Deleted ${processedIds.length} message(s)`,
+      processedIds,
+      deleteType,
+    });
+  } catch (error) {
+    console.error("deleteMultipleMessages error:", error);
+    return res.status(500).json({ success: false, message: "Unable to delete selected messages" });
+  }
+};
+
+export const clearConversationMessages = async (req, res) => {
+  try {
+    const { userId: otherUserId } = req.params;
+    const currentUserId = req.id;
+    const { deleteForEveryone = true } = req.body || {};
+
+    if (!mongoose.isValidObjectId(otherUserId)) {
+      return res.status(400).json({ success: false, message: "Invalid user ID" });
+    }
+
+    // Find conversation document between both users
+    const conversation = await Conversation.findOne({
+      participants: { $all: [currentUserId, otherUserId] },
+    });
+
+    if (conversation) {
+      if (deleteForEveryone) {
+        // Permanently delete all message documents from MongoDB
+        await Message.deleteMany({
+          _id: { $in: conversation.messages },
+        });
+        conversation.messages = [];
+        conversation.lastMessage = null;
+        conversation.lastMessageAt = new Date();
+        await conversation.save();
+
+        emitToUser(currentUserId, "conversationCleared", {
+          otherUserId,
+          conversationId: conversation._id,
+        });
+        emitToUser(otherUserId, "conversationCleared", {
+          otherUserId: currentUserId,
+          conversationId: conversation._id,
+        });
+      } else {
+        await Message.updateMany(
+          { _id: { $in: conversation.messages } },
+          { $addToSet: { deletedFor: currentUserId } }
+        );
+        emitToUser(currentUserId, "conversationCleared", {
+          otherUserId,
+          conversationId: conversation._id,
+        });
+      }
+    } else {
+      if (deleteForEveryone) {
+        await Message.deleteMany({
+          $or: [
+            { senderId: currentUserId, receiverId: otherUserId },
+            { senderId: otherUserId, receiverId: currentUserId },
+          ],
+        });
+        emitToUser(currentUserId, "conversationCleared", { otherUserId });
+        emitToUser(otherUserId, "conversationCleared", { otherUserId: currentUserId });
+      } else {
+        await Message.updateMany(
+          {
+            $or: [
+              { senderId: currentUserId, receiverId: otherUserId },
+              { senderId: otherUserId, receiverId: currentUserId },
+            ],
+          },
+          { $addToSet: { deletedFor: currentUserId } }
+        );
+        emitToUser(currentUserId, "conversationCleared", { otherUserId });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Chat history permanently deleted from database",
+    });
+  } catch (error) {
+    console.error("clearConversationMessages error:", error);
+    return res.status(500).json({ success: false, message: "Unable to clear chat history" });
+  }
+};
+
+export const togglePinMessage = async (req, res) => {
+  try {
+    const { userId: otherUserId, messageId } = req.params;
+    const currentUserId = req.id;
+
+    if (!mongoose.isValidObjectId(otherUserId) || !mongoose.isValidObjectId(messageId)) {
+      return res.status(400).json({ success: false, message: "Invalid IDs" });
+    }
+
+    const conversation = await Conversation.findOne({
+      participants: { $all: [currentUserId, otherUserId] },
+    });
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: "Conversation not found" });
+    }
+
+    const isCurrentlyPinned = conversation.pinnedMessage?.toString() === messageId.toString();
+    const newPinnedId = isCurrentlyPinned ? null : messageId;
+
+    conversation.pinnedMessage = newPinnedId;
+    await conversation.save();
+
+    let populatedPinned = null;
+    if (newPinnedId) {
+      populatedPinned = await Message.findById(newPinnedId);
+    }
+
+    emitToUser(currentUserId, "conversationPinnedUpdated", {
+      otherUserId,
+      pinnedMessage: populatedPinned,
+    });
+    emitToUser(otherUserId, "conversationPinnedUpdated", {
+      otherUserId: currentUserId,
+      pinnedMessage: populatedPinned,
+    });
+
+    return res.status(200).json({
+      success: true,
+      pinnedMessage: populatedPinned,
+      isPinned: !isCurrentlyPinned,
+      message: isCurrentlyPinned ? "Message unpinned" : "Message pinned to top",
+    });
+  } catch (error) {
+    console.error("togglePinMessage error:", error);
+    return res.status(500).json({ success: false, message: "Unable to pin message" });
+  }
+};
+
+export const forwardMessages = async (req, res) => {
+  try {
+    const { messageIds, targetUserIds } = req.body;
+    const currentUserId = req.id;
+
+    if (
+      !Array.isArray(messageIds) ||
+      !Array.isArray(targetUserIds) ||
+      !messageIds.length ||
+      !targetUserIds.length
+    ) {
+      return res.status(400).json({ success: false, message: "Please select messages and recipient users" });
+    }
+
+    const sourceMessages = await Message.find({ _id: { $in: messageIds } });
+    if (!sourceMessages.length) {
+      return res.status(404).json({ success: false, message: "Source messages not found" });
+    }
+
+    const results = [];
+
+    for (const targetUserId of targetUserIds) {
+      if (!mongoose.isValidObjectId(targetUserId)) continue;
+
+      let conversation = await Conversation.findOne({
+        participants: { $all: [currentUserId, targetUserId] },
+      });
+      if (!conversation) {
+        conversation = await Conversation.create({
+          participants: [currentUserId, targetUserId],
+          messages: [],
+        });
+      }
+
+      for (const src of sourceMessages) {
+        const newMsg = await Message.create({
+          senderId: currentUserId,
+          receiverId: targetUserId,
+          message: src.message || "",
+          mediaType: src.mediaType || "text",
+          mediaUrl: src.mediaUrl || "",
+          audioDuration: src.audioDuration || 0,
+          isForwarded: true,
+          status: "sent",
+        });
+
+        conversation.messages.push(newMsg._id);
+        conversation.lastMessage = newMsg._id;
+        conversation.lastMessageAt = new Date();
+
+        emitToUser(targetUserId, "newMessage", newMsg);
+        emitToUser(currentUserId, "newMessage", newMsg);
+        results.push(newMsg);
+      }
+      await conversation.save();
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Forwarded ${sourceMessages.length} message(s) successfully`,
+      count: results.length,
+    });
+  } catch (error) {
+    console.error("forwardMessages error:", error);
+    return res.status(500).json({ success: false, message: "Unable to forward messages" });
+  }
+};
+
+export const getStarredMessages = async (req, res) => {
+  try {
+    const { userId: otherUserId } = req.params;
+    const currentUserId = req.id;
+
+    const query = {
+      starredBy: currentUserId,
+      deletedFor: { $ne: currentUserId },
+    };
+
+    if (otherUserId && mongoose.isValidObjectId(otherUserId)) {
+      query.$or = [
+        { senderId: currentUserId, receiverId: otherUserId },
+        { senderId: otherUserId, receiverId: currentUserId },
+      ];
+    }
+
+    const messages = await Message.find(query).sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      messages,
+    });
+  } catch (error) {
+    console.error("getStarredMessages error:", error);
+    return res.status(500).json({ success: false, message: "Unable to load starred messages" });
   }
 };
 

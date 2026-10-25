@@ -5,9 +5,13 @@ const chatSlice = createSlice({
   initialState: {
     onlineUsers: [],
     messages: [],
+    pinnedMessage: null,
     reactionNotice: null,
   },
   reducers: {
+    setPinnedMessage: (state, action) => {
+      state.pinnedMessage = action.payload;
+    },
     // actions
     setOnlineUsers: (state, action) => {
       state.onlineUsers = action.payload;
@@ -108,6 +112,13 @@ const chatSlice = createSlice({
         return m;
       });
     },
+    deleteMultipleMessagesForMe: (state, action) => {
+      const messageIds = new Set((action.payload || []).map((id) => id?.toString()));
+      state.messages = state.messages.filter((m) => !messageIds.has(m._id?.toString()));
+    },
+    clearAllMessages: (state) => {
+      state.messages = [];
+    },
     toggleStarMessageLocal: (state, action) => {
       const { messageId, userId } = action.payload || {};
       if (!messageId || !userId) return;
@@ -135,8 +146,11 @@ export const {
   clearReactionNotice,
   markStoryAsUnavailable,
   deleteMessageForMe,
+  deleteMultipleMessagesForMe,
+  clearAllMessages,
   markMessagesAsSeenByReader,
   deleteMessageForEveryone,
   toggleStarMessageLocal,
+  setPinnedMessage,
 } = chatSlice.actions;
 export default chatSlice.reducer;

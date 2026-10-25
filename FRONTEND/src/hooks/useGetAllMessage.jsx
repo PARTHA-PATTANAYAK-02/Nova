@@ -1,4 +1,4 @@
-import { prependMessages, setMessages } from "@/redux/chatSlice";
+import { prependMessages, setMessages, setPinnedMessage } from "@/redux/chatSlice";
 import axios from "axios";
 import { useCallback, useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -23,6 +23,7 @@ const useGetAllMessage = () => {
       );
       if (res.data.success) {
         dispatch(setMessages(res.data.messages || []));
+        dispatch(setPinnedMessage(res.data.pinnedMessage || null));
         setHasMore(Boolean(res.data.hasMore));
         await axios.patch(
           apiUrl(`/api/v1/message/read/${selectedUser._id}`),

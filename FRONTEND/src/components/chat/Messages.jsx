@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Check,
@@ -22,16 +22,20 @@ import {
   MoreVertical,
   ChevronDown,
   ArrowLeft,
-Star,
+  Star,
   Forward,
+  Pin,
+  PinOff,
   Info,
   Volume2,
   VolumeX,
   Search,
+  CheckSquare,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
 import { toast } from "sonner";
+import { WALLPAPERS } from "./ChatPage";
 import {
   updateMessageReactions,
   clearReactionNotice,
@@ -39,6 +43,8 @@ import {
   deleteMessageForMe,
   deleteMessageForEveryone,
   toggleStarMessageLocal,
+  setPinnedMessage,
+  clearAllMessages,
 } from "@/redux/chatSlice";
 import { apiUrl } from "@/lib/api";
 import { getSocketInstance } from "@/redux/socketSlice";
@@ -397,10 +403,15 @@ const WhatsAppMessagePopover = ({
   anchorEl,
   message,
   currentUser,
+  isPinned = false,
   onReply,
   onReact,
+  onToggleStar,
+  onTogglePin,
+  onForward,
   onDelete,
   onViewMedia,
+  onToggleSelect,
   onClose,
 }) => {
   if (!message) return null;
@@ -409,6 +420,9 @@ const WhatsAppMessagePopover = ({
   const hasText = Boolean(message.message && !isDeleted);
   const isVisualMedia = Boolean(
     message.mediaUrl && !isDeleted && message.mediaType !== "audio"
+  );
+  const isStarred = Boolean(
+    message.starredBy?.some((id) => isSameUser(id, currentUser?._id))
   );
 
   const popoverRef = useRef(null);
@@ -547,6 +561,66 @@ const WhatsAppMessagePopover = ({
             <span>Reply</span>
           </button>
 
+          {/* Star / Unstar */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+              onToggleStar?.(message);
+            }}
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
+          >
+            <div
+              className={`size-7 rounded-lg ${
+                isStarred
+                  ? "bg-amber-400/20 text-amber-400 ring-1 ring-amber-400/40"
+                  : "bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/30"
+              } flex items-center justify-center shrink-0 group-hover/btn:scale-110 transition-transform`}
+            >
+              <Star className={`size-3.5 ${isStarred ? "fill-amber-400" : ""}`} />
+            </div>
+            <span>{isStarred ? "Unstar" : "Star"}</span>
+          </button>
+
+          {/* Pin / Unpin to Top */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+              onTogglePin?.(message);
+            }}
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
+          >
+            <div
+              className={`size-7 rounded-lg ${
+                isPinned
+                  ? "bg-violet-500/25 text-violet-300 ring-1 ring-violet-500/40"
+                  : "bg-violet-500/20 text-violet-400 ring-1 ring-violet-500/30"
+              } flex items-center justify-center shrink-0 group-hover/btn:scale-110 transition-transform`}
+            >
+              {isPinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+            </div>
+            <span>{isPinned ? "Unpin" : "Pin to Top"}</span>
+          </button>
+
+          {/* Forward Message */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+              onForward?.(message);
+            }}
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
+          >
+            <div className="size-7 rounded-lg bg-sky-500/20 text-sky-400 ring-1 ring-sky-500/30 flex items-center justify-center shrink-0 group-hover/btn:scale-110 transition-transform">
+              <Forward className="size-3.5" />
+            </div>
+            <span>Forward</span>
+          </button>
+
           {/* Copy Text */}
           {hasText && (
             <button
@@ -579,6 +653,22 @@ const WhatsAppMessagePopover = ({
             </button>
           )}
 
+          {/* Select Message */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+              onToggleSelect?.(message._id);
+            }}
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
+          >
+            <div className="size-7 rounded-lg bg-indigo-500/20 text-indigo-400 ring-1 ring-indigo-500/30 flex items-center justify-center shrink-0 group-hover/btn:scale-110 transition-transform">
+              <CheckSquare className="size-3.5" />
+            </div>
+            <span>Select</span>
+          </button>
+
           <div className="my-0.5 h-px bg-white/10" />
 
           {/* Delete Message */}
@@ -608,18 +698,66 @@ const Messages = ({
   onReplyMessage,
   searchQuery = "",
   activeSearchId = null,
+  selectedMessageIds = [],
+  onToggleSelectMessage,
+  currentWallpaper = "default",
+  onForwardSingleMessage,
 }) => {
   const { isTyping } = useGetRTM();
   const messageRequest = useGetAllMessage();
 
-  const { messages, reactionNotice } = useSelector((s) => s.chat);
+  const { messages, reactionNotice, pinnedMessage } = useSelector((s) => s.chat);
   const { user } = useSelector((s) => s.auth);
   const dispatch = useDispatch();
+
+  const handleToggleStar = async (msg) => {
+    if (!msg?._id) return;
+    try {
+      dispatch(toggleStarMessageLocal({ messageId: msg._id, userId: user?._id }));
+      const res = await axios.post(
+        apiUrl(`/api/v1/message/star/${msg._id}`),
+        {},
+        { withCredentials: true }
+      );
+      if (res.data?.success) {
+        toast.success(res.data.isStarred ? "Message starred" : "Message unstarred");
+      }
+    } catch (err) {
+      dispatch(toggleStarMessageLocal({ messageId: msg._id, userId: user?._id }));
+      toast.error(err.response?.data?.message || "Failed to update star");
+    }
+  };
+
+  const handleTogglePin = async (msg) => {
+    if (!msg?._id || !selectedUser?._id) return;
+    try {
+      const res = await axios.post(
+        apiUrl(`/api/v1/message/pin/${selectedUser._id}/${msg._id}`),
+        {},
+        { withCredentials: true }
+      );
+      if (res.data?.success) {
+        dispatch(setPinnedMessage(res.data.pinnedMessage));
+        toast.success(res.data.message || (res.data.isPinned ? "Message pinned to top" : "Message unpinned"));
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to pin message");
+    }
+  };
 
   const scrollContainerRef = useRef(null);
   const bottomSentinelRef = useRef(null);
   const highlightTimerRef = useRef(null);
   const seenIdsRef = useRef(new Set());
+  const longPressTimerRef = useRef(null);
+  const isLongPressTriggeredRef = useRef(false);
+
+  const activeWallpaperConfig = useMemo(() => {
+    return (
+      WALLPAPERS?.find((w) => w.id === currentWallpaper) ||
+      WALLPAPERS?.[0] || { style: {} }
+    );
+  }, [currentWallpaper]);
 
   const [newIds, setNewIds] = useState(new Set());
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
@@ -771,14 +909,25 @@ const Messages = ({
         dispatch(deleteMessageForMe({ messageId }));
       }
     };
+    const handleConversationCleared = (data) => {
+      if (
+        data?.otherUserId?.toString() === selectedUser?._id?.toString() ||
+        data?.otherUserId?.toString() === user?._id?.toString()
+      ) {
+        dispatch(clearAllMessages());
+      }
+    };
+
     socket.on("messageDeletedForEveryone", handleDeletedForEveryone);
     socket.on("messageDeletedForMe", handleDeletedForMe);
+    socket.on("conversationCleared", handleConversationCleared);
 
     return () => {
       socket.off("storyDeleted", handleStoryUnavailable);
       socket.off("storyRefUnavailable", handleStoryUnavailable);
       socket.off("messageDeletedForEveryone", handleDeletedForEveryone);
       socket.off("messageDeletedForMe", handleDeletedForMe);
+      socket.off("conversationCleared", handleConversationCleared);
     };
   }, [dispatch]);
 
@@ -891,6 +1040,29 @@ const Messages = ({
     onReplyMessage?.(msg);
   };
 
+  const startLongPress = (msg) => {
+    if (msg.__optimistic || msg.status === "sending") return;
+    isLongPressTriggeredRef.current = false;
+    clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = setTimeout(() => {
+      isLongPressTriggeredRef.current = true;
+      suppressTapRef.current = true;
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try {
+          navigator.vibrate(40);
+        } catch (_) {}
+      }
+      onToggleSelectMessage?.(msg._id);
+      setTimeout(() => {
+        suppressTapRef.current = false;
+      }, 350);
+    }, 450);
+  };
+
+  const cancelLongPress = () => {
+    clearTimeout(longPressTimerRef.current);
+  };
+
   const handleBubbleTouchStart = (msgId, e) => {
     if (e.touches.length !== 1) return;
     const touch = e.touches[0];
@@ -904,6 +1076,7 @@ const Messages = ({
   };
 
   const handleBubbleTouchMove = (e) => {
+    cancelLongPress();
     const ref = swipeRef.current;
     if (!ref || ref.cancelled) return;
     const touch = e.touches[0];
@@ -924,6 +1097,7 @@ const Messages = ({
   };
 
   const handleBubbleTouchEnd = () => {
+    cancelLongPress();
     const ref = swipeRef.current;
     if (!ref) return;
     const { msgId, swiping, cancelled } = ref;
@@ -946,9 +1120,19 @@ const Messages = ({
   };
 
   const handleBubbleClick = (e, msg) => {
-    if (suppressTapRef.current) return;
+    if (suppressTapRef.current || isLongPressTriggeredRef.current) {
+      isLongPressTriggeredRef.current = false;
+      return;
+    }
     e.stopPropagation();
     if (msg.__optimistic || msg.status === "sending") return;
+
+    // In WhatsApp-style multi-select mode, clicking a message toggles its selection
+    if (selectedMessageIds?.length > 0) {
+      onToggleSelectMessage?.(msg._id);
+      return;
+    }
+
     const currentTarget = e.currentTarget;
     setActionsFor((cur) => {
       if (cur?._id === msg._id) {
@@ -1024,30 +1208,42 @@ const Messages = ({
     setUnreadWhileScrolled(0);
   }, [selectedUser?._id]);
 
-  /* Multi-phase initial scroll to bottom when opening chat / messages load */
+  /* Immediate layout snap when user or message set changes so the latest message always opens */
+  useLayoutEffect(() => {
+    const el = scrollContainerRef.current;
+    if (el && messages?.length && !isInitialScrollDoneRef.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [messages?.length, selectedUser?._id]);
+
+  /* Multi-phase initial scroll to bottom when opening chat / messages load (ALWAYS opens to latest message) */
   useEffect(() => {
     const el = scrollContainerRef.current;
     if (!el || messageRequest.loading || !messages?.length) return;
 
     if (!isInitialScrollDoneRef.current) {
-      scrollToBottom(false);
+      const snap = () => {
+        if (el) el.scrollTop = el.scrollHeight;
+        bottomSentinelRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+      };
 
-      const r1 = requestAnimationFrame(() => scrollToBottom(false));
-      const t1 = setTimeout(() => {
-        scrollToBottom(false);
+      snap();
+      const r1 = requestAnimationFrame(snap);
+      const t1 = setTimeout(snap, 40);
+      const t2 = setTimeout(snap, 120);
+      const t3 = setTimeout(() => {
+        snap();
         isInitialScrollDoneRef.current = true;
-      }, 60);
-      const t2 = setTimeout(() => {
-        scrollToBottom(false);
-      }, 200);
+      }, 300);
 
       return () => {
         cancelAnimationFrame(r1);
         clearTimeout(t1);
         clearTimeout(t2);
+        clearTimeout(t3);
       };
     }
-  }, [messageRequest.loading, messages, selectedUser?._id, scrollToBottom]);
+  }, [messageRequest.loading, messages?.length, selectedUser?._id]);
 
   /* Auto scroll on incoming / newly sent messages */
   useEffect(() => {
@@ -1059,11 +1255,11 @@ const Messages = ({
       latestMsg && latestMsg._id !== lastMsgIdRef.current;
     lastMsgIdRef.current = latestMsg?._id;
 
-    if (isNewBottomMessage && isInitialScrollDoneRef.current) {
+    if (isNewBottomMessage) {
       const isNear = isNearBottom();
       const isMyMessage = isSameUser(latestMsg.senderId, user?._id);
-      if (isNear || isMyMessage) {
-        requestAnimationFrame(() => scrollToBottom(true));
+      if (isNear || isMyMessage || !isInitialScrollDoneRef.current) {
+        requestAnimationFrame(() => scrollToBottom(!isInitialScrollDoneRef.current ? false : true));
       } else {
         setUnreadWhileScrolled((prev) => prev + 1);
       }
@@ -1113,7 +1309,7 @@ const Messages = ({
   };
 
   return (
-    <div className="nova-messages">
+    <div className="nova-messages" style={activeWallpaperConfig?.style}>
       {reactionPopup && (
         <ReactionPopup
           emoji={reactionPopup}
@@ -1202,6 +1398,8 @@ const Messages = ({
               const swipeOffset = isSwiping ? swipeFor.offset : 0;
               const swipeProgress = Math.min(swipeOffset / SWIPE_THRESHOLD, 1);
 
+              const isSelected = selectedMessageIds?.includes(msg._id);
+
               return (
                 <div
                   key={msg._id}
@@ -1214,8 +1412,32 @@ const Messages = ({
                         ? "animate-message-in-mine"
                         : "animate-message-in-theirs"
                       : ""
+                  } ${
+                    isSelected
+                      ? "bg-[var(--primary)]/15 ring-1 ring-[var(--primary)]/40 rounded-2xl px-2 py-0.5"
+                      : ""
                   }`}
                 >
+                  {/* WhatsApp-style selection checkbox in multi-select mode */}
+                  {selectedMessageIds?.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleSelectMessage?.(msg._id);
+                      }}
+                      className="size-7 rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-90 cursor-pointer self-center z-10"
+                    >
+                      {isSelected ? (
+                        <div className="size-5 rounded-full bg-[var(--primary)] text-white flex items-center justify-center shadow-[0_0_12px_rgba(139,92,246,0.7)] animate-in zoom-in-75 duration-150">
+                          <Check className="size-3 stroke-[3]" />
+                        </div>
+                      ) : (
+                        <div className="size-5 rounded-full border-2 border-white/40 hover:border-white/70 bg-black/30 transition-colors" />
+                      )}
+                    </button>
+                  )}
+
                   <div
                     className={`nova-msg-wrap ${
                       highlightedMessageId === msg._id ? "is-highlighted" : ""
@@ -1255,10 +1477,25 @@ const Messages = ({
                           ? "linear"
                           : "cubic-bezier(0.22, 1, 0.36, 1)",
                       }}
-                      onTouchStart={(e) => handleBubbleTouchStart(msg._id, e)}
-                      onTouchMove={handleBubbleTouchMove}
-                      onTouchEnd={handleBubbleTouchEnd}
-                      onTouchCancel={handleBubbleTouchEnd}
+                      onMouseDown={() => startLongPress(msg)}
+                      onMouseUp={cancelLongPress}
+                      onMouseLeave={cancelLongPress}
+                      onTouchStart={(e) => {
+                        startLongPress(msg);
+                        handleBubbleTouchStart(msg._id, e);
+                      }}
+                      onTouchMove={(e) => {
+                        cancelLongPress();
+                        handleBubbleTouchMove(e);
+                      }}
+                      onTouchEnd={() => {
+                        cancelLongPress();
+                        handleBubbleTouchEnd();
+                      }}
+                      onTouchCancel={() => {
+                        cancelLongPress();
+                        handleBubbleTouchEnd();
+                      }}
                     >
                       {burstEmoji && (
                         <span className="nova-msg-burst">
@@ -1303,6 +1540,13 @@ const Messages = ({
                             isActionsOpen || isPickerOpen ? "is-active" : ""
                           } ${sameAsNext ? "is-grouped" : ""} cursor-pointer`}
                         >
+                          {Boolean(msg.isForwarded) && (
+                            <div className="flex items-center gap-1.5 text-[10.5px] font-medium text-white/50 italic mb-1.5 select-none">
+                              <Forward className="size-3 text-white/50 shrink-0" />
+                              <span>Forwarded</span>
+                            </div>
+                          )}
+
                           {msg.replyTo?.message && (
                             <button
                               type="button"
@@ -1624,8 +1868,13 @@ const Messages = ({
           }
           message={actionsFor}
           currentUser={user}
+          isPinned={pinnedMessage?._id?.toString() === actionsFor._id?.toString()}
           onReply={(m) => triggerReply(m)}
           onReact={(emoji) => handleReaction(actionsFor, emoji)}
+          onToggleStar={(m) => handleToggleStar(m)}
+          onTogglePin={(m) => handleTogglePin(m)}
+          onForward={(m) => onForwardSingleMessage?.(m)}
+          onToggleSelect={(id) => onToggleSelectMessage?.(id)}
           onOpenPicker={() => {
             const el =
               actionsAnchorEl ||

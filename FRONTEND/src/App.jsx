@@ -8,7 +8,7 @@ import { io } from "socket.io-client";
 import { useDispatch, useSelector } from "react-redux";
 import { setSocketConnected, setSocketInstance } from "./redux/socketSlice";
 import { setAuthUser, updateUserLastSeen } from "./redux/authSlice";
-import { appendMessage, setOnlineUsers, deleteMessageForEveryone, deleteMessageForMe } from "./redux/chatSlice";
+import { appendMessage, setOnlineUsers, deleteMessageForEveryone, deleteMessageForMe, clearAllMessages } from "./redux/chatSlice";
 import {
   removeNotification,
   setLikeNotification,
@@ -378,7 +378,24 @@ function App() {
           }
         }
         if (message.senderId !== user?._id) {
-          playMessageSound();
+          const isAllMessagesMuted = localStorage.getItem("nova_notif_messages") === "false";
+          let isChatMuted = false;
+          try {
+            const list = JSON.parse(localStorage.getItem("nova_muted_chats") || "[]");
+            isChatMuted = list.includes(message.senderId);
+          } catch {}
+          if (!isAllMessagesMuted && !isChatMuted) {
+            playMessageSound();
+          }
+        }
+      });
+
+      socketio.on("conversationCleared", ({ otherUserId }) => {
+        if (
+          otherUserId?.toString() === selectedUserRef.current?._id?.toString() ||
+          otherUserId?.toString() === user?._id?.toString()
+        ) {
+          dispatch(clearAllMessages());
         }
       });
 
@@ -395,6 +412,18 @@ function App() {
       });
 
       socketio.on("notification", (notification) => {
+        if (notification.type === "message") {
+          const isAllMessagesMuted = localStorage.getItem("nova_notif_messages") === "false";
+          if (isAllMessagesMuted) return;
+        }
+
+        let isChatMuted = false;
+        try {
+          const list = JSON.parse(localStorage.getItem("nova_muted_chats") || "[]");
+          isChatMuted = list.includes(notification.userId);
+        } catch {}
+        if (isChatMuted) return;
+
         const isOpenConversationMessage =
           notification.type === "message" &&
           window.location.pathname === "/chat" &&
