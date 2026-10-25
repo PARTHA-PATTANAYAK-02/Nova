@@ -52,7 +52,12 @@ export const sendMessage = async (req, res) => {
 
     if (file) {
       let uploadBuffer = file.buffer;
-      if (file.mimetype.startsWith("audio/")) {
+      const isAudio =
+        file.mimetype.startsWith("audio/") ||
+        file.originalname?.toLowerCase().includes("voice-note") ||
+        (Boolean(req.body.audioDuration) && !file.mimetype.startsWith("video/mp4"));
+
+      if (isAudio) {
         mediaType = "audio";
       } else if (file.mimetype.startsWith("video/")) {
         mediaType = "video";

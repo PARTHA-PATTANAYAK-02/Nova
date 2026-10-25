@@ -6,6 +6,7 @@ const initialState = {
   userProfile: null,
   selectedUser: null,
   viewedStoryItemIds: [],
+  collections: [],
 };
 
 const authSlice = createSlice({
@@ -53,6 +54,14 @@ const authSlice = createSlice({
         : [...currentBookmarks, postId];
     },
 
+    updatePinnedPosts: (state, action) => {
+      if (!state.user) return;
+      state.user.pinnedPosts = action.payload;
+      if (state.userProfile && state.userProfile._id === state.user._id) {
+        state.userProfile.pinnedPosts = action.payload;
+      }
+    },
+
     // Mark story item as globally viewed
     markStoryItemViewed: (state, action) => {
       const id = String(action.payload);
@@ -81,6 +90,27 @@ const authSlice = createSlice({
         };
       }
     },
+    setCollections: (state, action) => {
+      state.collections = action.payload || [];
+    },
+    addCollection: (state, action) => {
+      if (action.payload) {
+        state.collections = [
+          action.payload,
+          ...state.collections.filter((c) => c._id !== action.payload._id),
+        ];
+      }
+    },
+    removeCollection: (state, action) => {
+      state.collections = state.collections.filter((c) => c._id !== action.payload);
+    },
+    updateCollectionInList: (state, action) => {
+      if (action.payload?._id) {
+        state.collections = state.collections.map((c) =>
+          c._id === action.payload._id ? action.payload : c
+        );
+      }
+    },
   },
 });
 
@@ -92,8 +122,13 @@ export const {
   setUserProfile,
   setSelectedUser,
   updateBookmarks,
+  updatePinnedPosts,
   markStoryItemViewed,
   updateUserLastSeen,
+  setCollections,
+  addCollection,
+  removeCollection,
+  updateCollectionInList,
 } = authSlice.actions;
 
 export default authSlice.reducer;

@@ -1,6 +1,7 @@
 import { Notification } from "../models/notification.model.js";
 import { getReceiverSocketIds, io } from "../socket/socket.js";
 import { User } from "../models/user.model.js";
+import { Post } from "../models/post.model.js";
 
 export const createAndEmitNotification = async ({
   recipient,
@@ -33,6 +34,14 @@ export const createAndEmitNotification = async ({
   const actorDetails = await User.findById(actor).select(
     "username fullName profilePicture",
   );
+
+  let postDetails = null;
+  if (postId) {
+    try {
+      postDetails = await Post.findById(postId).select("image mediaType caption");
+    } catch {}
+  }
+
   const payload = {
     _id: notification._id,
     notificationId: notification._id,
@@ -40,6 +49,7 @@ export const createAndEmitNotification = async ({
     userId: actor,
     userDetails: actorDetails,
     postId,
+    post: postDetails,
     messageId,
     conversationId,
     read: false,

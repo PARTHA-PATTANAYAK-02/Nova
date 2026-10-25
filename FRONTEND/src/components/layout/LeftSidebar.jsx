@@ -5,6 +5,7 @@ import {
   MessageCircle,
   PlusSquare,
   Bookmark,
+  Compass,
   Search,
   X,
   Trash2,
@@ -105,11 +106,13 @@ const LeftSidebar = () => {
       },
     },
     {
-      kind: "search",
-      icon: Search,
-      text: "Search",
-      path: "/search",
-      action: () => navigate("/search"),
+      kind: "explore",
+      icon: Compass,
+      text: "Explore",
+      path: "/explore",
+      isActiveOverride: () =>
+        location.pathname === "/explore" || location.pathname === "/search",
+      action: () => navigate("/explore"),
     },
     {
       kind: "chat",
@@ -124,10 +127,10 @@ const LeftSidebar = () => {
       icon: Bookmark,
       text: "Saved",
       isActiveOverride: () =>
-        location.pathname === `/profile/${user?._id}` &&
+        (location.pathname === `/profile/${user?.username}` || location.pathname === `/profile/${user?._id}`) &&
         location.state?.tab === "saved",
       action: () =>
-        navigate(`/profile/${user?._id}`, { state: { tab: "saved" } }),
+        navigate(`/profile/${user?.username || user?._id}`, { state: { tab: "saved" } }),
     },
   ];
 
@@ -137,7 +140,7 @@ const LeftSidebar = () => {
       : !!item.path && location.pathname === item.path;
 
   const profileActive =
-    location.pathname === `/profile/${user?._id}` &&
+    (location.pathname === `/profile/${user?.username}` || location.pathname === `/profile/${user?._id}`) &&
     location.state?.tab !== "saved";
 
   const initial = getDisplayName(user, "U").charAt(0).toUpperCase();
@@ -179,7 +182,11 @@ const LeftSidebar = () => {
               return (
                 <Popover key="notif" onOpenChange={handleNotificationsOpen}>
                   <PopoverTrigger asChild>
-                    <button data-kind="notif" className="nvs2-nav-item group">
+                    <button
+                      data-kind="notif"
+                      data-active={location.pathname === "/notifications"}
+                      className="nvs2-nav-item group"
+                    >
                       <span className="nvs2-nav-icon">
                         <Heart className="size-[18px]" strokeWidth={1.8} />
                         {unreadCount > 0 && (
@@ -312,6 +319,15 @@ const LeftSidebar = () => {
                         ))
                       )}
                     </div>
+
+                    <div className="p-2 border-t border-[var(--border)] bg-[var(--surface-2)]/60">
+                      <button
+                        onClick={() => navigate("/notifications")}
+                        className="w-full py-2 px-3 text-xs font-semibold text-center rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-all active:scale-[0.98]"
+                      >
+                        Open Notification Center →
+                      </button>
+                    </div>
                   </PopoverContent>
                 </Popover>
               );
@@ -364,7 +380,7 @@ const LeftSidebar = () => {
           </button>
 
           <button
-            onClick={() => navigate(`/profile/${user?._id}`)}
+            onClick={() => navigate(`/profile/${user?.username || user?._id}`)}
             data-active={profileActive}
             className="
               group w-full flex items-center gap-3

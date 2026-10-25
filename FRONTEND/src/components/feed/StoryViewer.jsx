@@ -548,7 +548,7 @@ const StoryViewer = ({
               {/* Header: Author Info */}
               <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-white/10 bg-white/[0.02]">
                 <Link
-                  to={`/profile/${sharedPostData.author?._id}`}
+                  to={`/profile/${sharedPostData.author?.username || sharedPostData.author?._id}`}
                   onClick={() => onClose()}
                   className="flex items-center gap-2.5 min-w-0 hover:opacity-85 transition-opacity"
                 >

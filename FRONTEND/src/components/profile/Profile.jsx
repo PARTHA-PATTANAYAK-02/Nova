@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import useGetUserProfile from "@/hooks/useGetUserProfile";
-import { updateFollowing, setAuthUser } from "@/redux/authSlice";
+import { updateFollowing, setAuthUser, updatePinnedPosts, setUserProfile } from "@/redux/authSlice";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import {
@@ -32,7 +32,13 @@ import {
   X,
   Check,
   Sparkles,
+  QrCode,
+  Pin,
+  PinOff,
+  Repeat2,
 } from "lucide-react";
+import SavedCollectionsSection from "@/components/profile/SavedCollectionsSection";
+import NovaQRCodeModal from "@/components/common/NovaQRCodeModal";
 import {
   Dialog,
   DialogContent,
@@ -109,6 +115,8 @@ const Profile = () => {
   const userId = params.id;
   const navigate = useNavigate();
   const location = useLocation();
+  const { userProfile, user } = useSelector((store) => store.auth);
+  const { posts: reduxPosts } = useSelector((store) => store.post);
   const profileRequest = useGetUserProfile(userId);
   const [activeTab, setActiveTab] = useState(location.state?.tab || "posts");
   const [open, setOpen] = useState(false);
@@ -120,6 +128,7 @@ const Profile = () => {
   const [viewedStoryIds, setViewedStoryIds] = useState(getGlobalViewedItemIds);
   const [followLoading, setFollowLoading] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
 
   /* ═══ Highlights State ═══ */
   const [highlights, setHighlights] = useState([]);
@@ -135,10 +144,11 @@ const Profile = () => {
   const [loadingStoriesArchive, setLoadingStoriesArchive] = useState(false);
 
   useEffect(() => {
-    if (userId && isValidObjectId(userId)) {
+    const targetUserId = userProfile?._id;
+    if (targetUserId) {
       setLoadingHighlights(true);
       axios
-        .get(apiUrl(`/api/v1/story/highlights/user/${userId}`), {
+        .get(apiUrl(`/api/v1/story/highlights/user/${targetUserId}`), {
           withCredentials: true,
         })
         .then((res) => {
@@ -149,7 +159,7 @@ const Profile = () => {
         .catch(() => {})
         .finally(() => setLoadingHighlights(false));
     }
-  }, [userId]);
+  }, [userProfile?._id]);
 
   const handleOpenHighlight = (highlight) => {
     if (!highlight || !highlight.stories?.length) {
@@ -239,19 +249,61 @@ const Profile = () => {
   const [removedPostIds, setRemovedPostIds] = useState(new Set());
   const [openMenuId, setOpenMenuId] = useState(null);
 
-  const { userProfile, user } = useSelector((store) => store.auth);
-  const { posts: reduxPosts } = useSelector((store) => store.post);
-
-  const isValidId = isValidObjectId(userId);
-  const isProfileLoaded = userProfile?._id === userId;
+  const cleanId = (userId || "").trim().replace(/^@/, "").toLowerCase();
+  const isProfileLoaded =
+    Boolean(userProfile?._id) &&
+    (userProfile._id === userId ||
+      (userProfile.username || "").toLowerCase() === cleanId ||
+      (Array.isArray(userProfile.previousUsernames) &&
+        userProfile.previousUsernames.some((u) => u?.toLowerCase() === cleanId)));
   const userFollowingKey = (user?.following || [])
     .map((id) => id?._id || id)
     .join(",");
+
+  // Canonical URL sync: automatically update URL from /profile/:id or /profile/:oldUsername to /profile/:canonicalUsername
+  // CRITICAL: MUST ONLY RUN IF userProfile ACTUALLY BELONGS TO THIS REQUESTED USER!
+  useEffect(() => {
+    if (!userProfile?.username || !userId) return;
+
+    const cleanReq = userId.trim().replace(/^@/, "").toLowerCase();
+    const canonical = userProfile.username.toLowerCase();
+
+    // Already on canonical username URL? Nothing to do.
+    if (cleanReq === canonical) return;
+
+    // Check if the loaded userProfile is truly the profile for this userId:
+    // It must either match the Mongo _id or be in previousUsernames
+    const isSameUserByMongoId = userProfile._id?.toString() === userId;
+    const isSameUserByOldUsername =
+      Array.isArray(userProfile.previousUsernames) &&
+      userProfile.previousUsernames.some((old) => old?.toLowerCase() === cleanReq);
+
+    // If it does NOT match Mongo ID and does NOT match old username, it is a STALE profile from another user!
+    // NEVER redirect!
+    if (!isSameUserByMongoId && !isSameUserByOldUsername) return;
+
+    navigate(`/profile/${userProfile.username}`, {
+      replace: true,
+      state: location.state,
+    });
+  }, [userProfile?._id, userProfile?.username, userProfile?.previousUsernames, userId, navigate, location.state]);
 
   const { dark, toggleTheme } = useTheme();
   const dispatch = useDispatch();
 
   useEffect(() => {
+    const clean = (userId || "").trim().replace(/^@/, "").toLowerCase();
+    const matchesCurrent =
+      userProfile &&
+      (userProfile._id === userId ||
+        (userProfile.username || "").toLowerCase() === clean ||
+        (Array.isArray(userProfile.previousUsernames) &&
+          userProfile.previousUsernames.some((u) => u?.toLowerCase() === clean)));
+
+    if (!matchesCurrent) {
+      dispatch(setUserProfile(null));
+    }
+
     setActiveTab(location.state?.tab || "posts");
     setRemovedPostIds(new Set());
     setOpenMenuId(null);
@@ -347,6 +399,23 @@ const Profile = () => {
     }
   };
 
+  const handleTogglePin = async (postId) => {
+    try {
+      setOpenMenuId(null);
+      const res = await axios.post(
+        apiUrl(`/api/v1/post/${postId}/pin`),
+        {},
+        { withCredentials: true },
+      );
+      if (res.data.success) {
+        dispatch(updatePinnedPosts(res.data.pinnedPosts));
+        toast.success(res.data.message);
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Unable to pin/unpin post"));
+    }
+  };
+
   const openChat = () => {
     if (!userProfile?._id) return;
     navigate("/chat", { state: { user: userProfile } });
@@ -371,7 +440,7 @@ const Profile = () => {
     }
   };
 
-  if (!isValidId) return <ProfileNotFound />;
+  if (profileRequest.notFound || !userId) return <ProfileNotFound />;
 
   if (!isProfileLoaded) {
     if (profileRequest.error && !profileRequest.loading) {
@@ -386,12 +455,23 @@ const Profile = () => {
     return <ProfileSkeleton />;
   }
 
+  const pinnedIds = new Set(
+    (userProfile?.pinnedPosts || []).map((p) => (p?._id || p)?.toString())
+  );
+
   const rawPosts =
     activeTab === "posts" ? userProfile?.posts : userProfile?.bookmarks;
 
-  const displayedPost = (rawPosts || []).filter(
-    (p) => !removedPostIds.has(p._id),
-  );
+  const displayedPost = (rawPosts || [])
+    .filter((p) => !removedPostIds.has(p._id))
+    .sort((a, b) => {
+      if (activeTab !== "posts") return 0;
+      const aPinned = pinnedIds.has(a._id?.toString());
+      const bPinned = pinnedIds.has(b._id?.toString());
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
+      return 0;
+    });
 
   const handlePostClick = (post) => {
     dispatch(setSelectedPost(post));
@@ -442,17 +522,38 @@ const Profile = () => {
 
         <div className="nova-profile__hero-actions">
           {isLoggedInUserProfile ? (
-            <SettingsMenu
-              dark={dark}
-              toggleTheme={toggleTheme}
-              onEdit={() => navigate("/account/edit")}
-              onSecurity={() => navigate("/account/security")}
-              onSaved={() => setActiveTab("saved")}
-              onLogout={handleLogout}
-              needsUsername={!user?.username}
-            />
+            <>
+              <button
+                type="button"
+                onClick={() => setQrModalOpen(true)}
+                className="nova-profile__hero-btn"
+                title="Profile QR Code"
+                aria-label="Profile QR Code"
+              >
+                <QrCode className="size-4 text-cyan-400" strokeWidth={2.2} />
+              </button>
+              <SettingsMenu
+                dark={dark}
+                toggleTheme={toggleTheme}
+                onEdit={() => navigate("/account/edit")}
+                onSecurity={() => navigate("/account/security")}
+                onSaved={() => setActiveTab("saved")}
+                onQrCode={() => setQrModalOpen(true)}
+                onLogout={handleLogout}
+                needsUsername={!user?.username}
+              />
+            </>
           ) : (
             <>
+              <button
+                type="button"
+                onClick={() => setQrModalOpen(true)}
+                className="nova-profile__hero-btn"
+                title="Profile QR Code"
+                aria-label="Profile QR Code"
+              >
+                <QrCode className="size-4 text-cyan-400" strokeWidth={2.2} />
+              </button>
               <button
                 type="button"
                 onClick={handleFollowToggle}
@@ -607,26 +708,28 @@ const Profile = () => {
             )}
 
             {!isLoggedInUserProfile && (
-              <button
-                type="button"
-                onClick={handleFollowToggle}
-                disabled={followLoading}
-                className={`nova-profile__follow-cta ${
-                  isFollowing ? "is-following" : ""
-                }`}
-              >
-                {isFollowing ? (
-                  <>
-                    <UserCheck className="size-4" strokeWidth={2.2} />
-                    Following
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="size-4" strokeWidth={2.2} />
-                    Follow
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={handleFollowToggle}
+                  disabled={followLoading}
+                  className={`nova-profile__follow-cta ${
+                    isFollowing ? "is-following" : ""
+                  }`}
+                >
+                  {isFollowing ? (
+                    <>
+                      <UserCheck className="size-4" strokeWidth={2.2} />
+                      Following
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="size-4" strokeWidth={2.2} />
+                      Follow
+                    </>
+                  )}
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -708,12 +811,26 @@ const Profile = () => {
         </div>
       </div>
 
-      {/* ══════════════ GRID ══════════════ */}
-      {displayedPost?.length > 0 ? (
+      {/* ══════════════ GRID OR SAVED COLLECTIONS ══════════════ */}
+      {activeTab === "saved" ? (
+        <SavedCollectionsSection
+          allBookmarks={userProfile?.bookmarks || []}
+          isLoggedInUser={isLoggedInUserProfile}
+          onOpenPost={handlePostClick}
+        />
+      ) : displayedPost?.length > 0 ? (
         <div className="nova-profile__grid">
           {displayedPost.map((post, index) => {
             const canManage = isLoggedInUserProfile && activeTab === "posts";
             const isDeleting = deletingId === post._id;
+            const isPinned = pinnedIds.has(post._id?.toString());
+            const postAuthorId = (post.author?._id || post.author)?.toString();
+            const isRepost = Boolean(
+              postAuthorId &&
+                userProfile?._id &&
+                postAuthorId !== userProfile._id.toString(),
+            );
+            const isQuote = Boolean(post.repostOf);
 
             return (
               <div
@@ -721,6 +838,35 @@ const Profile = () => {
                 className="nova-profile__tile"
                 style={{ animationDelay: `${Math.min(index * 35, 350)}ms` }}
               >
+                {isPinned && activeTab === "posts" && (
+                  <div
+                    className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-amber-500/40 text-amber-400 text-[10px] font-bold flex items-center gap-1 shadow-lg pointer-events-none"
+                    title="Pinned post"
+                  >
+                    <Pin className="size-2.5 fill-amber-400 text-amber-400" />
+                    <span>Pinned</span>
+                  </div>
+                )}
+
+                {isRepost && activeTab === "posts" && (
+                  <div
+                    className={`absolute top-2 ${isPinned ? "right-2" : "left-2"} z-10 px-2 py-0.5 rounded-full bg-black/65 backdrop-blur-md border border-emerald-500/40 text-emerald-400 text-[10px] font-bold flex items-center gap-1 shadow-lg pointer-events-none`}
+                    title={`Reposted from @${post.author?.username || "user"}`}
+                  >
+                    <Repeat2 className="size-2.5" />
+                    <span>Repost</span>
+                  </div>
+                )}
+
+                {isQuote && !isRepost && activeTab === "posts" && (
+                  <div
+                    className={`absolute top-2 ${isPinned ? "right-2" : "left-2"} z-10 px-2 py-0.5 rounded-full bg-black/65 backdrop-blur-md border border-cyan-500/40 text-cyan-400 text-[10px] font-bold flex items-center gap-1 shadow-lg pointer-events-none`}
+                    title="Quote post"
+                  >
+                    <MessageCircle className="size-2.5" />
+                    <span>Quote</span>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => handlePostClick(post)}
@@ -785,13 +931,30 @@ const Profile = () => {
                     <PopoverContent
                       align="end"
                       sideOffset={6}
-                      className="w-40 p-1"
+                      className="w-40 p-1 flex flex-col gap-0.5"
                     >
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePin(post._id)}
+                        className="nova-profile__menu-item flex items-center gap-2"
+                      >
+                        {isPinned ? (
+                          <>
+                            <PinOff className="size-3.5 text-amber-400" />
+                            <span>Unpin post</span>
+                          </>
+                        ) : (
+                          <>
+                            <Pin className="size-3.5 text-amber-400" />
+                            <span>Pin to profile</span>
+                          </>
+                        )}
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleDeletePost(post._id)}
                         disabled={isDeleting}
-                        className="nova-profile__menu-item is-danger"
+                        className="nova-profile__menu-item is-danger flex items-center gap-2"
                       >
                         <Trash2 className="size-3.5" strokeWidth={2} />
                         {isDeleting ? "Deleting…" : "Delete post"}
@@ -812,19 +975,11 @@ const Profile = () => {
       ) : (
         <div className="nova-profile__empty">
           <div className="nova-profile__empty-orb">
-            {activeTab === "posts" ? (
-              <Compass className="size-5" strokeWidth={1.8} />
-            ) : (
-              <Bookmark className="size-5" strokeWidth={1.8} />
-            )}
+            <Compass className="size-5" strokeWidth={1.8} />
           </div>
-          <h3 className="nova-profile__empty-title">
-            {activeTab === "posts" ? "No posts yet" : "Nothing saved yet"}
-          </h3>
+          <h3 className="nova-profile__empty-title">No posts yet</h3>
           <p className="nova-profile__empty-sub">
-            {activeTab === "posts"
-              ? "When they share photos, they'll appear here."
-              : "Saved posts will appear here."}
+            When they share photos, they'll appear here.
           </p>
         </div>
       )}
@@ -1012,7 +1167,7 @@ const Profile = () => {
                   type="button"
                   onClick={() => {
                     setPeopleType(null);
-                    navigate(`/profile/${person._id}`);
+                    navigate(`/profile/${person.username || person._id}`);
                   }}
                   className="nova-people-row"
                 >
@@ -1278,6 +1433,16 @@ const Profile = () => {
         </DialogContent>
       </Dialog>
 
+      {/* ══════════════ QR CODE MODAL ══════════════ */}
+      <NovaQRCodeModal
+        isOpen={qrModalOpen}
+        onClose={() => setQrModalOpen(false)}
+        url={`${window.location.origin}/profile/${userProfile?.username || userProfile?._id}`}
+        title={userProfile?.fullName || userProfile?.username || "Nova User"}
+        subtitle={`@${userProfile?.username || "user"} · Nova Profile`}
+        avatar={userProfile?.profilePicture}
+        type="profile"
+      />
     </div>
   );
 };
@@ -1288,6 +1453,7 @@ const SettingsMenu = ({
   onEdit,
   onSecurity,
   onSaved,
+  onQrCode,
   onLogout,
   needsUsername,
 }) => {
@@ -1423,6 +1589,17 @@ const SettingsMenu = ({
               )}
             </span>
           </span>
+        </button>
+
+        <button
+          onClick={() => {
+            close();
+            onQrCode();
+          }}
+          className="nova-settings-item"
+        >
+          <QrCode className="size-4 text-cyan-400" strokeWidth={1.8} />
+          <span className="flex-1">QR Code</span>
         </button>
 
         <button

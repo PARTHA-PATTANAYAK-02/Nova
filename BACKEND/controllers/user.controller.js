@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { User } from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -540,13 +541,80 @@ export const getCurrentUser = async (req, res) => {
 
 export const getProfile = async (req, res) => {
   try {
-    const userId = req.params.id;
-    let user = await User.findById(userId)
+    const identifier = req.params.id?.trim();
+    if (!identifier) {
+      return res.status(400).json({ message: "Identifier is required", success: false });
+    }
+
+    const cleanUsername = identifier.replace(/^@/, "");
+    const isObjectId = mongoose.isValidObjectId(identifier);
+    const query = isObjectId
+      ? {
+          $or: [
+            { _id: identifier },
+            { username: { $regex: new RegExp(`^${escapeRegex(cleanUsername)}$`, "i") } },
+          ],
+        }
+      : { username: { $regex: new RegExp(`^${escapeRegex(cleanUsername)}$`, "i") } };
+
+    let user = await User.findOne(query)
       .select("-password")
-      .populate({ path: "posts", options: { sort: { createdAt: -1 } } })
+      .populate({
+        path: "posts",
+        options: { sort: { createdAt: -1 } },
+        populate: [
+          { path: "author", select: "username fullName profilePicture" },
+          {
+            path: "repostOf",
+            populate: { path: "author", select: "username fullName profilePicture" },
+          },
+        ],
+      })
+      .populate({
+        path: "pinnedPosts",
+        populate: [
+          { path: "author", select: "username fullName profilePicture" },
+          {
+            path: "repostOf",
+            populate: { path: "author", select: "username fullName profilePicture" },
+          },
+        ],
+      })
       .populate("bookmarks")
       .populate("followers", "username fullName profilePicture")
       .populate("following", "username fullName profilePicture");
+
+    if (!user) {
+      // Check if identifier was an old username of any user
+      user = await User.findOne({
+        previousUsernames: cleanUsername.toLowerCase(),
+      })
+        .select("-password")
+        .populate({
+          path: "posts",
+          options: { sort: { createdAt: -1 } },
+          populate: [
+            { path: "author", select: "username fullName profilePicture" },
+            {
+              path: "repostOf",
+              populate: { path: "author", select: "username fullName profilePicture" },
+            },
+          ],
+        })
+        .populate({
+          path: "pinnedPosts",
+          populate: [
+            { path: "author", select: "username fullName profilePicture" },
+            {
+              path: "repostOf",
+              populate: { path: "author", select: "username fullName profilePicture" },
+            },
+          ],
+        })
+        .populate("bookmarks")
+        .populate("followers", "username fullName profilePicture")
+        .populate("following", "username fullName profilePicture");
+    }
 
     if (!user) {
       return res.status(404).json({
@@ -603,6 +671,13 @@ export const editProfile = async (req, res) => {
             message: "That username is already taken.",
             success: false,
           });
+        }
+        const oldUsername = normalizeUsername(user.username || "");
+        if (oldUsername && oldUsername !== normalizedUsername) {
+          if (!user.previousUsernames) user.previousUsernames = [];
+          if (!user.previousUsernames.includes(oldUsername)) {
+            user.previousUsernames.push(oldUsername);
+          }
         }
         user.username = normalizedUsername;
       }

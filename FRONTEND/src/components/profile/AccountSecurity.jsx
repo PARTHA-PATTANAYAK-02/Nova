@@ -82,7 +82,7 @@ const AccountSecurity = () => {
     <main className="nova-page">
       <button
         type="button"
-        onClick={() => navigate(`/profile/${user?._id}`)}
+        onClick={() => navigate(`/profile/${user?.username || user?._id}`)}
         className="nova-sec__back"
       >
         <ArrowLeft className="size-4" strokeWidth={1.8} />

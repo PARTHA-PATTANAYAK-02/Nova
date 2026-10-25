@@ -114,7 +114,7 @@ const SuggestedUsers = () => {
           onClose={() => setViewerOpen(false)}
           onOpenProfile={(storyUser) => {
             setViewerOpen(false);
-            navigate(`/profile/${storyUser._id}`);
+            navigate(`/profile/${storyUser.username || storyUser._id}`);
           }}
         />
       )}

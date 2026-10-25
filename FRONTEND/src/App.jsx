@@ -32,6 +32,8 @@ const NotFound = lazy(() => import("@/components/common/NotFound"));
 const ProfileSetup = lazy(() => import("@/components/onboarding/ProfileSetup"));
 const WelcomeScreen = lazy(() => import("@/components/onboarding/WelcomeScreen"));
 const PostDetailPage = lazy(() => import("@/components/feed/PostDetailPage"));
+const HashtagExplorePage = lazy(() => import("@/components/feed/HashtagExplorePage"));
+const NotificationsPage = lazy(() => import("@/components/notifications/NotificationsPage"));
 
 const RouteSuspense = ({ children }) => (
   <Suspense
@@ -106,11 +108,51 @@ const browserRouter = createBrowserRouter([
         ),
       },
       {
+        path: "/explore",
+        element: (
+          <ProtectedRoutes>
+            <RouteSuspense>
+              <SearchPage />
+            </RouteSuspense>
+          </ProtectedRoutes>
+        ),
+      },
+      {
         path: "/search",
         element: (
           <ProtectedRoutes>
             <RouteSuspense>
               <SearchPage />
+            </RouteSuspense>
+          </ProtectedRoutes>
+        ),
+      },
+      {
+        path: "/explore/tags/:tag",
+        element: (
+          <ProtectedRoutes>
+            <RouteSuspense>
+              <HashtagExplorePage />
+            </RouteSuspense>
+          </ProtectedRoutes>
+        ),
+      },
+      {
+        path: "/notifications",
+        element: (
+          <ProtectedRoutes>
+            <RouteSuspense>
+              <NotificationsPage />
+            </RouteSuspense>
+          </ProtectedRoutes>
+        ),
+      },
+      {
+        path: "/tag/:tag",
+        element: (
+          <ProtectedRoutes>
+            <RouteSuspense>
+              <HashtagExplorePage />
             </RouteSuspense>
           </ProtectedRoutes>
         ),

@@ -75,54 +75,107 @@ const SWIPE_MAX = 80;
 /* ═══ WhatsApp / Telegram Voice Note Player Bubble ═══ */
 const VoiceNoteBubble = ({ mediaUrl, duration = 0, isMine }) => {
   const audioRef = useRef(null);
+  const waveformRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [audioDuration, setAudioDuration] = useState(duration || 0);
+  const initialDuration = Number(duration) > 0 && isFinite(Number(duration)) ? Number(duration) : 0;
+  const [audioDuration, setAudioDuration] = useState(initialDuration);
   const [speed, setSpeed] = useState(1);
+  const [isScrubbing, setIsScrubbing] = useState(false);
 
+  // Realistic human speech amplitude distribution (28 bars)
   const waveformHeights = [
-    30, 45, 65, 35, 80, 95, 60, 40, 75, 90, 50, 30, 70, 85, 100, 75, 55, 90,
-    65, 45, 80, 60, 35, 55, 75, 40, 60, 30,
+    28, 42, 65, 38, 82, 96, 68, 44, 78, 100, 72, 45, 62, 88, 92, 76, 52, 74,
+    94, 66, 42, 80, 58, 36, 64, 46, 58, 32,
   ];
 
+  // Update duration when prop changes
+  useEffect(() => {
+    if (initialDuration > 0 && (!audioDuration || !isFinite(audioDuration))) {
+      setAudioDuration(initialDuration);
+    }
+  }, [initialDuration]);
+
+  // Global singleton: when any voice note plays, pause all other voice notes
+  useEffect(() => {
+    const handleStopOtherAudio = (e) => {
+      if (e.detail?.except !== mediaUrl && isPlaying) {
+        if (audioRef.current) {
+          audioRef.current.pause();
+        }
+        setIsPlaying(false);
+      }
+    };
+    window.addEventListener("nova:stop-all-audio", handleStopOtherAudio);
+    return () => window.removeEventListener("nova:stop-all-audio", handleStopOtherAudio);
+  }, [mediaUrl, isPlaying]);
+
+  // Audio lifecycle & duration detection (handling Chrome WebM Infinity bug)
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const onTimeUpdate = () => setCurrentTime(audio.currentTime);
     const onLoadedMetadata = () => {
-      if (audio.duration && !isNaN(audio.duration)) {
-        setAudioDuration(audio.duration);
+      const d = audio.duration;
+      if (d && !isNaN(d) && isFinite(d) && d > 0) {
+        setAudioDuration(d);
+      } else if (initialDuration > 0) {
+        setAudioDuration(initialDuration);
       }
     };
+
+    const onTimeUpdate = () => {
+      if (!isScrubbing) {
+        setCurrentTime(audio.currentTime);
+      }
+      // In WebM without duration header, audio.duration is Infinity until currentTime reaches end
+      if ((!audioDuration || !isFinite(audioDuration) || audioDuration <= 0)) {
+        if (isFinite(audio.duration) && audio.duration > 0) {
+          setAudioDuration(audio.duration);
+        } else if (audio.currentTime > initialDuration) {
+          setAudioDuration(Math.ceil(audio.currentTime));
+        }
+      }
+    };
+
     const onEnded = () => {
       setIsPlaying(false);
       setCurrentTime(0);
     };
 
-    audio.addEventListener("timeupdate", onTimeUpdate);
     audio.addEventListener("loadedmetadata", onLoadedMetadata);
+    audio.addEventListener("timeupdate", onTimeUpdate);
     audio.addEventListener("ended", onEnded);
 
     return () => {
-      audio.removeEventListener("timeupdate", onTimeUpdate);
       audio.removeEventListener("loadedmetadata", onLoadedMetadata);
+      audio.removeEventListener("timeupdate", onTimeUpdate);
       audio.removeEventListener("ended", onEnded);
+      audio.pause();
     };
-  }, [mediaUrl]);
+  }, [mediaUrl, initialDuration, audioDuration, isScrubbing]);
 
   const togglePlay = (e) => {
     e.stopPropagation();
     const audio = audioRef.current;
     if (!audio) return;
+
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
     } else {
+      // Pause any other voice notes currently playing
+      window.dispatchEvent(
+        new CustomEvent("nova:stop-all-audio", { detail: { except: mediaUrl } })
+      );
+      audio.playbackRate = speed;
       audio
         .play()
         .then(() => setIsPlaying(true))
-        .catch(() => {});
+        .catch((err) => {
+          console.warn("Audio playback prevented:", err);
+          setIsPlaying(false);
+        });
     }
   };
 
@@ -137,98 +190,142 @@ const VoiceNoteBubble = ({ mediaUrl, duration = 0, isMine }) => {
     }
   };
 
-  const handleWaveformClick = (e) => {
-    e.stopPropagation();
+  const effectiveDuration =
+    isFinite(audioDuration) && audioDuration > 0
+      ? audioDuration
+      : initialDuration > 0
+      ? initialDuration
+      : Math.max(1, currentTime);
+
+  const seekToPosition = (clientX) => {
+    const waveform = waveformRef.current;
     const audio = audioRef.current;
-    if (!audio) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
+    if (!waveform || !audio) return;
+
+    const rect = waveform.getBoundingClientRect();
+    const clickX = clientX - rect.left;
     const progress = Math.max(0, Math.min(1, clickX / rect.width));
-    const targetTime = progress * (audioDuration || 1);
+    const targetTime = progress * effectiveDuration;
+
     audio.currentTime = targetTime;
     setCurrentTime(targetTime);
   };
 
+  const handleWaveformClick = (e) => {
+    e.stopPropagation();
+    seekToPosition(e.clientX);
+  };
+
   const formatAudioTime = (seconds) => {
-    if (!seconds || isNaN(seconds)) return "0:00";
+    if (!seconds || isNaN(seconds) || !isFinite(seconds)) return "0:00";
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
-  const progressPercent =
-    audioDuration > 0 ? (currentTime / audioDuration) * 100 : 0;
+  const progressPercent = Math.min(
+    100,
+    Math.max(0, effectiveDuration > 0 ? (currentTime / effectiveDuration) * 100 : 0)
+  );
 
   return (
     <div className="flex flex-col gap-1.5 w-60 sm:w-68 py-1 select-none">
       <audio ref={audioRef} src={mediaUrl} preload="metadata" />
+
       <div className="flex items-center gap-2.5">
+        {/* Play / Pause Circular Button */}
         <button
           type="button"
           onClick={togglePlay}
-          className={`size-10 rounded-full flex items-center justify-center shrink-0 shadow-md transition-all active:scale-90 ${
+          className={`size-10 rounded-full flex items-center justify-center shrink-0 shadow-md transition-all active:scale-90 cursor-pointer ${
             isMine
-              ? "bg-white text-emerald-700 hover:bg-white/90"
-              : "bg-[var(--primary)] text-white hover:opacity-90"
+              ? "bg-white text-indigo-600 hover:bg-white/95 hover:shadow-indigo-500/20"
+              : "bg-gradient-to-tr from-indigo-500 to-purple-600 text-white hover:opacity-95 shadow-indigo-500/25"
           }`}
-          title={isPlaying ? "Pause" : "Play"}
+          title={isPlaying ? "Pause voice note" : "Play voice note"}
+          aria-label={isPlaying ? "Pause voice note" : "Play voice note"}
         >
           {isPlaying ? (
-            <Pause className="size-4 fill-current" />
+            <Pause className="size-4.5 fill-current" />
           ) : (
-            <Play className="size-4 fill-current ml-0.5" />
+            <Play className="size-4.5 fill-current ml-0.5" />
           )}
         </button>
 
+        {/* Waveform Scrubber with Playhead Indicator */}
         <div
-          className="flex-1 flex items-center gap-[2.5px] h-8 cursor-pointer py-1 relative"
+          ref={waveformRef}
+          className="flex-1 flex items-center gap-[2.5px] h-9 cursor-pointer py-1 relative group/wave"
           onClick={handleWaveformClick}
+          title="Click to seek"
         >
           {waveformHeights.map((h, i) => {
-            const barPercent = (i / waveformHeights.length) * 100;
+            const barPercent = (i / (waveformHeights.length - 1)) * 100;
             const isPlayed = barPercent <= progressPercent;
             return (
               <span
                 key={i}
-                className="flex-1 rounded-full transition-colors duration-150"
+                className="flex-1 rounded-full transition-all duration-150"
                 style={{
                   height: `${h}%`,
                   backgroundColor: isPlayed
                     ? isMine
                       ? "#ffffff"
-                      : "var(--primary)"
+                      : "#818cf8"
                     : isMine
                       ? "rgba(255, 255, 255, 0.35)"
-                      : "rgba(255, 255, 255, 0.2)",
+                      : "rgba(255, 255, 255, 0.22)",
+                  boxShadow: isPlayed
+                    ? isMine
+                      ? "0 0 4px rgba(255, 255, 255, 0.6)"
+                      : "0 0 4px rgba(129, 140, 248, 0.5)"
+                    : "none",
                 }}
               />
             );
           })}
+
+          {/* Smooth Playhead Scrubber Dot */}
+          <div
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-none transition-all duration-75"
+            style={{ left: `${progressPercent}%` }}
+          >
+            <div
+              className={`size-2.5 rounded-full ring-2 shadow-sm ${
+                isMine
+                  ? "bg-white ring-indigo-400/40 shadow-black/20"
+                  : "bg-indigo-400 ring-white/40 shadow-black/30"
+              }`}
+            />
+          </div>
         </div>
 
+        {/* 1x / 1.5x / 2x Speed Toggle Button */}
         <button
           type="button"
           onClick={cycleSpeed}
-          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md transition-all active:scale-95 ${
+          className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full transition-all active:scale-95 cursor-pointer shrink-0 ${
             isMine
-              ? "bg-white/20 hover:bg-white/30 text-white"
-              : "bg-white/10 hover:bg-white/20 text-white/80"
+              ? "bg-white/20 hover:bg-white/30 text-white border border-white/25"
+              : "bg-white/10 hover:bg-white/20 text-white/90 border border-white/10"
           }`}
-          title="Playback speed"
+          title="Playback speed (1x, 1.5x, 2x)"
+          aria-label="Toggle playback speed"
         >
           {speed}x
         </button>
       </div>
 
-      <div className="flex items-center justify-between text-[10.5px] px-1 opacity-80 font-medium">
-        <span>
+      {/* Meta Footer: Timer & Voice Note Badge */}
+      <div className="flex items-center justify-between text-[11px] px-1 opacity-85 font-medium tracking-tight">
+        <span className="font-mono">
           {isPlaying
             ? formatAudioTime(currentTime)
-            : formatAudioTime(audioDuration || duration)}
+            : formatAudioTime(effectiveDuration)}
         </span>
-        <span className="flex items-center gap-1">
-          <Mic className="size-3 opacity-70" />
-          <span>Voice message</span>
+        <span className="flex items-center gap-1.5 opacity-90">
+          <Mic className="size-3.5" strokeWidth={2.2} />
+          <span>Voice note</span>
         </span>
       </div>
     </div>
@@ -1390,6 +1487,13 @@ const Messages = ({
                               );
                             }
                             if (msg.message) {
+                              // If this is a voice note and message is just the fallback, don't show duplicate text
+                              if (
+                                msg.mediaType === "audio" &&
+                                (msg.message === "🎤 Voice message" || !msg.message.trim())
+                              ) {
+                                return null;
+                              }
                               return (
                                 <p className="nova-msg__text">
                                   {renderHighlightedText(msg.message, searchQuery)}

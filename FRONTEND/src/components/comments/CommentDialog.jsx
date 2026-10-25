@@ -7,11 +7,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Link } from "react-router-dom";
-import { Send, SendHorizontal, MessageCircle, Loader2, Heart, Bookmark } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Send, SendHorizontal, MessageCircle, Loader2, Heart, Bookmark, X, Repeat2 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import Comment from "@/components/comments/Comment";
 import ShareDialog from "@/components/feed/ShareDialog";
+import SaveToCollectionModal from "@/components/feed/SaveToCollectionModal";
 import axios from "axios";
 import { toast } from "sonner";
 import { setPosts } from "@/redux/postSlice";
@@ -49,8 +50,9 @@ const CommentsPanelSkeleton = () => (
 
 const CommentDialog = ({ open, setOpen }) => {
   const [text, setText] = useState("");
+  const navigate = useNavigate();
   const { selectedPost, posts } = useSelector((store) => store.post);
-  const { user } = useSelector((store) => store.auth);
+  const { user, userProfile } = useSelector((store) => store.auth);
   const [postDetail, setPostDetail] = useState(null);
   const [loading, setLoading] = useState(false);
   const [comments, setComments] = useState([]);
@@ -61,6 +63,7 @@ const CommentDialog = ({ open, setOpen }) => {
   const [isSaved, setIsSaved] = useState(false);
   const [heartPulse, setHeartPulse] = useState(false);
   const [mediaBurst, setMediaBurst] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null);
   const dispatch = useDispatch();
 
   const mediaBurstTimeoutRef = useRef(null);
@@ -74,6 +77,7 @@ const CommentDialog = ({ open, setOpen }) => {
       setPostDetail(null);
       setComments([]);
       setText("");
+      setReplyingTo(null);
       setLoading(false);
       setLiking(false);
       setSaving(false);
@@ -126,8 +130,15 @@ const CommentDialog = ({ open, setOpen }) => {
   useEffect(() => () => window.clearTimeout(mediaBurstTimeoutRef.current), []);
 
   /* ─── SAVE TOGGLE ─── */
+  const [collectionModalOpen, setCollectionModalOpen] = useState(false);
+
   const handleSaveToggle = async () => {
     if (!post?._id || !user?._id || saving) return;
+    if (isSaved) {
+      setCollectionModalOpen(true);
+      return;
+    }
+
     try {
       setSaving(true);
       const response = await axios.get(
@@ -136,14 +147,11 @@ const CommentDialog = ({ open, setOpen }) => {
       );
       if (!response.data.success)
         throw new Error("Unable to update saved posts.");
-      const savedNow = response.data.type === "saved";
-      setIsSaved(savedNow);
+      setIsSaved(true);
       dispatch(updateBookmarks({ postId: post._id }));
-      toast.success(
-        response.data.message || (savedNow ? "Post saved" : "Removed"),
-      );
+      setCollectionModalOpen(true);
     } catch (error) {
-      toast.error(getErrorMessage(error, "Unable to update saved posts."));
+      toast.error(getErrorMessage(error, "Unable to save post."));
     } finally {
       setSaving(false);
     }
@@ -279,6 +287,16 @@ const CommentDialog = ({ open, setOpen }) => {
     lastTapRef.current = now;
   };
 
+  const handleReplyTo = (targetComment) => {
+    const targetUsername =
+      targetComment?.author?.username || targetComment?.user?.username || "";
+    setReplyingTo({
+      id: targetComment?.parentId || targetComment?._id,
+      username: targetUsername,
+    });
+    setText((prev) => (prev ? prev : `@${targetUsername} `));
+  };
+
   /* ─── ADD COMMENT ─── */
   const sendMessageHandler = async () => {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -287,12 +305,13 @@ const CommentDialog = ({ open, setOpen }) => {
     }
     if (!text.trim() || !post?._id || submitting) return;
     const commentText = text.trim();
+    const parentId = replyingTo?.id;
 
     try {
       setSubmitting(true);
       const res = await axios.post(
         apiUrl(`/api/v1/post/${post._id}/comment`),
-        { text: commentText },
+        { text: commentText, parentCommentId: parentId || undefined },
         { withCredentials: true },
       );
 
@@ -307,23 +326,43 @@ const CommentDialog = ({ open, setOpen }) => {
             profilePicture: user?.profilePicture,
           },
           createdAt: new Date().toISOString(),
+          parentId: parentId || null,
+          replies: [],
         };
 
-        const updatedComments = [newComment, ...comments];
-        setComments(updatedComments);
-        setVisibleCount((prev) => prev + 1);
-        setPostDetail((prev) =>
-          prev ? { ...prev, comments: updatedComments } : prev,
-        );
+        if (parentId) {
+          // Add as reply into target comment
+          const updatedComments = comments.map((c) => {
+            if (c._id === parentId) {
+              return {
+                ...c,
+                replies: [...(c.replies || []), newComment],
+              };
+            }
+            return c;
+          });
+          setComments(updatedComments);
+          setPostDetail((prev) =>
+            prev ? { ...prev, comments: updatedComments } : prev,
+          );
+        } else {
+          const updatedComments = [newComment, ...comments];
+          setComments(updatedComments);
+          setVisibleCount((prev) => prev + 1);
+          setPostDetail((prev) =>
+            prev ? { ...prev, comments: updatedComments } : prev,
+          );
 
-        const updatedPosts = posts.map((p) =>
-          p._id === post._id ? { ...p, comments: updatedComments } : p,
-        );
-        dispatch(setPosts(updatedPosts));
+          const updatedPosts = posts.map((p) =>
+            p._id === post._id ? { ...p, comments: updatedComments } : p,
+          );
+          dispatch(setPosts(updatedPosts));
+        }
 
-        toast.success("Comment added");
+        toast.success(parentId ? "Reply added" : "Comment added");
         playCommentSound();
         setText("");
+        setReplyingTo(null);
 
         axios
           .get(apiUrl(`/api/v1/post/${post._id}/detail`), {
@@ -349,6 +388,14 @@ const CommentDialog = ({ open, setOpen }) => {
   const authorAvatar = author.profilePicture || "";
   const authorInitial = authorName.charAt(0).toUpperCase();
   const showSkeleton = loading && !postDetail;
+
+  const postAuthorId = (author?._id || author)?.toString();
+  const reposter =
+    userProfile && postAuthorId && postAuthorId !== userProfile._id?.toString()
+      ? userProfile
+      : user && post?.reposts?.some((id) => (id?._id || id)?.toString() === user._id?.toString())
+      ? user
+      : null;
 
   return (
     <>
@@ -416,6 +463,14 @@ const CommentDialog = ({ open, setOpen }) => {
 
         {/* ═══════════ COMMENTS PANEL ═══════════ */}
         <div className="nova-comment-dialog__panel">
+          {/* REPOST BANNER */}
+          {reposter && (
+            <div className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500/10 border-b border-emerald-500/20 text-xs font-semibold text-emerald-400">
+              <Repeat2 className="size-3.5 stroke-[2.5]" />
+              <span>{reposter._id === user?._id ? "You" : (reposter.fullName || reposter.username)} reposted</span>
+            </div>
+          )}
+
           {/* HEADER */}
           <div className="nova-comment-dialog__header">
             {showSkeleton ? (
@@ -435,7 +490,7 @@ const CommentDialog = ({ open, setOpen }) => {
             ) : (
               <div className="nova-comment-dialog__header-inner">
                 <Link
-                  to={`/profile/${author._id}`}
+                  to={`/profile/${author.username || author._id}`}
                   className="nova-comment-dialog__header-avatar"
                 >
                   <Avatar className="size-9 border border-[var(--border)]">
@@ -445,13 +500,17 @@ const CommentDialog = ({ open, setOpen }) => {
                 </Link>
                 <div className="nova-comment-dialog__header-meta">
                   <Link
-                    to={`/profile/${author._id}`}
+                    to={`/profile/${author.username || author._id}`}
                     className="nova-comment-dialog__header-name"
                   >
                     {authorName}
                   </Link>
                   <span className="nova-comment-dialog__header-sub">
-                    Post author
+                    {post?.repostOf ? (
+                      <span className="text-cyan-400 font-medium">Quoted a post 💬</span>
+                    ) : (
+                      "Post author"
+                    )}
                   </span>
                 </div>
               </div>
@@ -467,7 +526,7 @@ const CommentDialog = ({ open, setOpen }) => {
                 {post?.caption && (
                   <article className="nova-comment-caption">
                     <Link
-                      to={`/profile/${author._id}`}
+                      to={`/profile/${author.username || author._id}`}
                       className="nova-comment-caption__avatar"
                     >
                       <Avatar className="nova-comment__avatar-img">
@@ -478,7 +537,7 @@ const CommentDialog = ({ open, setOpen }) => {
                     <div className="nova-comment-caption__content">
                       <p className="nova-comment__line">
                         <Link
-                          to={`/profile/${author._id}`}
+                          to={`/profile/${author.username || author._id}`}
                           className="nova-comment-caption__author"
                         >
                           {authorName}
@@ -487,6 +546,39 @@ const CommentDialog = ({ open, setOpen }) => {
                           {post.caption}
                         </span>
                       </p>
+
+                      {/* Quoted post embedded card */}
+                      {post?.repostOf && (
+                        <div
+                          onClick={() => {
+                            setOpen(false);
+                            navigate(`/post/${post.repostOf?._id}`);
+                          }}
+                          className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/60 hover:bg-[var(--surface-2)] hover:border-[var(--primary)]/40 transition-all p-3 cursor-pointer group/quote select-none"
+                        >
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <Avatar className="size-5 border border-[var(--border)]">
+                              <AvatarImage src={post.repostOf.author?.profilePicture} />
+                              <AvatarFallback className="text-[9px] font-bold">
+                                {getDisplayName(post.repostOf.author, "U").charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-xs font-semibold text-[var(--foreground)] group-hover/quote:text-[var(--primary)] transition-colors">
+                              {getDisplayName(post.repostOf.author)}
+                            </span>
+                            {post.repostOf.author?.username && (
+                              <span className="text-[11px] text-[var(--muted-foreground)]">
+                                @{post.repostOf.author.username}
+                              </span>
+                            )}
+                          </div>
+                          {post.repostOf.caption && (
+                            <p className="text-xs text-[var(--foreground)]/90 leading-relaxed line-clamp-3">
+                              {post.repostOf.caption}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </article>
                 )}
@@ -511,7 +603,11 @@ const CommentDialog = ({ open, setOpen }) => {
                           className="nova-comment-dialog__item"
                           style={{ animationDelay: `${Math.min(i * 20, 200)}ms` }}
                         >
-                          <Comment comment={comment} />
+                          <Comment
+                            comment={comment}
+                            currentUserId={user?._id}
+                            onReply={handleReplyTo}
+                          />
                         </div>
                       ))}
 
@@ -643,12 +739,37 @@ const CommentDialog = ({ open, setOpen }) => {
                   </button>
                 </div>
 
-                <div className="nova-comment-dialog__composer-wrap">
+                <div className="nova-comment-dialog__composer-wrap flex flex-col gap-1">
+                  {replyingTo && (
+                    <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--muted-foreground)]">
+                      <span>
+                        Replying to{" "}
+                        <span className="font-semibold text-[var(--primary)]">
+                          @{replyingTo.username}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReplyingTo(null);
+                          setText("");
+                        }}
+                        className="p-0.5 hover:text-[var(--foreground)] transition-colors cursor-pointer"
+                        aria-label="Cancel reply"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                  )}
                   <div className="nova-comment-dialog__composer">
                     <Textarea
                       value={text}
                       onChange={(e) => setText(e.target.value)}
-                      placeholder="Add a comment…"
+                      placeholder={
+                        replyingTo
+                          ? `Reply to @${replyingTo.username}…`
+                          : "Add a comment…"
+                      }
                       rows={1}
                       className="nova-flat-inputvnova-comment-dialog__textarea min-h-[42px] max-h-32 resize-none !rounded-2xl !border-0 !bg-transparent !shadow-none !ring-0 !px-1 focus-visible:!ring-0"
                     />
@@ -679,6 +800,15 @@ const CommentDialog = ({ open, setOpen }) => {
       open={shareOpen}
       onOpenChange={setShareOpen}
       post={post}
+    />
+
+    {/* Save to Collection Modal */}
+    <SaveToCollectionModal
+      isOpen={collectionModalOpen}
+      onClose={() => setCollectionModalOpen(false)}
+      post={post}
+      onSaved={() => setIsSaved(true)}
+      onUnsaved={() => setIsSaved(false)}
     />
   </>
 );

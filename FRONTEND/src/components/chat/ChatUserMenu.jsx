@@ -34,7 +34,7 @@ const ChatUserMenu = ({ user, children }) => {
         setStory(userStory);
         setOpen(true);
       } else {
-        navigate(`/profile/${user._id}`);
+        navigate(`/profile/${user.username || user._id}`);
       }
     } catch (error) {
       toast.error(
@@ -108,7 +108,7 @@ const ChatUserMenu = ({ user, children }) => {
             type="button"
             onClick={() => {
               setOpen(false);
-              navigate(`/profile/${user._id}`);
+              navigate(`/profile/${user.username || user._id}`);
             }}
             className="nova-chat-menu__item"
           >
@@ -127,7 +127,7 @@ const ChatUserMenu = ({ user, children }) => {
           onClose={() => setViewerOpen(false)}
           onOpenProfile={() => {
             setViewerOpen(false);
-            navigate(`/profile/${user._id}`);
+            navigate(`/profile/${user.username || user._id}`);
           }}
         />
       )}

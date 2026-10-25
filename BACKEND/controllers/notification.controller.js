@@ -4,6 +4,7 @@ export const getNotifications = async (req, res) => {
   try {
     const notifications = await Notification.find({ recipient: req.id })
       .populate("actor", "username fullName profilePicture")
+      .populate("postId", "image mediaType caption")
       .sort({ createdAt: -1 })
       .limit(100)
       .lean();
@@ -16,7 +17,8 @@ export const getNotifications = async (req, res) => {
         type: notification.type,
         userId: notification.actor?._id,
         userDetails: notification.actor,
-        postId: notification.postId,
+        postId: notification.postId?._id || notification.postId,
+        post: notification.postId,
         messageId: notification.messageId,
         conversationId: notification.conversationId,
         read: notification.read,

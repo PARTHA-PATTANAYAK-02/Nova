@@ -16,12 +16,15 @@ const userSchema = new mongoose.Schema(
     following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     posts: [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }],
     bookmarks: [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }],
+    pinnedPosts: [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }],
+    previousUsernames: [{ type: String, trim: true, lowercase: true }],
     lastSeen: { type: Date, default: Date.now },
   },
   { timestamps: true },
 );
 
 userSchema.index({ username: 1 }, { unique: true, sparse: true });
+userSchema.index({ previousUsernames: 1 });
 userSchema.index({ fullName: 1 });
 
 export const User = mongoose.model("User", userSchema);

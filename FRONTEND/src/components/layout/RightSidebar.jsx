@@ -16,7 +16,7 @@ const RightSidebar = () => {
     <div className="nvs2-right p-2 space-y-3">
       {/* USER CARD */}
       <Link
-        to={`/profile/${user?._id}`}
+        to={`/profile/${user?.username || user?._id}`}
         className="
           group block relative overflow-hidden
           p-3.5 rounded-2xl

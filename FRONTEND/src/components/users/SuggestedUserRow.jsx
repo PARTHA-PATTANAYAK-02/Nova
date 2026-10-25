@@ -19,7 +19,7 @@ const SuggestedUserRow = ({
       {/* avatar / story ring */}
       <button
         type="button"
-        onClick={() => (story ? onOpenStory(story) : onOpenProfile(user._id))}
+        onClick={() => (story ? onOpenStory(story) : onOpenProfile(user.username || user._id))}
         aria-label={
           story
             ? `View ${displayName}'s story`
@@ -51,7 +51,7 @@ const SuggestedUserRow = ({
       {/* name + subtitle */}
       <button
         type="button"
-        onClick={() => onOpenProfile(user._id)}
+        onClick={() => onOpenProfile(user.username || user._id)}
         className="nova-user-row__meta"
       >
         <p className="nova-user-row__name">{displayName}</p>

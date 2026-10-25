@@ -7,6 +7,8 @@ const postSchema = new mongoose.Schema({
   author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   comments: [{ type: mongoose.Schema.Types.ObjectId, ref: "Comment" }],
+  reposts: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  repostOf: { type: mongoose.Schema.Types.ObjectId, ref: "Post", default: null },
 }, { timestamps: true });
 
 postSchema.index({ createdAt: -1 });

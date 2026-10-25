@@ -23,18 +23,32 @@ import {
   UserMinus,
   UserPlus,
   Trash2,
+  QrCode,
+  FolderPlus,
+  Repeat2,
+  Pin,
+  PinOff,
 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import CommentDialog from "@/components/comments/CommentDialog";
 import ShareDialog from "@/components/feed/ShareDialog";
+import NovaQRCodeModal from "@/components/common/NovaQRCodeModal";
+import SaveToCollectionModal from "@/components/feed/SaveToCollectionModal";
+import QuotePostModal from "@/components/feed/QuotePostModal";
 import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
 import { toast } from "sonner";
 import { setPosts, setSelectedPost } from "@/redux/postSlice";
 import { Link, useNavigate } from "react-router-dom";
-import { updateBookmarks, updateFollowing } from "@/redux/authSlice";
+import { updateBookmarks, updateFollowing, updatePinnedPosts } from "@/redux/authSlice";
 import { getDisplayName, getErrorMessage } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
 import { playLikeSound, playCommentSound } from "@/lib/sound";
+import RichText from "@/components/common/RichText";
 
 const MINI_HEARTS = [
   { id: 1, tx: "-26px", ty: "-70px", scale: 0.9, rot: "-18deg", delay: "0ms" },
@@ -73,6 +87,11 @@ const Post = ({ post }) => {
   const [isBookmarkAnimating, setIsBookmarkAnimating] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [collectionModalOpen, setCollectionModalOpen] = useState(false);
+  const [quoteModalOpen, setQuoteModalOpen] = useState(false);
+  const [repostMenuOpen, setRepostMenuOpen] = useState(false);
+  const [reposts, setReposts] = useState(post?.reposts || []);
 
   /* ── ADAPTIVE MEDIA ASPECT ───────────────────── */
   const [mediaAspect, setMediaAspect] = useState(4 / 5);
@@ -109,7 +128,8 @@ const Post = ({ post }) => {
     setLiked(post?.likes?.some((i) => (i?._id || i)?.toString() === user?._id?.toString()) || false);
     setPostLike(post?.likes?.length || 0);
     setComment(post?.comments || []);
-  }, [post?._id, post?.likes, post?.comments, user?._id]);
+    setReposts(post?.reposts || []);
+  }, [post?._id, post?.likes, post?.comments, post?.reposts, user?._id]);
 
   useEffect(() => {
     setBookmarked(
@@ -334,6 +354,11 @@ const Post = ({ post }) => {
 
   const bookmarkHandler = async () => {
     if (actionLoading) return;
+    if (bookmarked) {
+      setCollectionModalOpen(true);
+      return;
+    }
+
     try {
       setActionLoading("bookmark");
       const res = await axios.get(
@@ -341,8 +366,7 @@ const Post = ({ post }) => {
         { withCredentials: true },
       );
       if (res.data.success) {
-        const isSaved = res.data.type === "saved";
-        setBookmarked(isSaved);
+        setBookmarked(true);
         setIsBookmarkAnimating(true);
         window.clearTimeout(bookmarkAnimTimeoutRef.current);
         bookmarkAnimTimeoutRef.current = window.setTimeout(
@@ -350,9 +374,7 @@ const Post = ({ post }) => {
           650,
         );
         dispatch(updateBookmarks({ postId: post._id }));
-        toast.success(
-          res.data.message || (isSaved ? "Post saved" : "Post removed"),
-        );
+        setCollectionModalOpen(true);
       }
     } catch (error) {
       toast.error(getErrorMessage(error, "Unable to update saved posts."));
@@ -400,6 +422,69 @@ const Post = ({ post }) => {
     }
   };
 
+  const isPinned = user?.pinnedPosts?.some(
+    (p) => (p?._id || p)?.toString() === post?._id?.toString(),
+  );
+
+  const togglePinHandler = async () => {
+    if (actionLoading || !post?._id) return;
+    try {
+      setActionLoading("pin");
+      const res = await axios.post(
+        apiUrl(`/api/v1/post/${post._id}/pin`),
+        {},
+        { withCredentials: true },
+      );
+      if (res.data.success) {
+        dispatch(updatePinnedPosts(res.data.pinnedPosts));
+        toast.success(res.data.message);
+      }
+    } catch (err) {
+      console.error("togglePin error:", err.response?.data || err);
+      toast.error(getErrorMessage(err, "Unable to pin/unpin post"));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const repostedByMe = Boolean(
+    user?._id &&
+      reposts?.some((id) => (id?._id || id)?.toString() === user._id?.toString())
+  );
+
+  const toggleRepostHandler = async () => {
+    if (actionLoading || !user?._id || !post?._id) return;
+    try {
+      setActionLoading("repost");
+      const res = await axios.post(
+        apiUrl(`/api/v1/post/${post._id}/repost`),
+        {},
+        { withCredentials: true },
+      );
+      if (res.data.success) {
+        const nextReposts = res.data.reposted
+          ? [...(reposts || []), user._id]
+          : (reposts || []).filter(
+              (id) => (id?._id || id)?.toString() !== user._id?.toString()
+            );
+        setReposts(nextReposts);
+        dispatch(
+          setPosts(
+            posts.map((p) =>
+              p._id === post._id ? { ...p, reposts: nextReposts } : p
+            )
+          )
+        );
+        toast.success(res.data.message);
+      }
+    } catch (err) {
+      console.error("toggleRepost error:", err.response?.data || err);
+      toast.error(getErrorMessage(err, "Unable to repost"));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const openChatWithAuthor = () =>
     navigate("/chat", { state: { user: post.author } });
 
@@ -429,10 +514,18 @@ const Post = ({ post }) => {
         transition-all duration-300 ease-[cubic-bezier(.2,.8,.2,1)]
       "
     >
+      {/* ── REPOST HEADER BANNER ────────────────────── */}
+      {repostedByMe && (
+        <div className="flex items-center gap-1.5 px-4 pt-3 pb-0 text-xs font-semibold text-emerald-400 select-none">
+          <Repeat2 size={13} strokeWidth={2.4} />
+          <span>You reposted</span>
+        </div>
+      )}
+
       {/* ── HEADER ─────────────────────────────────── */}
       <header className="flex items-center gap-3 px-4 py-3">
         <Link
-          to={`/profile/${post.author._id}`}
+          to={`/profile/${post.author?.username || post.author?._id}`}
           className="relative shrink-0 size-10 flex items-center justify-center"
           aria-label={`${getDisplayName(post.author)} profile`}
         >
@@ -450,7 +543,7 @@ const Post = ({ post }) => {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <Link
-              to={`/profile/${post.author._id}`}
+              to={`/profile/${post.author?.username || post.author?._id}`}
               className="text-[13.5px] font-semibold text-[var(--foreground)] truncate hover:text-[var(--primary)] transition-colors duration-200"
             >
               {getDisplayName(post.author)}
@@ -462,8 +555,10 @@ const Post = ({ post }) => {
             )}
           </div>
           <p className="text-[11.5px] text-[var(--muted-foreground)] truncate mt-0.5">
-            {post.location ||
-              (post.mediaType === "video" ? "Video" : "Shared a moment")}
+            {post.repostOf
+              ? "Quoted a post"
+              : post.location ||
+                (post.mediaType === "video" ? "Video" : "Shared a moment")}
           </p>
         </div>
 
@@ -520,22 +615,42 @@ const Post = ({ post }) => {
               )}
               <button
                 type="button"
-                onClick={bookmarkHandler}
-                disabled={!!actionLoading}
+                onClick={() => setQrModalOpen(true)}
                 className="
                   flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
                   text-[var(--foreground)] hover:bg-[var(--surface-2)]
                   active:scale-[.98] transition-all duration-200
-                  outline-none disabled:opacity-50
+                  outline-none
                 "
               >
-                <Bookmark
-                  className={`size-4 ${bookmarked ? "text-[var(--primary)]" : "text-[var(--muted-foreground)]"}`}
-                  strokeWidth={2}
-                  fill={bookmarked ? "currentColor" : "none"}
-                />
-                {bookmarked ? "Remove from saved" : "Save post"}
+                <QrCode className="size-4 text-cyan-400" strokeWidth={2} />
+                Generate QR Code
               </button>
+              {isOwnPost && (
+                <button
+                  type="button"
+                  onClick={togglePinHandler}
+                  disabled={!!actionLoading}
+                  className="
+                    flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
+                    text-[var(--foreground)] hover:bg-[var(--surface-2)]
+                    active:scale-[.98] transition-all duration-200
+                    outline-none disabled:opacity-50
+                  "
+                >
+                  {isPinned ? (
+                    <>
+                      <PinOff className="size-4 text-amber-400" strokeWidth={2} />
+                      <span>Unpin from profile</span>
+                    </>
+                  ) : (
+                    <>
+                      <Pin className="size-4 text-amber-400" strokeWidth={2} />
+                      <span>Pin to profile</span>
+                    </>
+                  )}
+                </button>
+              )}
               {isOwnPost && (
                 <button
                   type="button"
@@ -557,27 +672,90 @@ const Post = ({ post }) => {
         </Dialog>
       </header>
 
-      {/* ── MEDIA (adaptive aspect) ─────────────────── */}
-      <div
-        className="relative bg-[var(--surface-2)]/40 overflow-hidden w-full"
-        style={mediaStyle}
-        onDoubleClick={handleMediaDoubleClick}
-        onTouchStart={(e) => {
-          handleMediaTouchStart(e);
-          if (post.mediaType === "video") showControls();
-        }}
-        onTouchEnd={handleMediaTouchEnd}
-        onMouseMove={post.mediaType === "video" ? showControls : undefined}
-        onMouseLeave={() => {
-          if (videoPlaying) {
-            window.clearTimeout(controlsTimeoutRef.current);
-            controlsTimeoutRef.current = window.setTimeout(
-              () => setControlsVisible(false),
-              500,
-            );
-          }
-        }}
-      >
+      {/* ── QUOTE POST CONTENT (Twitter / Threads style) ── */}
+      {post.repostOf ? (
+        <div className="px-4 pb-2">
+          {/* Quoter's commentary */}
+          {post.caption && (
+            <div className="pb-3 text-[14.5px] leading-relaxed text-[var(--foreground)]">
+              <RichText text={post.caption} />
+            </div>
+          )}
+
+          {/* Embedded Quoted Post Card */}
+          <div
+            onClick={() => navigate(`/post/${post.repostOf?._id}`)}
+            className="rounded-2xl border border-[var(--border)]/80 bg-[var(--surface-2)]/30 hover:bg-[var(--surface-2)]/70 hover:border-[var(--primary)]/40 transition-all cursor-pointer overflow-hidden group/quote select-none shadow-sm"
+          >
+            {/* Original author header */}
+            <div className="flex items-center gap-2 p-3 pb-2">
+              <Avatar className="size-6 border border-[var(--border)]">
+                <AvatarImage src={post.repostOf.author?.profilePicture} />
+                <AvatarFallback className="text-[10px] font-bold">
+                  {getDisplayName(post.repostOf.author, "U").charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-xs font-semibold text-[var(--foreground)] truncate group-hover/quote:text-[var(--primary)] transition-colors">
+                {getDisplayName(post.repostOf.author)}
+              </span>
+              {post.repostOf.author?.username && (
+                <span className="text-[11px] text-[var(--muted-foreground)] truncate">
+                  @{post.repostOf.author.username}
+                </span>
+              )}
+            </div>
+
+            {/* Original caption */}
+            {post.repostOf.caption && (
+              <div className="px-3 pb-2.5 text-xs text-[var(--foreground)]/90 leading-relaxed">
+                <RichText text={post.repostOf.caption} />
+              </div>
+            )}
+
+            {/* Original media */}
+            {post.repostOf.image && (
+              <div className="w-full max-h-[380px] overflow-hidden bg-black/40 border-t border-[var(--border)]/50">
+                {post.repostOf.mediaType === "video" ? (
+                  <video
+                    src={post.repostOf.image}
+                    className="w-full max-h-[380px] object-cover"
+                    controls={false}
+                    muted
+                    playsInline
+                  />
+                ) : (
+                  <img
+                    src={post.repostOf.image}
+                    alt={post.repostOf.caption || "Quoted post"}
+                    className="w-full max-h-[380px] object-cover"
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* ── REGULAR POST MEDIA ── */
+        <div
+          className="relative bg-[var(--surface-2)]/40 overflow-hidden w-full"
+          style={mediaStyle}
+          onDoubleClick={handleMediaDoubleClick}
+          onTouchStart={(e) => {
+            handleMediaTouchStart(e);
+            if (post.mediaType === "video") showControls();
+          }}
+          onTouchEnd={handleMediaTouchEnd}
+          onMouseMove={post.mediaType === "video" ? showControls : undefined}
+          onMouseLeave={() => {
+            if (videoPlaying) {
+              window.clearTimeout(controlsTimeoutRef.current);
+              controlsTimeoutRef.current = window.setTimeout(
+                () => setControlsVisible(false),
+                500,
+              );
+            }
+          }}
+        >
         {/* shimmer while loading */}
         {!mediaReady && (
           <div className="absolute inset-0 skeleton" aria-hidden="true" />
@@ -827,6 +1005,7 @@ const Post = ({ post }) => {
           </div>
         )}
       </div>
+      )}
 
       {/* ── BODY ───────────────────────────────────── */}
       <section className="px-4 pt-3 pb-3">
@@ -910,6 +1089,57 @@ const Post = ({ post }) => {
             </span>
           </div>
 
+          {/* Repost button */}
+          <div className="flex items-center gap-1">
+            <Popover open={repostMenuOpen} onOpenChange={setRepostMenuOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Repost"
+                  className={`
+                    size-10 rounded-full flex items-center justify-center
+                    transition-all duration-200 outline-none active:scale-90
+                    ${repostedByMe ? "text-emerald-400" : "text-[var(--foreground)] hover:text-emerald-400"}
+                    hover:bg-emerald-500/10
+                  `}
+                >
+                  <Repeat2 size={21} strokeWidth={2.1} />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="center"
+                side="top"
+                className="w-40 p-1.5 rounded-2xl bg-[var(--surface)] border border-[var(--border)] shadow-xl z-50"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRepostMenuOpen(false);
+                    toggleRepostHandler();
+                  }}
+                  className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+                >
+                  <Repeat2 className="size-4 text-emerald-400" />
+                  <span>{repostedByMe ? "Undo Repost" : "Repost"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRepostMenuOpen(false);
+                    setQuoteModalOpen(true);
+                  }}
+                  className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+                >
+                  <MessageCircle className="size-4 text-cyan-400" />
+                  <span>Quote Post</span>
+                </button>
+              </PopoverContent>
+            </Popover>
+            <span className="text-[13px] font-semibold tabular-nums text-[var(--foreground)]">
+              {reposts?.length > 0 ? reposts.length.toLocaleString() : ""}
+            </span>
+          </div>
+
           <span className="flex-1" />
 
           {/* Share post */}
@@ -932,6 +1162,11 @@ const Post = ({ post }) => {
             ref={bookmarkRef}
             type="button"
             onClick={bookmarkHandler}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setCollectionModalOpen(true);
+            }}
+            title="Click to save, right-click to organize in collections"
             disabled={!!actionLoading}
             aria-label={bookmarked ? "Remove saved" : "Save"}
             className={`
@@ -959,18 +1194,20 @@ const Post = ({ post }) => {
           </button>
         </div>
 
-        {/* caption */}
-        <p className="mt-2 text-[13.5px] leading-relaxed text-[var(--foreground)]">
-          <Link
-            to={`/profile/${post.author._id}`}
-            className="font-semibold mr-1.5 hover:text-[var(--primary)] transition-colors"
-          >
-            {getDisplayName(post.author)}
-          </Link>
-          {post.caption && (
-            <span className="text-[var(--foreground)]/85">{post.caption}</span>
-          )}
-        </p>
+        {/* caption (only for regular posts) */}
+        {!post.repostOf && (
+          <p className="mt-2 text-[13.5px] leading-relaxed text-[var(--foreground)]">
+            <Link
+              to={`/profile/${post.author?.username || post.author?._id}`}
+              className="font-semibold mr-1.5 hover:text-[var(--primary)] transition-colors"
+            >
+              {getDisplayName(post.author)}
+            </Link>
+            {post.caption && (
+              <RichText text={post.caption} className="text-[var(--foreground)]/85" />
+            )}
+          </p>
+        )}
 
         {/* view comments */}
         {comment.length > 0 && (
@@ -1041,6 +1278,30 @@ const Post = ({ post }) => {
       <ShareDialog
         open={shareOpen}
         onOpenChange={setShareOpen}
+        post={post}
+      />
+
+      <SaveToCollectionModal
+        isOpen={collectionModalOpen}
+        onClose={() => setCollectionModalOpen(false)}
+        post={post}
+        onSaved={() => setBookmarked(true)}
+        onUnsaved={() => setBookmarked(false)}
+      />
+
+      <NovaQRCodeModal
+        isOpen={qrModalOpen}
+        onClose={() => setQrModalOpen(false)}
+        url={`${window.location.origin}/post/${post?._id}`}
+        title={post?.author?.username || "Nova Post"}
+        subtitle="Scan to view post"
+        avatar={post?.author?.profilePicture}
+        type="post"
+      />
+
+      <QuotePostModal
+        isOpen={quoteModalOpen}
+        onClose={() => setQuoteModalOpen(false)}
         post={post}
       />
     </article>

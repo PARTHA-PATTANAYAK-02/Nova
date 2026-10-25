@@ -122,7 +122,7 @@ const EditProfile = () => {
       if (res.data.success) {
         dispatch(setAuthUser({ ...user, ...res.data.user }));
         toast.success(res.data.message || "Profile updated successfully.");
-        navigate(`/profile/${user?._id}`);
+        navigate(`/profile/${res.data?.user?.username || user?.username || user?._id}`);
       }
     } catch (error) {
       toast.error(getErrorMessage(error, "Unable to update your profile."));

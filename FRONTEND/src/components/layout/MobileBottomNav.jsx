@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
-  Heart, Home, MessageCircle, PlusSquare, LogOut, Search, X, User, Trash2,
+  Heart, Home, MessageCircle, PlusSquare, LogOut, Search, Compass, X, User, Trash2,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
@@ -188,12 +188,12 @@ const MobileBottomNav = () => {
             onClick={() => dispatch(setSelectedPost(null))}
           />
 
-          {/* SEARCH */}
+          {/* EXPLORE */}
           <NavBtn
-            to="/search"
-            active={isActive("/search")}
-            icon={<Search className="size-[20px]" strokeWidth={isActive("/search") ? 2.3 : 1.8} />}
-            label="Search"
+            to="/explore"
+            active={isActive("/explore") || isActive("/search")}
+            icon={<Compass className="size-[20px]" strokeWidth={isActive("/explore") || isActive("/search") ? 2.3 : 1.8} />}
+            label="Explore"
           />
 
           {/* CREATE — balanced button */}
@@ -364,6 +364,15 @@ const MobileBottomNav = () => {
                   ))
                 )}
               </div>
+
+              <div className="p-2 border-t border-[var(--border)] bg-[var(--surface-2)]/60">
+                <button
+                  onClick={() => navigate("/notifications")}
+                  className="w-full py-2 px-3 text-xs font-semibold text-center rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-all active:scale-[0.98]"
+                >
+                  Open Notification Center →
+                </button>
+              </div>
             </PopoverContent>
           </Popover>
 
@@ -437,7 +446,7 @@ const MobileBottomNav = () => {
 
             <button
               onClick={() => {
-                navigate(`/profile/${user?._id}`);
+                navigate(`/profile/${user?.username || user?._id}`);
                 setShowProfileMenu(false);
               }}
               className="

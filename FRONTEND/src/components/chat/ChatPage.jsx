@@ -57,10 +57,15 @@ const ChatPage = () => {
   /* ═══ Voice Recording State ═══ */
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [isSendingVoice, setIsSendingVoice] = useState(false);
+  const [liveVolumeBars, setLiveVolumeBars] = useState(() => Array(18).fill(16));
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const recordingTimerRef = useRef(null);
   const audioStreamRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const animFrameRef = useRef(null);
 
   /* ═══ Media Attachment State ═══ */
   const [selectedMediaFile, setSelectedMediaFile] = useState(null);
@@ -281,24 +286,120 @@ const ChatPage = () => {
   ]);
 
   /* ═══ VOICE NOTE RECORDING HANDLERS ═══ */
+  const stopAudioVisualizer = useCallback(() => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+      try {
+        audioContextRef.current.close();
+      } catch (_) {}
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+    setLiveVolumeBars(Array(18).fill(16));
+  }, []);
+
+  const cancelRecording = useCallback(() => {
+    stopAudioVisualizer();
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    if (mediaRecorderRef.current) {
+      // Clear onstop so it does not trigger accidental message send
+      mediaRecorderRef.current.onstop = null;
+      if (mediaRecorderRef.current.state !== "inactive") {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch (_) {}
+      }
+      mediaRecorderRef.current = null;
+    }
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((track) => track.stop());
+      audioStreamRef.current = null;
+    }
+    setIsRecording(false);
+    setIsSendingVoice(false);
+    setRecordingTime(0);
+    audioChunksRef.current = [];
+  }, [stopAudioVisualizer]);
+
+  // Cleanup recording on component unmount
+  useEffect(() => {
+    return () => {
+      cancelRecording();
+    };
+  }, [cancelRecording]);
+
+  // Cancel recording if user switches active conversation
+  useEffect(() => {
+    if (isRecording) {
+      cancelRecording();
+    }
+  }, [selectedUser?._id]);
+
   const startRecording = async () => {
-    if (isRecording) return;
+    if (isRecording || isSendingVoice) return;
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
         toast.error("Audio recording is not supported in this browser.");
         return;
       }
 
+      // Teardown any leftover stream first
+      cancelRecording();
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioStreamRef.current = stream;
 
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm")
-        ? "audio/webm"
-        : "audio/mp4";
+      // Real-time audio frequency visualizer via Web Audio API
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          const audioCtx = new AudioCtx();
+          audioContextRef.current = audioCtx;
+          const source = audioCtx.createMediaStreamSource(stream);
+          const analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 64;
+          analyser.smoothingTimeConstant = 0.65;
+          source.connect(analyser);
+          analyserRef.current = analyser;
 
-      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+          const updateVisualizer = () => {
+            if (!analyserRef.current) return;
+            analyserRef.current.getByteFrequencyData(dataArray);
+            const bars = [];
+            const step = Math.max(1, Math.floor(dataArray.length / 18));
+            for (let i = 0; i < 18; i++) {
+              const val = dataArray[i * step] || 0;
+              const pct = Math.min(100, Math.max(16, Math.round((val / 255) * 100)));
+              bars.push(pct);
+            }
+            setLiveVolumeBars(bars);
+            animFrameRef.current = requestAnimationFrame(updateVisualizer);
+          };
+          animFrameRef.current = requestAnimationFrame(updateVisualizer);
+        }
+      } catch (visErr) {
+        console.warn("AudioContext visualizer notice:", visErr);
+      }
+
+      let options = {};
+      if (typeof MediaRecorder.isTypeSupported === "function") {
+        if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+          options = { mimeType: "audio/webm;codecs=opus" };
+        } else if (MediaRecorder.isTypeSupported("audio/webm")) {
+          options = { mimeType: "audio/webm" };
+        } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+          options = { mimeType: "audio/mp4" };
+        }
+      }
+
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -308,7 +409,7 @@ const ChatPage = () => {
         }
       };
 
-      mediaRecorder.start(200);
+      mediaRecorder.start(100);
       setIsRecording(true);
       setRecordingTime(0);
 
@@ -318,72 +419,71 @@ const ChatPage = () => {
     } catch (err) {
       console.error("Microphone access error:", err);
       toast.error("Microphone access was denied. Please allow microphone permissions.");
+      cancelRecording();
     }
-  };
-
-  const cancelRecording = () => {
-    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
-    }
-    if (audioStreamRef.current) {
-      audioStreamRef.current.getTracks().forEach((track) => track.stop());
-      audioStreamRef.current = null;
-    }
-    setIsRecording(false);
-    setRecordingTime(0);
-    audioChunksRef.current = [];
   };
 
   const sendVoiceNote = async () => {
-    if (!isRecording || !mediaRecorderRef.current) return;
-    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    if (!isRecording || !mediaRecorderRef.current || isSendingVoice) return;
+
+    if (recordingTime < 1) {
+      toast.error("Voice note is too short. Speak longer before sending.");
+      cancelRecording();
+      return;
+    }
+
+    setIsSendingVoice(true);
+    stopAudioVisualizer();
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
 
     const duration = recordingTime;
+    const recorder = mediaRecorderRef.current;
 
-    mediaRecorderRef.current.onstop = async () => {
-      const audioBlob = new Blob(audioChunksRef.current, {
-        type: mediaRecorderRef.current.mimeType || "audio/webm",
-      });
+    recorder.onstop = async () => {
+      try {
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
 
-      if (audioStreamRef.current) {
-        audioStreamRef.current.getTracks().forEach((track) => track.stop());
-        audioStreamRef.current = null;
-      }
+        if (audioStreamRef.current) {
+          audioStreamRef.current.getTracks().forEach((track) => track.stop());
+          audioStreamRef.current = null;
+        }
 
-      if (!audioBlob || audioBlob.size < 100) {
-        toast.error("Recording was too short.");
+        if (!audioBlob || audioBlob.size < 100) {
+          toast.error("Recording was empty or too short.");
+          cancelRecording();
+          return;
+        }
+
+        const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const optimisticMsg = {
+          _id: tempId,
+          senderId: user._id,
+          receiverId: selectedUser._id,
+          mediaType: "audio",
+          mediaUrl: URL.createObjectURL(audioBlob),
+          audioDuration: duration,
+          message: "",
+          createdAt: new Date().toISOString(),
+          status: "sending",
+          __optimistic: true,
+        };
+
+        const nextList = [...(messagesRef.current || []), optimisticMsg];
+        messagesRef.current = nextList;
+        dispatch(setMessages(nextList));
+        playMessageSound();
+
         setIsRecording(false);
         setRecordingTime(0);
-        return;
-      }
 
-      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      const optimisticMsg = {
-        _id: tempId,
-        senderId: user._id,
-        receiverId: selectedUser._id,
-        mediaType: "audio",
-        mediaUrl: URL.createObjectURL(audioBlob),
-        audioDuration: duration,
-        message: "",
-        createdAt: new Date().toISOString(),
-        status: "sending",
-        __optimistic: true,
-      };
-
-      const nextList = [...(messagesRef.current || []), optimisticMsg];
-      messagesRef.current = nextList;
-      dispatch(setMessages(nextList));
-      playMessageSound();
-
-      setIsRecording(false);
-      setRecordingTime(0);
-
-      try {
         const formData = new FormData();
         formData.append("file", audioBlob, "voice-note.webm");
-        formData.append("audioDuration", duration);
+        formData.append("audioDuration", String(duration));
         if (replyingTo?._id) {
           formData.append("replyToId", replyingTo._id);
         }
@@ -414,14 +514,23 @@ const ChatPage = () => {
           }
         }
       } catch (err) {
+        console.error("Voice note send error:", err);
         const latest = messagesRef.current || [];
-        messagesRef.current = latest.filter((m) => m._id !== tempId);
+        messagesRef.current = latest.filter((m) => !m._id.startsWith("temp-"));
         dispatch(setMessages(messagesRef.current));
         toast.error(getErrorMessage(err, "Unable to send voice note."));
+      } finally {
+        setIsSendingVoice(false);
+        audioChunksRef.current = [];
       }
     };
 
-    mediaRecorderRef.current.stop();
+    try {
+      recorder.stop();
+    } catch (err) {
+      console.error("Error stopping recorder:", err);
+      cancelRecording();
+    }
   };
 
   /* ═══ MEDIA ATTACHMENT HANDLERS ═══ */
@@ -1013,43 +1122,57 @@ const ChatPage = () => {
 
             {/* If recording voice, show sleek live voice recorder bar */}
             {isRecording ? (
-              <div className="flex items-center gap-3 px-3 py-2 bg-gradient-to-r from-red-500/15 via-red-500/10 to-transparent border border-red-500/30 rounded-2xl animate-in fade-in duration-200">
-                <div className="flex items-center gap-2">
-                  <span className="size-2.5 rounded-full bg-red-500 animate-ping" />
-                  <span className="font-mono text-xs font-semibold text-red-400">
+              <div className="flex items-center gap-2 sm:gap-3 px-3 py-2 bg-gradient-to-r from-red-500/15 via-red-500/10 to-transparent border border-red-500/30 rounded-2xl animate-in fade-in duration-200 select-none w-full">
+                {/* Blinking indicator & timer */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="relative flex size-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full size-2.5 bg-red-500" />
+                  </span>
+                  <span className="font-mono text-xs font-bold text-red-400 tracking-wider">
                     {formatDuration(recordingTime)}
                   </span>
                 </div>
 
-                <div className="flex-1 flex items-center justify-center gap-1 h-6 px-3">
-                  {[...Array(16)].map((_, i) => (
+                {/* Real-time Frequency Soundwave Visualizer Bouncing to User's Voice */}
+                <div className="flex-1 flex items-center justify-center gap-1 sm:gap-1.5 h-8 px-2 overflow-hidden">
+                  {liveVolumeBars.map((heightPct, i) => (
                     <span
                       key={i}
-                      className="w-1 bg-red-400/80 rounded-full animate-pulse"
+                      className="w-1 sm:w-1.5 rounded-full bg-gradient-to-t from-red-500 to-rose-400 transition-all duration-75"
                       style={{
-                        height: `${Math.max(20, Math.sin(i + recordingTime * 2) * 80 + 30)}%`,
-                        animationDelay: `${(i % 5) * 120}ms`,
+                        height: `${heightPct}%`,
                       }}
                     />
                   ))}
                 </div>
 
+                {/* Discard Recording */}
                 <button
                   type="button"
                   onClick={cancelRecording}
-                  className="p-2 rounded-full text-red-400 hover:bg-red-500/20 transition-colors"
-                  title="Cancel voice recording"
+                  disabled={isSendingVoice}
+                  className="p-2 rounded-full text-red-400 hover:text-red-300 hover:bg-red-500/20 active:scale-95 transition-all shrink-0 cursor-pointer disabled:opacity-50"
+                  title="Discard recording"
+                  aria-label="Discard recording"
                 >
                   <Trash2 className="size-4" />
                 </button>
 
+                {/* Send Voice Note */}
                 <button
                   type="button"
                   onClick={sendVoiceNote}
-                  className="nova-chat__send bg-emerald-600 hover:bg-emerald-500 text-white"
-                  title="Send voice message"
+                  disabled={isSendingVoice}
+                  className="nova-chat__send bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white shadow-lg shadow-emerald-600/30 shrink-0 transition-all cursor-pointer disabled:opacity-50"
+                  title="Send voice note"
+                  aria-label="Send voice note"
                 >
-                  <Send className="size-4" strokeWidth={2.2} />
+                  {isSendingVoice ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Send className="size-4" strokeWidth={2.2} />
+                  )}
                 </button>
               </div>
             ) : (

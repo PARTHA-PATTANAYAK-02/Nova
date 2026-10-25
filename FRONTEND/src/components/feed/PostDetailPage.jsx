@@ -16,6 +16,8 @@ import {
   VolumeX,
   ExternalLink,
   Lock,
+  QrCode,
+  FolderPlus,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import axios from "axios";
@@ -23,11 +25,14 @@ import { toast } from "sonner";
 import { apiUrl } from "@/lib/api";
 import { getDisplayName, getErrorMessage } from "@/lib/utils";
 import { playLikeSound, playCommentSound } from "@/lib/sound";
+import RichText from "@/components/common/RichText";
 import { updateBookmarks } from "@/redux/authSlice";
 import { setPosts } from "@/redux/postSlice";
 import ShareDialog from "@/components/feed/ShareDialog";
 import EmojiPicker from "@/components/chat/EmojiPicker";
 import MainLayout from "@/components/layout/MainLayout";
+import NovaQRCodeModal from "@/components/common/NovaQRCodeModal";
+import SaveToCollectionModal from "@/components/feed/SaveToCollectionModal";
 
 const formatTimeAgo = (iso) => {
   if (!iso) return "";
@@ -66,6 +71,8 @@ const PostDetailPage = () => {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [collectionModalOpen, setCollectionModalOpen] = useState(false);
 
   // Video
   const videoRef = useRef(null);
@@ -191,22 +198,23 @@ const PostDetailPage = () => {
   /* ═══ BOOKMARK HANDLER ═══ */
   const handleBookmarkToggle = async () => {
     if (!post?._id) return;
-    const nextBookmarked = !bookmarked;
-    setBookmarked(nextBookmarked);
+    if (bookmarked) {
+      setCollectionModalOpen(true);
+      return;
+    }
 
+    setBookmarked(true);
     try {
       const res = await axios.get(apiUrl(`/api/v1/post/${post._id}/bookmark`), {
         withCredentials: true,
       });
       if (res.data?.success) {
         dispatch(updateBookmarks({ postId: post._id }));
-        toast.success(
-          nextBookmarked ? "Post saved to your bookmarks" : "Post removed from bookmarks"
-        );
+        setCollectionModalOpen(true);
       }
     } catch (err) {
-      setBookmarked(!nextBookmarked);
-      toast.error(getErrorMessage(err, "Unable to update bookmark."));
+      setBookmarked(false);
+      toast.error(getErrorMessage(err, "Unable to save post."));
     }
   };
 
@@ -432,7 +440,7 @@ const PostDetailPage = () => {
               Post by
             </span>
             <Link
-              to={`/profile/${author._id}`}
+              to={`/profile/${author.username || author._id}`}
               className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
             >
               @{author.username}
@@ -501,7 +509,7 @@ const PostDetailPage = () => {
           {/* Header: Author & Follow */}
           <div className="p-3 sm:p-3.5 border-b border-[var(--border)]/70 flex items-center justify-between shrink-0 bg-[var(--surface)]">
             <Link
-              to={`/profile/${author._id}`}
+              to={`/profile/${author.username || author._id}`}
               className="flex items-center gap-2.5 min-w-0 hover:opacity-85 transition-opacity"
             >
               <Avatar className="size-9 ring-1.5 ring-primary/30 shrink-0">
@@ -562,12 +570,12 @@ const PostDetailPage = () => {
                 <div className="text-xs leading-relaxed min-w-0">
                   <p className="text-[var(--foreground)]">
                     <Link
-                      to={`/profile/${author._id}`}
+                      to={`/profile/${author.username || author._id}`}
                       className="font-semibold mr-1.5 hover:underline"
                     >
                       {author.username}
                     </Link>
-                    {post.caption}
+                    <RichText text={post.caption} />
                   </p>
                   <p className="text-[10px] text-[var(--muted-foreground)] mt-1">
                     {formatTimeAgo(post.createdAt)}
@@ -601,12 +609,12 @@ const PostDetailPage = () => {
                       <div className="text-xs leading-relaxed min-w-0">
                         <p className="text-[var(--foreground)]">
                           <Link
-                            to={`/profile/${commentAuthor._id}`}
+                            to={`/profile/${commentAuthor.username || commentAuthor._id}`}
                             className="font-semibold mr-1.5 hover:underline"
                           >
                             {commentAuthor.username || "User"}
                           </Link>
-                          {comment.text}
+                          <RichText text={comment.text} />
                         </p>
                         <p className="text-[10px] text-[var(--muted-foreground)] mt-0.5">
                           {formatTimeAgo(comment.createdAt)}
@@ -672,6 +680,11 @@ const PostDetailPage = () => {
               <button
                 type="button"
                 onClick={handleBookmarkToggle}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setCollectionModalOpen(true);
+                }}
+                title="Click to save, right-click to organize in collections"
                 className={`size-8 rounded-full flex items-center justify-center active:scale-90 transition-all cursor-pointer ${
                   bookmarked ? "text-amber-400" : "text-[var(--foreground)] hover:text-amber-400"
                 }`}
@@ -748,6 +761,24 @@ const PostDetailPage = () => {
         open={shareOpen}
         onOpenChange={setShareOpen}
         post={post}
+      />
+
+      <SaveToCollectionModal
+        isOpen={collectionModalOpen}
+        onClose={() => setCollectionModalOpen(false)}
+        post={post}
+        onSaved={() => setBookmarked(true)}
+        onUnsaved={() => setBookmarked(false)}
+      />
+
+      <NovaQRCodeModal
+        isOpen={qrModalOpen}
+        onClose={() => setQrModalOpen(false)}
+        url={`${window.location.origin}/post/${post?._id}`}
+        title={post?.author?.username || "Nova Post"}
+        subtitle="Scan to view post"
+        avatar={post?.author?.profilePicture}
+        type="post"
       />
     </div>
     </MainLayout>

@@ -23,7 +23,9 @@ import {
   Users,
   Bookmark,
   Plus,
+  QrCode,
 } from "lucide-react";
+import NovaQRCodeModal from "@/components/common/NovaQRCodeModal";
 import { apiUrl } from "@/lib/api";
 import { getDisplayName } from "@/lib/utils";
 import { playMessageSound } from "@/lib/sound";
@@ -36,6 +38,7 @@ const ShareDialog = ({ open, onOpenChange, post }) => {
   const [sentMap, setSentMap] = useState({});
   const [copied, setCopied] = useState(false);
   const [sharingToStory, setSharingToStory] = useState(false);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
 
   // Story Customizer State
   const [isCustomizingStory, setIsCustomizingStory] = useState(false);
@@ -199,6 +202,7 @@ const ShareDialog = ({ open, onOpenChange, post }) => {
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[440px] p-0 overflow-hidden rounded-3xl border border-[var(--border)]/70 bg-[var(--surface)]/95 backdrop-blur-2xl shadow-2xl !z-[60]">
         {!isCustomizingStory ? (
@@ -352,6 +356,22 @@ const ShareDialog = ({ open, onOpenChange, post }) => {
                 </div>
                 <span className="text-[11.5px] font-medium text-[var(--foreground)]/80">
                   Share via…
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenChange(false);
+                  setQrModalOpen(true);
+                }}
+                className="flex-1 flex flex-col items-center gap-1 py-1.5 px-2 rounded-2xl hover:bg-[var(--surface-2)] transition-colors text-[var(--foreground)]"
+              >
+                <div className="size-9 rounded-full flex items-center justify-center bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 shadow-sm">
+                  <QrCode className="size-4" strokeWidth={2} />
+                </div>
+                <span className="text-[11.5px] font-medium text-[var(--foreground)]/80">
+                  QR Code
                 </span>
               </button>
 
@@ -594,6 +614,17 @@ const ShareDialog = ({ open, onOpenChange, post }) => {
         )}
       </DialogContent>
     </Dialog>
+
+    <NovaQRCodeModal
+      isOpen={qrModalOpen}
+      onClose={() => setQrModalOpen(false)}
+      url={`${window.location.origin}/post/${post?._id}`}
+      title={post?.author?.username || "Nova Post"}
+      subtitle="Scan to view post"
+      avatar={post?.author?.profilePicture}
+      type="post"
+    />
+  </>
   );
 };
 
