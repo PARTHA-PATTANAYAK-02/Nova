@@ -24,11 +24,13 @@ const notificationSchema = new mongoose.Schema(
       ref: "Conversation",
     },
     read: { type: Boolean, default: false },
+    modalDismissed: { type: Boolean, default: false },
   },
   { timestamps: true },
 );
 
 notificationSchema.index({ recipient: 1, createdAt: -1 });
+notificationSchema.index({ recipient: 1, modalDismissed: 1, createdAt: -1 });
 notificationSchema.index({ recipient: 1, read: 1 });
 
 export const Notification = mongoose.model("Notification", notificationSchema);

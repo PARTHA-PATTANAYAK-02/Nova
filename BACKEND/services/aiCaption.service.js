@@ -134,3 +134,99 @@ Instructions:
 
   throw lastError || new Error("Failed to generate caption using Gemini API.");
 };
+
+/**
+ * AI Smart Comment Suggestions generator powered by Google Gemini.
+ * Generates 3 natural, contextual social comments based on post content.
+ */
+export const generateAICommentsWithGemini = async ({
+  caption = "",
+  authorUsername = "",
+  existingComments = [],
+}) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey || apiKey.trim() === "") {
+    return {
+      comments: [
+        { text: "Love this vibe so much! ✨", vibe: "Appreciative", emoji: "✨" },
+        { text: "This post definitely understood the assignment 🔥", vibe: "Witty", emoji: "🔥" },
+        { text: "Where was this? Looks incredible! 💭", vibe: "Curious", emoji: "💭" },
+      ],
+      fallback: true,
+    };
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const promptText = `
+You are Nova AI, an expert social assistant helping a user write genuine, cool, natural comments on a social media post.
+
+Post Context:
+- Post Author: @${authorUsername || "friend"}
+- Post Caption/Topic: "${caption ? caption.trim() : "A moment shared on Nova"}"
+${existingComments && existingComments.length > 0 ? `- Recent comments on post: ${existingComments.slice(0, 3).map((c) => `"${c}"`).join(", ")}` : ""}
+
+Instructions:
+1. Generate exactly 3 distinct, authentic comment options that sound like a real person on Instagram/Nova (NOT robotic or corporate).
+2. The 3 options must have different vibes:
+   - Option 1 (Appreciative): Supportive, hype, or warm with fitting emojis.
+   - Option 2 (Witty): Fun, playful, clever, or relatable one-liner.
+   - Option 3 (Curious): Asks a natural question or points out an interesting detail to spark a conversation.
+3. Keep each comment concise (4 to 12 words max). Avoid generic repetitive clichés like "great photo".
+4. Return strict valid JSON with the format:
+{
+  "comments": [
+    { "text": "...", "vibe": "Appreciative", "emoji": "✨" },
+    { "text": "...", "vibe": "Witty", "emoji": "🔥" },
+    { "text": "...", "vibe": "Curious", "emoji": "💭" }
+  ]
+}
+`.trim();
+
+  let lastError = null;
+
+  for (const modelName of GEMINI_MODELS) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.9,
+          topP: 0.95,
+          maxOutputTokens: 250,
+        },
+      });
+
+      const result = await model.generateContent(promptText);
+      const responseText = result.response.text();
+
+      if (!responseText) throw new Error("Empty response from Gemini");
+
+      const parsed = JSON.parse(responseText);
+      if (Array.isArray(parsed.comments) && parsed.comments.length > 0) {
+        return {
+          comments: parsed.comments.slice(0, 3).map((item) => ({
+            text: (item.text || "").trim(),
+            vibe: item.vibe || "General",
+            emoji: item.emoji || "✨",
+          })),
+          provider: "gemini",
+          model: modelName,
+        };
+      }
+    } catch (err) {
+      lastError = err;
+      continue;
+    }
+  }
+
+  // Graceful fallback if AI call fails
+  return {
+    comments: [
+      { text: "Love this aesthetic so much! ✨", vibe: "Appreciative", emoji: "✨" },
+      { text: "This post definitely understood the assignment 🔥", vibe: "Witty", emoji: "🔥" },
+      { text: "Where was this? Looks incredible! 💭", vibe: "Curious", emoji: "💭" },
+    ],
+    fallback: true,
+  };
+};

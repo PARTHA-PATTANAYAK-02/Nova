@@ -20,6 +20,7 @@ import {
 import AnimatedIcon from "@/components/common/AnimatedIcon";
 import { useDispatch, useSelector } from "react-redux";
 import Comment from "@/components/comments/Comment";
+import AiCommentSuggestions from "@/components/comments/AiCommentSuggestions";
 import ShareDialog from "@/components/feed/ShareDialog";
 import SaveToCollectionModal from "@/components/feed/SaveToCollectionModal";
 import axios from "axios";
@@ -789,19 +790,25 @@ const CommentDialog = ({ open, setOpen }) => {
                       rows={1}
                       className="nova-flat-inputvnova-comment-dialog__textarea min-h-[42px] max-h-32 resize-none !rounded-2xl !border-0 !bg-transparent !shadow-none !ring-0 !px-1 focus-visible:!ring-0"
                     />
-                    <button
-                      type="button"
-                      onClick={sendMessageHandler}
-                      disabled={!text.trim() || submitting}
-                      aria-label="Send comment"
-                      className="nova-comment-dialog__send cursor-pointer"
-                    >
-                      {submitting ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <AnimatedIcon icon={SendIcon} size={16} strokeWidth={2.2} />
-                      )}
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <AiCommentSuggestions
+                        post={selectedPost}
+                        onSelectComment={(val) => setText(val)}
+                      />
+                      <button
+                        type="button"
+                        onClick={sendMessageHandler}
+                        disabled={!text.trim() || submitting}
+                        aria-label="Send comment"
+                        className="nova-comment-dialog__send cursor-pointer"
+                      >
+                        {submitting ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <AnimatedIcon icon={SendIcon} size={16} strokeWidth={2.2} />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </>

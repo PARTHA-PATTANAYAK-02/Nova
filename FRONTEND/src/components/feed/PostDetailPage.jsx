@@ -37,6 +37,7 @@ import EmojiPicker from "@/components/chat/EmojiPicker";
 import MainLayout from "@/components/layout/MainLayout";
 import NovaQRCodeModal from "@/components/common/NovaQRCodeModal";
 import SaveToCollectionModal from "@/components/feed/SaveToCollectionModal";
+import AiCommentSuggestions from "@/components/comments/AiCommentSuggestions";
 
 const formatTimeAgo = (iso) => {
   if (!iso) return "";
@@ -740,6 +741,12 @@ const PostDetailPage = () => {
                   </div>
                 )}
               </div>
+
+              <AiCommentSuggestions
+                post={post}
+                onSelectComment={(val) => setCommentText(val)}
+                compact
+              />
 
               <input
                 ref={commentInputRef}

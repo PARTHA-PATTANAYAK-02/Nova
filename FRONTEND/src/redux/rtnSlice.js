@@ -1,9 +1,11 @@
 import { createSlice } from "@reduxjs/toolkit";
 
+const MODAL_MAX_CAPACITY = 100;
+
 const rtnSlice = createSlice({
   name: "realTimeNotification",
   initialState: {
-    likeNotification: [],
+    likeNotification: [], // Latest 100 notifications for modal / quick view
     unreadCount: 0,
   },
   reducers: {
@@ -16,10 +18,8 @@ const rtnSlice = createSlice({
         `${notification.type}-${notification.userId}-${notification.postId || notification.messageId || Date.now()}`;
 
       if (notification.repeat) {
-        // Repeated action (e.g. like again on the same post) - it was removed
-        // from the list before, so add it fresh. Always bump the unread count.
         state.likeNotification = state.likeNotification.filter(
-          (item) => item._id !== notificationId,
+          (item) => item._id !== notificationId
         );
         state.likeNotification.unshift({
           ...notification,
@@ -27,37 +27,55 @@ const rtnSlice = createSlice({
           _id: notificationId,
         });
         state.unreadCount += 1;
-        return;
-      }
-
-      if (!state.likeNotification.some((item) => item._id === notificationId)) {
+      } else if (!state.likeNotification.some((item) => item._id === notificationId)) {
         state.likeNotification.unshift({
           ...notification,
           _id: notificationId,
         });
         state.unreadCount += 1;
       }
+
+      // FIFO CAP: Keep latest 100 notifications in modal
+      if (state.likeNotification.length > MODAL_MAX_CAPACITY) {
+        state.likeNotification = state.likeNotification.slice(0, MODAL_MAX_CAPACITY);
+      }
     },
     setNotifications: (state, action) => {
-      state.likeNotification = action.payload.notifications || [];
-      state.unreadCount = state.likeNotification.filter(
-        (item) => !item.read,
-      ).length;
+      // Set modal list with max 100
+      state.likeNotification = (action.payload.notifications || []).slice(
+        0,
+        MODAL_MAX_CAPACITY
+      );
+      state.unreadCount = state.likeNotification.filter((item) => !item.read).length;
     },
     markNotificationsRead: (state) => {
       state.unreadCount = 0;
+      state.likeNotification = state.likeNotification.map((item) => ({
+        ...item,
+        read: true,
+      }));
     },
+    // Dismiss only from modal view (still kept in Notification Center)
+    dismissModalNotification: (state, action) => {
+      state.likeNotification = state.likeNotification.filter(
+        (item) => item._id !== action.payload
+      );
+      state.unreadCount = state.likeNotification.filter((item) => !item.read).length;
+    },
+    dismissAllModalNotifications: (state) => {
+      state.likeNotification = [];
+      state.unreadCount = 0;
+    },
+    // Permanent deletion (from Notification Center)
     clearNotifications: (state) => {
       state.likeNotification = [];
       state.unreadCount = 0;
     },
     removeNotification: (state, action) => {
       state.likeNotification = state.likeNotification.filter(
-        (item) => item._id !== action.payload,
+        (item) => item._id !== action.payload
       );
-      state.unreadCount = state.likeNotification.filter(
-        (item) => !item.read,
-      ).length;
+      state.unreadCount = state.likeNotification.filter((item) => !item.read).length;
     },
     removeConversationNotifications: (state, action) => {
       const userId = action.payload?.userId?.toString();
@@ -69,9 +87,7 @@ const rtnSlice = createSlice({
         }
         return !userId || item.userId?.toString() !== userId;
       });
-      state.unreadCount = state.likeNotification.filter(
-        (item) => !item.read,
-      ).length;
+      state.unreadCount = state.likeNotification.filter((item) => !item.read).length;
     },
   },
 });
@@ -80,8 +96,11 @@ export const {
   setLikeNotification,
   setNotifications,
   markNotificationsRead,
+  dismissModalNotification,
+  dismissAllModalNotifications,
   clearNotifications,
   removeNotification,
   removeConversationNotifications,
 } = rtnSlice.actions;
+
 export default rtnSlice.reducer;

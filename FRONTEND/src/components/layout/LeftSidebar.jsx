@@ -20,9 +20,10 @@ import { useDispatch, useSelector } from "react-redux";
 import CreatePost from "@/components/feed/CreatePost";
 import { setSelectedPost } from "@/redux/postSlice";
 import {
-  clearNotifications,
+  dismissAllModalNotifications,
+  dismissModalNotification,
   markNotificationsRead,
-  removeNotification,
+  setNotifications,
 } from "@/redux/rtnSlice";
 import {
   Popover,
@@ -101,27 +102,46 @@ const LeftSidebar = () => {
 
   /* ---------- NOTIFICATIONS ---------- */
   const handleRemoveNotification = (notificationId) => {
-    dispatch(removeNotification(notificationId));
+    dispatch(dismissModalNotification(notificationId));
     axios
-      .delete(apiUrl(`/api/v1/user/notifications/${notificationId}`), {
-        withCredentials: true,
-      })
+      .patch(
+        apiUrl(`/api/v1/user/notifications/${notificationId}/dismiss-modal`),
+        {},
+        { withCredentials: true },
+      )
       .catch(() => undefined);
   };
 
   const handleClearAllNotifications = () => {
     if (likeNotification.length === 0) return;
-    dispatch(clearNotifications());
+    dispatch(dismissAllModalNotifications());
     axios
-      .delete(apiUrl("/api/v1/user/notifications/clear"), {
-        withCredentials: true,
-      })
+      .patch(
+        apiUrl("/api/v1/user/notifications/dismiss-modal-all"),
+        {},
+        { withCredentials: true },
+      )
       .catch(() => undefined);
   };
 
   const handleNotificationsOpen = (isOpen) => {
     if (isOpen) {
       dispatch(markNotificationsRead());
+      axios
+        .get(apiUrl("/api/v1/user/notifications?source=modal"), {
+          withCredentials: true,
+        })
+        .then((res) => {
+          if (res.data?.success) {
+            dispatch(
+              setNotifications({
+                notifications: res.data.notifications || [],
+              }),
+            );
+          }
+        })
+        .catch(() => undefined);
+
       axios
         .patch(
           apiUrl("/api/v1/user/notifications/read"),

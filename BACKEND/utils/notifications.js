@@ -20,7 +20,24 @@ export const createAndEmitNotification = async ({
   // again), but ALWAYS emit so every connected device updates in real time.
   let notification = await Notification.findOne(notificationQuery);
   const isNew = !notification;
+
   if (isNew) {
+    // 500 CAPACITY CAP (FIFO): If at or above 500, purge oldest notifications
+    const MAX_CENTER_CAPACITY = 500;
+    const currentCount = await Notification.countDocuments({ recipient });
+    if (currentCount >= MAX_CENTER_CAPACITY) {
+      const excess = currentCount - MAX_CENTER_CAPACITY + 1;
+      const oldestDocs = await Notification.find({ recipient })
+        .sort({ createdAt: 1 })
+        .limit(excess)
+        .select("_id");
+      if (oldestDocs.length > 0) {
+        await Notification.deleteMany({
+          _id: { $in: oldestDocs.map((d) => d._id) },
+        });
+      }
+    }
+
     notification = await Notification.create({
       recipient,
       actor,
@@ -28,7 +45,14 @@ export const createAndEmitNotification = async ({
       postId,
       messageId,
       conversationId,
+      modalDismissed: false,
+      read: false,
     });
+  } else {
+    // Un-dismiss and mark unread if repeated
+    notification.modalDismissed = false;
+    notification.read = false;
+    await notification.save();
   }
 
   const actorDetails = await User.findById(actor).select(

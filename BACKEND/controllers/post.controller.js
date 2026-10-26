@@ -5,7 +5,10 @@ import { User } from "../models/user.model.js";
 import { Comment } from "../models/comment.model.js";
 import { getReceiverSocketId, io } from "../socket/socket.js";
 import { createAndEmitNotification } from "../utils/notifications.js";
-import { generateAICaptionWithGemini } from "../services/aiCaption.service.js";
+import {
+  generateAICaptionWithGemini,
+  generateAICommentsWithGemini,
+} from "../services/aiCaption.service.js";
 
 // Emit the fully populated post to every connected user so all open feeds,
 // comment dialogs and notification deep-links stay up to date in real time.
@@ -780,6 +783,62 @@ export const generateAICaptionController = async (req, res) => {
     return res.status(503).json({
       success: false,
       message: "AI Magic is currently unavailable. Please try again in a few moments.",
+    });
+  }
+};
+
+/* ══════════════ AI SMART COMMENT SUGGESTIONS ══════════════ */
+export const generateAICommentsController = async (req, res) => {
+  try {
+    const { postId, caption, authorUsername, existingComments } = req.body || {};
+
+    let postCaption = caption || "";
+    let postAuthor = authorUsername || "";
+    let commentsSample = Array.isArray(existingComments) ? existingComments : [];
+
+    // If postId is passed, enrich with database details
+    if (postId) {
+      try {
+        const post = await Post.findById(postId).populate(
+          "author",
+          "username fullName"
+        );
+        if (post) {
+          if (!postCaption) postCaption = post.caption || "";
+          if (!postAuthor) postAuthor = post.author?.username || "";
+          if (commentsSample.length === 0 && Array.isArray(post.comments) && post.comments.length > 0) {
+            const recent = await Comment.find({ post: postId })
+              .sort({ createdAt: -1 })
+              .limit(3)
+              .select("text");
+            commentsSample = recent.map((c) => c.text);
+          }
+        }
+      } catch (e) {
+        // Continue with whatever info was provided
+      }
+    }
+
+    const result = await generateAICommentsWithGemini({
+      caption: postCaption,
+      authorUsername: postAuthor,
+      existingComments: commentsSample,
+    });
+
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error("generateAICommentsController error:", error.message || error);
+    return res.status(200).json({
+      success: true,
+      comments: [
+        { text: "Love this vibe so much! ✨", vibe: "Appreciative", emoji: "✨" },
+        { text: "This post definitely understood the assignment 🔥", vibe: "Witty", emoji: "🔥" },
+        { text: "Where was this? Looks incredible! 💭", vibe: "Curious", emoji: "💭" },
+      ],
+      fallback: true,
     });
   }
 };

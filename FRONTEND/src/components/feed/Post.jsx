@@ -30,6 +30,9 @@ import {
   UserPlusIcon,
   UserMinusIcon,
   EllipsisVerticalIcon,
+  ExpandIcon,
+  Maximize2Icon,
+  Minimize2Icon,
 } from "@animateicons/react/lucide";
 import AnimatedIcon from "@/components/common/AnimatedIcon";
 import {
@@ -38,10 +41,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import CommentDialog from "@/components/comments/CommentDialog";
+import AiCommentSuggestions from "@/components/comments/AiCommentSuggestions";
 import ShareDialog from "@/components/feed/ShareDialog";
 import NovaQRCodeModal from "@/components/common/NovaQRCodeModal";
 import SaveToCollectionModal from "@/components/feed/SaveToCollectionModal";
 import QuotePostModal from "@/components/feed/QuotePostModal";
+import PostLightboxModal from "@/components/feed/PostLightboxModal";
 import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
 import { toast } from "sonner";
@@ -99,6 +104,8 @@ const Post = ({ post }) => {
   /* ── ADAPTIVE MEDIA ASPECT ───────────────────── */
   const [mediaAspect, setMediaAspect] = useState(4 / 5);
   const [mediaReady, setMediaReady] = useState(false);
+  const [mediaFitMode, setMediaFitMode] = useState("fill");
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const { user } = useSelector((s) => s.auth);
   const { posts, selectedPost } = useSelector((s) => s.post);
@@ -742,7 +749,7 @@ const Post = ({ post }) => {
       ) : (
         /* ── REGULAR POST MEDIA ── */
         <div
-          className="relative bg-[var(--surface-2)]/40 overflow-hidden w-full"
+          className="group/media relative bg-[var(--surface-2)]/40 overflow-hidden w-full"
           style={mediaStyle}
           onDoubleClick={handleMediaDoubleClick}
           onTouchStart={(e) => {
@@ -984,16 +991,78 @@ const Post = ({ post }) => {
             </div>
           </>
         ) : (
-          <img
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
-              mediaReady ? "opacity-100" : "opacity-0"
-            }`}
-            src={post.image}
-            alt={post.caption || "Post image"}
-            draggable={false}
-            onLoad={handleImageLoad}
-          />
+          <div className="relative w-full h-full flex items-center justify-center">
+            {/* Ambient blurred backdrop when in fit mode */}
+            {mediaFitMode === "fit" && (
+              <div className="absolute inset-0 overflow-hidden pointer-events-none select-none">
+                <img
+                  src={post.image}
+                  alt=""
+                  aria-hidden="true"
+                  className="w-full h-full object-cover blur-2xl scale-125 opacity-40 brightness-75 transition-opacity duration-300"
+                />
+              </div>
+            )}
+            <img
+              className={`relative z-10 w-full h-full transition-all duration-300 ${
+                mediaFitMode === "fit" ? "object-contain" : "object-cover"
+              } ${mediaReady ? "opacity-100" : "opacity-0"}`}
+              src={post.image}
+              alt={post.caption || "Post image"}
+              draggable={false}
+              onLoad={handleImageLoad}
+            />
+          </div>
         )}
+
+        {/* Floating media overlay controls: Fit/Fill Toggle & Fullscreen Lightbox */}
+        <div
+          className="absolute bottom-3 right-3 z-20 flex items-center gap-1.5 pointer-events-auto opacity-100 md:opacity-0 md:group-hover/media:opacity-100 transition-opacity duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Fit / Fill toggle (for images) */}
+          {post.mediaType !== "video" && (
+            <button
+              type="button"
+              title={mediaFitMode === "fill" ? "Fit whole photo (uncrop)" : "Fill frame"}
+              aria-label={mediaFitMode === "fill" ? "Fit whole photo" : "Fill frame"}
+              onClick={(e) => {
+                e.stopPropagation();
+                setMediaFitMode((m) => (m === "fill" ? "fit" : "fill"));
+              }}
+              className="
+                size-8 rounded-full flex items-center justify-center
+                bg-black/65 hover:bg-black/85 backdrop-blur-md
+                border border-white/20 text-white shadow-md
+                transition-all duration-200 active:scale-90 hover:scale-110 cursor-pointer
+              "
+            >
+              <AnimatedIcon
+                icon={mediaFitMode === "fill" ? Minimize2Icon : Maximize2Icon}
+                size={14}
+              />
+            </button>
+          )}
+
+          {/* Full View Lightbox Button */}
+          <button
+            type="button"
+            title="Full view"
+            aria-label="Full view"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightboxOpen(true);
+            }}
+            className="
+              size-8 rounded-full flex items-center justify-center
+              bg-black/65 hover:bg-black/85 backdrop-blur-md
+              border border-white/20 text-white shadow-md
+              transition-all duration-200 active:scale-90 hover:scale-110 cursor-pointer
+            "
+          >
+            <AnimatedIcon icon={ExpandIcon} size={14} />
+          </button>
+        </div>
 
         {/* heart burst */}
         {heartBurst && (
@@ -1258,6 +1327,11 @@ const Post = ({ post }) => {
               placeholder:text-[var(--muted-foreground)]
             "
           />
+          <AiCommentSuggestions
+            post={post}
+            onSelectComment={(val) => setText(val)}
+            compact
+          />
           <button
             type="submit"
             disabled={!text.trim() || actionLoading === "comment"}
@@ -1310,6 +1384,22 @@ const Post = ({ post }) => {
         isOpen={quoteModalOpen}
         onClose={() => setQuoteModalOpen(false)}
         post={post}
+      />
+
+      <PostLightboxModal
+        open={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        post={post}
+        liked={liked}
+        postLike={postLike}
+        onLike={likeOrDislikeHandler}
+        bookmarked={bookmarked}
+        onBookmark={bookmarkHandler}
+        onCommentClick={() => {
+          dispatch(setSelectedPost(post));
+          setOpen(true);
+        }}
+        onShareClick={() => setShareOpen(true)}
       />
     </article>
   );

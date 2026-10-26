@@ -22,7 +22,10 @@ import axios from "axios";
 import { setAuthUser } from "@/redux/authSlice";
 import { setPosts, setSelectedPost } from "@/redux/postSlice";
 import {
-  markNotificationsRead, removeNotification, clearNotifications,
+  markNotificationsRead,
+  dismissModalNotification,
+  dismissAllModalNotifications,
+  setNotifications,
 } from "@/redux/rtnSlice";
 import { getDisplayName, getErrorMessage, getProfileCompletion } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
@@ -125,23 +128,32 @@ const MobileBottomNav = () => {
   };
 
   const handleRemoveNotification = (id) => {
-    dispatch(removeNotification(id));
+    dispatch(dismissModalNotification(id));
     axios
-      .delete(apiUrl(`/api/v1/user/notifications/${id}`), { withCredentials: true })
+      .patch(apiUrl(`/api/v1/user/notifications/${id}/dismiss-modal`), {}, { withCredentials: true })
       .catch(() => undefined);
   };
 
   const handleClearAllNotifications = () => {
     if (likeNotification.length === 0) return;
-    dispatch(clearNotifications());
+    dispatch(dismissAllModalNotifications());
     axios
-      .delete(apiUrl("/api/v1/user/notifications/clear"), { withCredentials: true })
+      .patch(apiUrl("/api/v1/user/notifications/dismiss-modal-all"), {}, { withCredentials: true })
       .catch(() => undefined);
   };
 
   const handleNotificationsOpen = (isOpen) => {
     if (isOpen) {
       dispatch(markNotificationsRead());
+      axios
+        .get(apiUrl("/api/v1/user/notifications?source=modal"), { withCredentials: true })
+        .then((res) => {
+          if (res.data?.success) {
+            dispatch(setNotifications({ notifications: res.data.notifications || [] }));
+          }
+        })
+        .catch(() => undefined);
+
       axios
         .patch(apiUrl("/api/v1/user/notifications/read"), {}, { withCredentials: true })
         .catch(() => undefined);

@@ -27,6 +27,8 @@ import {
   getNotifications,
   markNotificationsRead,
   removeNotification,
+  dismissModalNotification,
+  dismissAllModalNotifications,
 } from "../controllers/notification.controller.js";
 
 const router = express.Router();
@@ -68,6 +70,12 @@ router
 router
   .route("/notifications/clear")
   .delete(isAuthenticated, clearNotifications);
+router
+  .route("/notifications/dismiss-modal-all")
+  .patch(isAuthenticated, dismissAllModalNotifications);
+router
+  .route("/notifications/:id/dismiss-modal")
+  .patch(isAuthenticated, dismissModalNotification);
 router.route("/notifications/:id").delete(isAuthenticated, removeNotification);
 
 export default router;
