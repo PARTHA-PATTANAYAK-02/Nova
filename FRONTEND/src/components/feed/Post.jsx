@@ -16,6 +16,7 @@ import {
   Volume2,
   VolumeX,
   Heart as LucideHeart,
+  Bookmark as LucideBookmark,
 } from "lucide-react";
 import {
   HeartIcon,
@@ -1101,15 +1102,26 @@ const Post = ({ post }) => {
                 ${isLikeAnimating ? "nova-like-pop" : ""}
               `}
             >
-              <AnimatedIcon
-                icon={HeartIcon}
-                size={22}
-                strokeWidth={2.1}
-                fill={liked ? "currentColor" : "none"}
-                className={`transition-transform duration-200 ${
-                  isLikeAnimating ? "scale-125" : ""
-                }`}
-              />
+              {liked ? (
+                <LucideHeart
+                  size={22}
+                  strokeWidth={2.1}
+                  fill="#ff315d"
+                  color="#ff315d"
+                  className={`transition-transform duration-200 ${
+                    isLikeAnimating ? "scale-125" : "scale-105"
+                  }`}
+                />
+              ) : (
+                <AnimatedIcon
+                  icon={HeartIcon}
+                  size={22}
+                  strokeWidth={2.1}
+                  className={`transition-transform duration-200 ${
+                    isLikeAnimating ? "scale-125" : ""
+                  }`}
+                />
+              )}
               {isLikeAnimating && (
                 <span
                   className="absolute inset-0 rounded-full border-2 border-[#ff315d] animate-ping opacity-75 pointer-events-none"
@@ -1252,15 +1264,26 @@ const Post = ({ post }) => {
               ${isBookmarkAnimating ? "nova-bookmark-spring" : ""}
             `}
           >
-            <AnimatedIcon
-              icon={BookmarkIcon}
-              size={21}
-              strokeWidth={2.1}
-              fill={bookmarked ? "currentColor" : "none"}
-              className={`transition-transform duration-200 ${
-                isBookmarkAnimating ? "scale-125" : ""
-              }`}
-            />
+            {bookmarked ? (
+              <LucideBookmark
+                size={21}
+                strokeWidth={2.1}
+                fill="currentColor"
+                color="currentColor"
+                className={`transition-transform duration-200 ${
+                  isBookmarkAnimating ? "scale-125" : "scale-105"
+                }`}
+              />
+            ) : (
+              <AnimatedIcon
+                icon={BookmarkIcon}
+                size={21}
+                strokeWidth={2.1}
+                className={`transition-transform duration-200 ${
+                  isBookmarkAnimating ? "scale-125" : ""
+                }`}
+              />
+            )}
             {isBookmarkAnimating && (
               <span
                 className="absolute inset-0 rounded-full border-2 border-[var(--primary)] animate-ping opacity-75 pointer-events-none"

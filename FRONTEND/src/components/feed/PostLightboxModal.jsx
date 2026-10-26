@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Heart as LucideHeart } from "lucide-react";
+import { Heart as LucideHeart, Bookmark as LucideBookmark } from "lucide-react";
 import {
   HeartIcon,
   MessageCircleIcon,
@@ -262,11 +262,20 @@ const PostLightboxModal = ({
                   : "bg-white/10 hover:bg-white/20 border-white/15 text-white"
               }`}
             >
-              <AnimatedIcon
-                icon={HeartIcon}
-                size={16}
-                className={liked ? "text-[#ff315d]" : "text-white"}
-              />
+              {liked ? (
+                <LucideHeart
+                  size={16}
+                  fill="#ff315d"
+                  color="#ff315d"
+                  className="scale-105"
+                />
+              ) : (
+                <AnimatedIcon
+                  icon={HeartIcon}
+                  size={16}
+                  className="text-white"
+                />
+              )}
               <span>{postLike || 0}</span>
             </button>
 
@@ -314,11 +323,20 @@ const PostLightboxModal = ({
             title={bookmarked ? "Remove bookmark" : "Save post"}
             aria-label="Bookmark post"
           >
-            <AnimatedIcon
-              icon={BookmarkIcon}
-              size={16}
-              className={bookmarked ? "text-amber-400" : "text-white"}
-            />
+            {bookmarked ? (
+              <LucideBookmark
+                size={16}
+                fill="#f59e0b"
+                color="#f59e0b"
+                className="scale-105"
+              />
+            ) : (
+              <AnimatedIcon
+                icon={BookmarkIcon}
+                size={16}
+                className="text-white"
+              />
+            )}
           </button>
         </div>
       </footer>
