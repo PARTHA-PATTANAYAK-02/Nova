@@ -22,7 +22,6 @@ import {
   LogOut,
   UserPlus,
   UserCheck,
-  MoreHorizontal,
   Trash2,
   Plus,
   Loader2,
@@ -45,6 +44,32 @@ import {
   Youtube,
   Linkedin,
 } from "lucide-react";
+import {
+  QrCodeIcon,
+  UserPlusIcon,
+  UserCheckIcon,
+  MessageCircleIcon,
+  BookmarkIcon,
+  Grid3x3Icon,
+  LockIcon,
+  CompassIcon,
+  HouseIcon,
+  HeartIcon,
+  MapPinIcon,
+  AtSignIcon,
+  LinkIcon as AnimatedLinkIcon,
+  PinIcon,
+  PinOffIcon,
+  Repeat2Icon,
+  SettingsIcon,
+  PencilIcon,
+  KeyRoundIcon,
+  LogOutIcon,
+  XIcon,
+  EllipsisIcon,
+  Trash2Icon,
+} from "@animateicons/react/lucide";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
 import SavedCollectionsSection from "@/components/profile/SavedCollectionsSection";
 import NovaQRCodeModal from "@/components/common/NovaQRCodeModal";
 import {
@@ -103,15 +128,15 @@ const ProfileSkeleton = () => (
 const ProfileNotFound = () => (
   <div className="nova-profile">
     <div className="nova-profile__empty">
-      <div className="nova-profile__empty-orb">
-        <Compass className="size-5" strokeWidth={1.8} />
+      <div className="nova-profile__empty-orb flex items-center justify-center">
+        <CompassIcon size={20} />
       </div>
       <h3 className="nova-profile__empty-title">Profile not found</h3>
       <p className="nova-profile__empty-sub">
         This user doesn't exist or the link is broken.
       </p>
-      <Link to="/" className="nova-btn-primary mt-5">
-        <Home className="size-4" strokeWidth={2} />
+      <Link to="/" className="nova-btn-primary mt-5 inline-flex items-center gap-2">
+        <HouseIcon size={16} />
         Go home
       </Link>
     </div>
@@ -534,11 +559,11 @@ const Profile = () => {
               <button
                 type="button"
                 onClick={() => setQrModalOpen(true)}
-                className="nova-profile__hero-btn"
+                className="nova-profile__hero-btn group"
                 title="Profile QR Code"
                 aria-label="Profile QR Code"
               >
-                <QrCode className="size-4 text-cyan-400" strokeWidth={2.2} />
+                <AnimatedIcon icon={QrCodeIcon} size={16} className="text-cyan-400" />
               </button>
             </>
           ) : (
@@ -546,32 +571,32 @@ const Profile = () => {
               <button
                 type="button"
                 onClick={() => setQrModalOpen(true)}
-                className="nova-profile__hero-btn"
+                className="nova-profile__hero-btn group"
                 title="Profile QR Code"
                 aria-label="Profile QR Code"
               >
-                <QrCode className="size-4 text-cyan-400" strokeWidth={2.2} />
+                <AnimatedIcon icon={QrCodeIcon} size={16} className="text-cyan-400" />
               </button>
               <button
                 type="button"
                 onClick={handleFollowToggle}
                 disabled={followLoading}
                 aria-label={isFollowing ? "Unfollow" : "Follow"}
-                className={`nova-profile__hero-btn ${isFollowing ? "is-following" : "is-follow"}`}
+                className={`nova-profile__hero-btn ${isFollowing ? "is-following" : "is-follow"} group`}
               >
                 {isFollowing ? (
-                  <UserCheck className="size-4" strokeWidth={2.2} />
+                  <AnimatedIcon icon={UserCheckIcon} size={16} />
                 ) : (
-                  <UserPlus className="size-4" strokeWidth={2.2} />
+                  <AnimatedIcon icon={UserPlusIcon} size={16} />
                 )}
               </button>
               <button
                 type="button"
                 onClick={openChat}
                 aria-label="Message"
-                className="nova-profile__hero-btn"
+                className="nova-profile__hero-btn group"
               >
-                <MessageCircle className="size-4" strokeWidth={2.2} />
+                <AnimatedIcon icon={MessageCircleIcon} size={16} />
               </button>
             </>
           )}
@@ -620,7 +645,7 @@ const Profile = () => {
                     className="nova-profile__popover-item"
                   >
                     <span className="nova-profile__popover-orb">
-                      <Compass className="size-3" strokeWidth={2.4} />
+                      <CompassIcon size={14} />
                     </span>
                     View profile photo
                   </button>
@@ -652,13 +677,23 @@ const Profile = () => {
               <div className="nova-profile__handle-row flex-wrap items-center gap-2">
                 {userProfile?.username && (
                   <span className="nova-profile__handle">
-                    <AtSign className="size-3" strokeWidth={1.8} />
+                    <AnimatedIcon
+                      icon={AtSignIcon}
+                      size={12}
+                      className="shrink-0"
+                      parentSelector=".nova-profile__handle"
+                    />
                     {userProfile.username}
                   </span>
                 )}
                 {userProfile?.country && (
                   <span className="nova-profile__handle flex items-center gap-1 text-[var(--muted-foreground)]">
-                    <MapPin className="size-3 text-red-400 shrink-0" strokeWidth={1.8} />
+                    <AnimatedIcon
+                      icon={MapPinIcon}
+                      size={12}
+                      className="text-red-400 shrink-0"
+                      parentSelector=".nova-profile__handle"
+                    />
                     <span>{userProfile.country}</span>
                   </span>
                 )}
@@ -669,7 +704,12 @@ const Profile = () => {
                     rel="noreferrer"
                     className="nova-profile__link"
                   >
-                    <LinkIcon className="size-3 shrink-0" strokeWidth={1.8} />
+                    <AnimatedIcon
+                      icon={AnimatedLinkIcon}
+                      size={12}
+                      className="shrink-0"
+                      parentSelector=".nova-profile__link"
+                    />
                     <span className="truncate">
                       {userProfile.website.replace(/^https?:\/\//, "")}
                     </span>
@@ -759,12 +799,12 @@ const Profile = () => {
                 >
                   {isFollowing ? (
                     <>
-                      <UserCheck className="size-4" strokeWidth={2.2} />
+                      <UserCheckIcon size={16} />
                       Following
                     </>
                   ) : (
                     <>
-                      <UserPlus className="size-4" strokeWidth={2.2} />
+                      <UserPlusIcon size={16} />
                       Follow
                     </>
                   )}
@@ -820,7 +860,7 @@ const Profile = () => {
                     title="Delete highlight"
                     className="absolute -top-1 -right-1 size-5 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                   >
-                    <X className="size-3" />
+                    <XIcon size={12} />
                   </button>
                 )}
               </div>
@@ -833,7 +873,7 @@ const Profile = () => {
       {userProfile?.isPrivateLocked ? (
         <div className="py-20 px-4 flex flex-col items-center justify-center text-center gap-3 max-w-md mx-auto">
           <div className="size-16 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center text-primary shadow-xl shadow-primary/10 mb-1">
-            <Lock className="size-8" />
+            <LockIcon size={32} />
           </div>
           <h3 className="text-lg font-bold text-[var(--foreground)]">This Account is Private</h3>
           <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">
@@ -850,118 +890,114 @@ const Profile = () => {
                 onClick={() => setActiveTab("posts")}
                 className={`nova-tab ${activeTab === "posts" ? "is-active" : ""}`}
               >
-            <Grid3x3 className="size-3.5" strokeWidth={2} />
-            Posts
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("saved")}
-            className={`nova-tab ${activeTab === "saved" ? "is-active" : ""}`}
-          >
-            <BookmarkCheck className="size-3.5" strokeWidth={2} />
-            Saved
-          </button>
-        </div>
-      </div>
-
-      {/* ══════════════ GRID OR SAVED COLLECTIONS ══════════════ */}
-      {activeTab === "saved" ? (
-        <SavedCollectionsSection
-          allBookmarks={userProfile?.bookmarks || []}
-          isLoggedInUser={isLoggedInUserProfile}
-          onOpenPost={handlePostClick}
-        />
-      ) : displayedPost?.length > 0 ? (
-        <div className="nova-profile__grid">
-          {displayedPost.map((post, index) => {
-            const canManage = isLoggedInUserProfile && activeTab === "posts";
-            const isDeleting = deletingId === post._id;
-            const isPinned = pinnedIds.has(post._id?.toString());
-            const postAuthorId = (post.author?._id || post.author)?.toString();
-            const isRepost = Boolean(
-              postAuthorId &&
-                userProfile?._id &&
-                postAuthorId !== userProfile._id.toString(),
-            );
-            const isQuote = Boolean(post.repostOf);
-
-            return (
-              <div
-                key={post._id}
-                className="nova-profile__tile"
-                style={{ animationDelay: `${Math.min(index * 35, 350)}ms` }}
+                <AnimatedIcon icon={Grid3x3Icon} size={15} />
+                Posts
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("saved")}
+                className={`nova-tab ${activeTab === "saved" ? "is-active" : ""}`}
               >
-                {isPinned && activeTab === "posts" && (
-                  <div
-                    className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-amber-500/40 text-amber-400 text-[10px] font-bold flex items-center gap-1 shadow-lg pointer-events-none"
-                    title="Pinned post"
-                  >
-                    <Pin className="size-2.5 fill-amber-400 text-amber-400" />
-                    <span>Pinned</span>
-                  </div>
-                )}
+                <AnimatedIcon icon={BookmarkIcon} size={15} />
+                Saved
+              </button>
+            </div>
+          </div>
 
-                {isRepost && activeTab === "posts" && (
-                  <div
-                    className={`absolute top-2 ${isPinned ? "right-2" : "left-2"} z-10 px-2 py-0.5 rounded-full bg-black/65 backdrop-blur-md border border-emerald-500/40 text-emerald-400 text-[10px] font-bold flex items-center gap-1 shadow-lg pointer-events-none`}
-                    title={`Reposted from @${post.author?.username || "user"}`}
-                  >
-                    <Repeat2 className="size-2.5" />
-                    <span>Repost</span>
-                  </div>
-                )}
+          {/* ══════════════ GRID OR SAVED COLLECTIONS ══════════════ */}
+          {activeTab === "saved" ? (
+            <SavedCollectionsSection
+              allBookmarks={userProfile?.bookmarks || []}
+              isLoggedInUser={isLoggedInUserProfile}
+              onOpenPost={handlePostClick}
+            />
+          ) : displayedPost?.length > 0 ? (
+            <div className="nova-profile__grid">
+              {displayedPost.map((post, index) => {
+                const canManage = isLoggedInUserProfile && activeTab === "posts";
+                const isDeleting = deletingId === post._id;
+                const isPinned = pinnedIds.has(post._id?.toString());
+                const postAuthorId = (post.author?._id || post.author)?.toString();
+                const isRepost = Boolean(
+                  postAuthorId &&
+                    userProfile?._id &&
+                    postAuthorId !== userProfile._id.toString(),
+                );
+                const isQuote = Boolean(post.repostOf);
 
-                {isQuote && !isRepost && activeTab === "posts" && (
+                return (
                   <div
-                    className={`absolute top-2 ${isPinned ? "right-2" : "left-2"} z-10 px-2 py-0.5 rounded-full bg-black/65 backdrop-blur-md border border-cyan-500/40 text-cyan-400 text-[10px] font-bold flex items-center gap-1 shadow-lg pointer-events-none`}
-                    title="Quote post"
+                    key={post._id}
+                    className="nova-profile__tile"
+                    style={{ animationDelay: `${Math.min(index * 35, 350)}ms` }}
                   >
-                    <MessageCircle className="size-2.5" />
-                    <span>Quote</span>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => handlePostClick(post)}
-                  className="nova-profile__tile-btn"
-                  aria-label="Open post"
-                >
-                  {post.mediaType === "video" ? (
-                    <video
-                      src={post.image}
-                      aria-label="Video post"
-                      className="nova-profile__tile-media"
-                      muted
-                      playsInline
-                      preload="metadata"
-                      disablePictureInPicture
-                      controlsList="nodownload noplaybackrate nofullscreen"
-                      onContextMenu={(event) => event.preventDefault()}
-                    />
-                  ) : (
-                    <img
-                      src={post.image}
-                      alt="Post"
-                      className="nova-profile__tile-media"
-                      draggable={false}
-                    />
-                  )}
+                    {isPinned && activeTab === "posts" && (
+                      <div
+                        className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-amber-500/40 text-amber-400 text-[10px] font-bold flex items-center gap-1 shadow-lg pointer-events-none"
+                        title="Pinned post"
+                      >
+                        <PinIcon size={12} className="text-amber-400" />
+                        <span>Pinned</span>
+                      </div>
+                    )}
 
-                  <div className="nova-profile__tile-overlay">
-                    <span className="nova-profile__tile-stat">
-                      <Heart
-                        className="size-4"
-                        fill="currentColor"
-                        strokeWidth={0}
-                      />
-                      {fmtCount(post.likes?.length || 0)}
-                    </span>
-                    <span className="nova-profile__tile-stat">
-                      <MessageCircle className="size-4" strokeWidth={2} />
-                      {fmtCount(post.comments?.length || 0)}
-                    </span>
-                  </div>
-                </button>
+                    {isRepost && activeTab === "posts" && (
+                      <div
+                        className={`absolute top-2 ${isPinned ? "right-2" : "left-2"} z-10 px-2 py-0.5 rounded-full bg-black/65 backdrop-blur-md border border-emerald-500/40 text-emerald-400 text-[10px] font-bold flex items-center gap-1 shadow-lg pointer-events-none`}
+                        title={`Reposted from @${post.author?.username || "user"}`}
+                      >
+                        <Repeat2Icon size={12} />
+                        <span>Repost</span>
+                      </div>
+                    )}
+
+                    {isQuote && !isRepost && activeTab === "posts" && (
+                      <div
+                        className={`absolute top-2 ${isPinned ? "right-2" : "left-2"} z-10 px-2 py-0.5 rounded-full bg-black/65 backdrop-blur-md border border-cyan-500/40 text-cyan-400 text-[10px] font-bold flex items-center gap-1 shadow-lg pointer-events-none`}
+                        title="Quote post"
+                      >
+                        <MessageCircleIcon size={12} />
+                        <span>Quote</span>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handlePostClick(post)}
+                      className="nova-profile__tile-btn"
+                      aria-label="Open post"
+                    >
+                      {post.mediaType === "video" ? (
+                        <video
+                          src={post.image}
+                          aria-label="Video post"
+                          className="nova-profile__tile-media"
+                          muted
+                          playsInline
+                          preload="metadata"
+                          disablePictureInPicture
+                          controlsList="nodownload noplaybackrate nofullscreen"
+                          onContextMenu={(event) => event.preventDefault()}
+                        />
+                      ) : (
+                        <img
+                          src={post.image}
+                          alt="Post"
+                          className="nova-profile__tile-media"
+                          draggable={false}
+                        />
+                      )}
+
+                      <div className="nova-profile__tile-overlay">
+                        <span className="nova-profile__tile-stat">
+                          <HeartIcon size={16} />
+                          {fmtCount(post.likes?.length || 0)}
+                        </span>
+                        <span className="nova-profile__tile-stat">
+                          <MessageCircleIcon size={16} />
+                          {fmtCount(post.comments?.length || 0)}
+                        </span>
+                      </div>
+                    </button>
 
                 {canManage && (
                   <Popover
@@ -973,10 +1009,11 @@ const Profile = () => {
                         type="button"
                         aria-label="Post options"
                         onClick={(e) => e.stopPropagation()}
-                        className="nova-profile__tile-menu"
+                        className="nova-profile__tile-menu cursor-pointer group"
                       >
-                        <MoreHorizontal
-                          className="size-3.5"
+                        <AnimatedIcon
+                          icon={EllipsisIcon}
+                          size={15}
                           strokeWidth={2.4}
                         />
                       </button>
@@ -989,16 +1026,16 @@ const Profile = () => {
                       <button
                         type="button"
                         onClick={() => handleTogglePin(post._id)}
-                        className="nova-profile__menu-item flex items-center gap-2"
+                        className="nova-profile__menu-item flex items-center gap-2 cursor-pointer group"
                       >
                         {isPinned ? (
                           <>
-                            <PinOff className="size-3.5 text-amber-400" />
+                            <AnimatedIcon icon={PinOffIcon} size={14} className="text-amber-400" />
                             <span>Unpin post</span>
                           </>
                         ) : (
                           <>
-                            <Pin className="size-3.5 text-amber-400" />
+                            <AnimatedIcon icon={PinIcon} size={14} className="text-amber-400" />
                             <span>Pin to profile</span>
                           </>
                         )}
@@ -1007,9 +1044,9 @@ const Profile = () => {
                         type="button"
                         onClick={() => handleDeletePost(post._id)}
                         disabled={isDeleting}
-                        className="nova-profile__menu-item is-danger flex items-center gap-2"
+                        className="nova-profile__menu-item is-danger flex items-center gap-2 cursor-pointer group"
                       >
-                        <Trash2 className="size-3.5" strokeWidth={2} />
+                        <AnimatedIcon icon={Trash2Icon} size={14} strokeWidth={2} />
                         {isDeleting ? "Deleting…" : "Delete post"}
                       </button>
                     </PopoverContent>
@@ -1028,7 +1065,7 @@ const Profile = () => {
       ) : (
         <div className="nova-profile__empty">
           <div className="nova-profile__empty-orb">
-            <Compass className="size-5" strokeWidth={1.8} />
+            <AnimatedIcon icon={CompassIcon} size={20} strokeWidth={1.8} />
           </div>
           <h3 className="nova-profile__empty-title">No posts yet</h3>
           <p className="nova-profile__empty-sub">
@@ -1520,12 +1557,12 @@ const SettingsMenu = ({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="nova-profile__hero-btn is-settings"
+          className="nova-profile__hero-btn is-settings group"
           aria-label="Settings"
           title="Settings"
         >
-          <span className="nova-profile__hero-btn-orb">
-            <Settings className="size-4" strokeWidth={2.2} />
+          <span className="nova-profile__hero-btn-orb flex items-center justify-center">
+            <SettingsIcon size={16} />
             {needsUsername && <span className="nova-profile__hero-btn-dot" />}
           </span>
           <span className="nova-profile__hero-btn-label">Settings</span>
@@ -1651,9 +1688,11 @@ const SettingsMenu = ({
             close();
             onQrCode();
           }}
-          className="nova-settings-item"
+          className="nova-settings-item group"
         >
-          <QrCode className="size-4 text-cyan-400" strokeWidth={1.8} />
+          <span className="text-cyan-400 flex items-center justify-center">
+            <AnimatedIcon icon={QrCodeIcon} size={16} />
+          </span>
           <span className="flex-1">QR Code</span>
         </button>
 
@@ -1662,9 +1701,9 @@ const SettingsMenu = ({
             close();
             onEdit();
           }}
-          className="nova-settings-item"
+          className="nova-settings-item group"
         >
-          <Pencil className="size-4" strokeWidth={1.8} />
+          <AnimatedIcon icon={PencilIcon} size={16} />
           <span className="flex-1">Edit profile</span>
           {needsUsername && (
             <span className="size-2 rounded-full bg-[var(--danger)]" />
@@ -1676,9 +1715,9 @@ const SettingsMenu = ({
             close();
             onSecurity();
           }}
-          className="nova-settings-item"
+          className="nova-settings-item group"
         >
-          <KeyRound className="size-4" strokeWidth={1.8} />
+          <AnimatedIcon icon={KeyRoundIcon} size={16} />
           Password & security
         </button>
 
@@ -1687,9 +1726,9 @@ const SettingsMenu = ({
             close();
             onSaved();
           }}
-          className="nova-settings-item"
+          className="nova-settings-item group"
         >
-          <Bookmark className="size-4" strokeWidth={1.8} />
+          <AnimatedIcon icon={BookmarkIcon} size={16} />
           Saved
         </button>
 
@@ -1700,9 +1739,9 @@ const SettingsMenu = ({
             close();
             onLogout();
           }}
-          className="nova-settings-item is-danger"
+          className="nova-settings-item is-danger group"
         >
-          <LogOut className="size-4" strokeWidth={1.8} />
+          <AnimatedIcon icon={LogOutIcon} size={16} />
           Log out
         </button>
       </PopoverContent>

@@ -8,27 +8,30 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Bookmark,
   Check,
-  EllipsisVertical,
-  Heart,
-  MessageCircle,
   Pause,
   Play,
   RotateCcw,
-  SendHorizontal,
   Volume1,
   Volume2,
   VolumeX,
-  UserMinus,
-  UserPlus,
-  Trash2,
-  QrCode,
-  FolderPlus,
-  Repeat2,
-  Pin,
-  PinOff,
+  Heart as LucideHeart,
 } from "lucide-react";
+import {
+  HeartIcon,
+  MessageCircleIcon,
+  BookmarkIcon,
+  SendIcon,
+  Repeat2Icon,
+  PinIcon,
+  PinOffIcon,
+  Trash2Icon,
+  QrCodeIcon,
+  UserPlusIcon,
+  UserMinusIcon,
+  EllipsisVerticalIcon,
+} from "@animateicons/react/lucide";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
 import {
   Popover,
   PopoverContent,
@@ -517,7 +520,7 @@ const Post = ({ post }) => {
       {/* ── REPOST HEADER BANNER ────────────────────── */}
       {repostedByMe && (
         <div className="flex items-center gap-1.5 px-4 pt-3 pb-0 text-xs font-semibold text-emerald-400 select-none">
-          <Repeat2 size={13} strokeWidth={2.4} />
+          <AnimatedIcon icon={Repeat2Icon} size={13} strokeWidth={2.4} />
           <span>You reposted</span>
         </div>
       )}
@@ -576,7 +579,7 @@ const Post = ({ post }) => {
                 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40
               "
             >
-              <EllipsisVertical size={20} strokeWidth={2} />
+              <AnimatedIcon icon={EllipsisVerticalIcon} size={20} />
             </button>
           </DialogTrigger>
 
@@ -596,18 +599,20 @@ const Post = ({ post }) => {
                     flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
                     text-[var(--foreground)] hover:bg-[var(--surface-2)]
                     active:scale-[.98] transition-all duration-200
-                    outline-none disabled:opacity-50
+                    outline-none disabled:opacity-50 cursor-pointer group
                   "
                 >
                   {isFollowing ? (
-                    <UserMinus
-                      className="size-4 text-[var(--danger)]"
-                      strokeWidth={2}
+                    <AnimatedIcon
+                      icon={UserMinusIcon}
+                      size={16}
+                      className="text-[var(--danger)]"
                     />
                   ) : (
-                    <UserPlus
-                      className="size-4 text-[var(--primary)]"
-                      strokeWidth={2}
+                    <AnimatedIcon
+                      icon={UserPlusIcon}
+                      size={16}
+                      className="text-[var(--primary)]"
                     />
                   )}
                   {isFollowing ? "Unfollow account" : "Follow account"}
@@ -620,10 +625,10 @@ const Post = ({ post }) => {
                   flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
                   text-[var(--foreground)] hover:bg-[var(--surface-2)]
                   active:scale-[.98] transition-all duration-200
-                  outline-none
+                  outline-none cursor-pointer group
                 "
               >
-                <QrCode className="size-4 text-cyan-400" strokeWidth={2} />
+                <AnimatedIcon icon={QrCodeIcon} size={16} className="text-cyan-400" />
                 Generate QR Code
               </button>
               {isOwnPost && (
@@ -635,17 +640,17 @@ const Post = ({ post }) => {
                     flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
                     text-[var(--foreground)] hover:bg-[var(--surface-2)]
                     active:scale-[.98] transition-all duration-200
-                    outline-none disabled:opacity-50
+                    outline-none disabled:opacity-50 cursor-pointer group
                   "
                 >
                   {isPinned ? (
                     <>
-                      <PinOff className="size-4 text-amber-400" strokeWidth={2} />
+                      <AnimatedIcon icon={PinOffIcon} size={16} className="text-amber-400" />
                       <span>Unpin from profile</span>
                     </>
                   ) : (
                     <>
-                      <Pin className="size-4 text-amber-400" strokeWidth={2} />
+                      <AnimatedIcon icon={PinIcon} size={16} className="text-amber-400" />
                       <span>Pin to profile</span>
                     </>
                   )}
@@ -660,10 +665,10 @@ const Post = ({ post }) => {
                     flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
                     text-[var(--danger)] hover:bg-[var(--danger)]/8
                     active:scale-[.98] transition-all duration-200
-                    outline-none disabled:opacity-50
+                    outline-none disabled:opacity-50 cursor-pointer group
                   "
                 >
-                  <Trash2 className="size-4" strokeWidth={2} />
+                  <AnimatedIcon icon={Trash2Icon} size={16} />
                   Delete post
                 </button>
               )}
@@ -996,7 +1001,7 @@ const Post = ({ post }) => {
             className="nova-heart-burst absolute inset-0 flex items-center justify-center pointer-events-none z-30"
             aria-hidden="true"
           >
-            <Heart
+            <LucideHeart
               size={130}
               strokeWidth={2.2}
               fill="#ff315d"
@@ -1021,13 +1026,14 @@ const Post = ({ post }) => {
               className={`
                 relative size-10 rounded-full flex items-center justify-center
                 transition-all duration-200 outline-none
-                active:scale-90
+                active:scale-90 cursor-pointer
                 ${liked ? "text-[#ff315d]" : "text-[var(--foreground)] hover:text-[#ff315d]"}
                 hover:bg-[var(--danger)]/8
                 ${isLikeAnimating ? "nova-like-pop" : ""}
               `}
             >
-              <Heart
+              <AnimatedIcon
+                icon={HeartIcon}
                 size={22}
                 strokeWidth={2.1}
                 fill={liked ? "currentColor" : "none"}
@@ -1058,7 +1064,7 @@ const Post = ({ post }) => {
                       animationDelay: h.delay,
                     }}
                   >
-                    <Heart size={14} fill="currentColor" stroke="none" />
+                    <LucideHeart size={14} fill="currentColor" stroke="none" />
                   </span>
                 ))}
               </div>
@@ -1079,10 +1085,10 @@ const Post = ({ post }) => {
                 size-10 rounded-full flex items-center justify-center
                 text-[var(--foreground)] hover:text-[var(--primary)]
                 hover:bg-[var(--primary)]/8
-                active:scale-90 transition-all duration-200 outline-none
+                active:scale-90 transition-all duration-200 outline-none cursor-pointer
               "
             >
-              <MessageCircle size={22} strokeWidth={2.1} />
+              <AnimatedIcon icon={MessageCircleIcon} size={22} strokeWidth={2.1} />
             </button>
             <span className="text-[13px] font-semibold tabular-nums text-[var(--foreground)]">
               {comment.length > 0 ? comment.length.toLocaleString() : ""}
@@ -1098,12 +1104,12 @@ const Post = ({ post }) => {
                   aria-label="Repost"
                   className={`
                     size-10 rounded-full flex items-center justify-center
-                    transition-all duration-200 outline-none active:scale-90
+                    transition-all duration-200 outline-none active:scale-90 cursor-pointer
                     ${repostedByMe ? "text-emerald-400" : "text-[var(--foreground)] hover:text-emerald-400"}
                     hover:bg-emerald-500/10
                   `}
                 >
-                  <Repeat2 size={21} strokeWidth={2.1} />
+                  <AnimatedIcon icon={Repeat2Icon} size={21} strokeWidth={2.1} />
                 </button>
               </PopoverTrigger>
               <PopoverContent
@@ -1117,9 +1123,9 @@ const Post = ({ post }) => {
                     setRepostMenuOpen(false);
                     toggleRepostHandler();
                   }}
-                  className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+                  className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer group"
                 >
-                  <Repeat2 className="size-4 text-emerald-400" />
+                  <AnimatedIcon icon={Repeat2Icon} size={16} className="text-emerald-400" />
                   <span>{repostedByMe ? "Undo Repost" : "Repost"}</span>
                 </button>
                 <button
@@ -1128,9 +1134,9 @@ const Post = ({ post }) => {
                     setRepostMenuOpen(false);
                     setQuoteModalOpen(true);
                   }}
-                  className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+                  className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer group"
                 >
-                  <MessageCircle className="size-4 text-cyan-400" />
+                  <AnimatedIcon icon={MessageCircleIcon} size={16} className="text-cyan-400" />
                   <span>Quote Post</span>
                 </button>
               </PopoverContent>
@@ -1151,10 +1157,10 @@ const Post = ({ post }) => {
               size-10 rounded-full flex items-center justify-center
               text-[var(--foreground)] hover:text-[var(--primary)]
               hover:bg-[var(--primary)]/8
-              active:scale-90 transition-all duration-200 outline-none
+              active:scale-90 transition-all duration-200 outline-none cursor-pointer
             "
           >
-            <SendHorizontal size={21} strokeWidth={2.1} />
+            <AnimatedIcon icon={SendIcon} size={21} strokeWidth={2.1} />
           </button>
 
           {/* Bookmark */}
@@ -1171,13 +1177,14 @@ const Post = ({ post }) => {
             aria-label={bookmarked ? "Remove saved" : "Save"}
             className={`
               relative size-10 rounded-full flex items-center justify-center
-              transition-all duration-200 outline-none active:scale-90
+              transition-all duration-200 outline-none active:scale-90 cursor-pointer
               ${bookmarked ? "text-[var(--primary)]" : "text-[var(--foreground)] hover:text-[var(--primary)]"}
               hover:bg-[var(--primary)]/8
               ${isBookmarkAnimating ? "nova-bookmark-spring" : ""}
             `}
           >
-            <Bookmark
+            <AnimatedIcon
+              icon={BookmarkIcon}
               size={21}
               strokeWidth={2.1}
               fill={bookmarked ? "currentColor" : "none"}

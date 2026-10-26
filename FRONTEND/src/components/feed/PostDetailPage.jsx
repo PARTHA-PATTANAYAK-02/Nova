@@ -2,23 +2,27 @@ import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import {
-  ArrowLeft,
-  Heart,
-  MessageCircle,
-  Bookmark,
-  Share2,
-  Send,
   Loader2,
-  Trash2,
-  Sparkles,
   Smile,
   Volume2,
   VolumeX,
-  ExternalLink,
   Lock,
-  QrCode,
-  FolderPlus,
+  Heart as LucideHeart,
 } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  HeartIcon,
+  MessageCircleIcon,
+  BookmarkIcon,
+  ShareIcon,
+  SendIcon,
+  Trash2Icon,
+  SparklesIcon,
+  ExternalLinkIcon,
+  QrCodeIcon,
+  FolderPlusIcon,
+} from "@animateicons/react/lucide";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import axios from "axios";
 import { toast } from "sonner";
@@ -334,7 +338,7 @@ const PostDetailPage = () => {
 
           {/* Badge */}
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-xs font-semibold text-pink-400 mb-3">
-            <Sparkles className="size-3" />
+            <AnimatedIcon icon={SparklesIcon} size={12} />
             <span>Shared Post on Nova</span>
           </div>
 
@@ -397,7 +401,7 @@ const PostDetailPage = () => {
       <MainLayout>
         <div className="h-[75vh] flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto">
           <div className="size-14 rounded-2xl bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center mb-3 text-[var(--muted-foreground)]">
-            <ExternalLink className="size-6" />
+            <AnimatedIcon icon={ExternalLinkIcon} size={24} />
           </div>
           <h2 className="text-base font-bold text-[var(--foreground)] mb-1">
             Post Not Available
@@ -429,9 +433,9 @@ const PostDetailPage = () => {
           <button
             type="button"
             onClick={handleBack}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--surface-2)] hover:bg-[var(--surface-3)] border border-[var(--border)] text-xs font-semibold text-[var(--foreground)] transition-all cursor-pointer active:scale-95"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--surface-2)] hover:bg-[var(--surface-3)] border border-[var(--border)] text-xs font-semibold text-[var(--foreground)] transition-all cursor-pointer active:scale-95 group"
           >
-            <ArrowLeft className="size-4" />
+            <AnimatedIcon icon={ArrowLeftIcon} size={16} />
             <span>Back</span>
           </button>
 
@@ -499,7 +503,7 @@ const PostDetailPage = () => {
           {/* Double Tap Heart Burst */}
           {heartBurst && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-heart-burst">
-              <Heart className="size-20 fill-red-500 text-red-500 drop-shadow-[0_0_24px_rgba(239,68,68,0.85)]" />
+              <LucideHeart className="size-20 fill-red-500 text-red-500 drop-shadow-[0_0_24px_rgba(239,68,68,0.85)]" />
             </div>
           )}
         </div>
@@ -523,7 +527,7 @@ const PostDetailPage = () => {
                   <p className="text-xs sm:text-sm font-semibold text-[var(--foreground)] truncate">
                     {author.fullName || author.username}
                   </p>
-                  <Sparkles className="size-2.5 text-pink-500 shrink-0" />
+                  <AnimatedIcon icon={SparklesIcon} size={12} className="text-pink-500 shrink-0" />
                 </div>
                 <p className="text-[11px] text-[var(--muted-foreground)] truncate">
                   @{author.username}
@@ -587,7 +591,7 @@ const PostDetailPage = () => {
             {/* Comments List */}
             {comments.length === 0 ? (
               <div className="py-8 text-center text-xs text-[var(--muted-foreground)]">
-                <MessageCircle className="size-7 mx-auto mb-1.5 opacity-40" />
+                <AnimatedIcon icon={MessageCircleIcon} size={28} className="mx-auto mb-1.5 opacity-40" />
                 <p className="font-semibold text-[var(--foreground)] text-xs">No comments yet</p>
                 <p className="text-[11px]">Start the conversation…</p>
               </div>
@@ -629,7 +633,7 @@ const PostDetailPage = () => {
                         className="opacity-0 group-hover/c:opacity-100 p-1 text-[var(--muted-foreground)] hover:text-red-400 transition-opacity cursor-pointer shrink-0"
                         title="Delete comment"
                       >
-                        <Trash2 className="size-3.5" />
+                        <AnimatedIcon icon={Trash2Icon} size={14} />
                       </button>
                     )}
                   </div>
@@ -651,10 +655,11 @@ const PostDetailPage = () => {
                   }`}
                   aria-label="Like post"
                 >
-                  <Heart
-                    className={`size-5 transition-transform ${
-                      liked ? "fill-red-500 scale-110" : ""
-                    }`}
+                  <AnimatedIcon
+                    icon={HeartIcon}
+                    size={20}
+                    className={liked ? "text-red-500" : ""}
+                    fill={liked ? "currentColor" : "none"}
                   />
                 </button>
 
@@ -664,7 +669,7 @@ const PostDetailPage = () => {
                   className="size-8 rounded-full flex items-center justify-center text-[var(--foreground)] hover:text-primary active:scale-90 transition-transform cursor-pointer"
                   aria-label="Comment"
                 >
-                  <MessageCircle className="size-5" />
+                  <AnimatedIcon icon={MessageCircleIcon} size={20} />
                 </button>
 
                 <button
@@ -673,7 +678,7 @@ const PostDetailPage = () => {
                   className="size-8 rounded-full flex items-center justify-center text-[var(--foreground)] hover:text-primary active:scale-90 transition-transform cursor-pointer"
                   aria-label="Share"
                 >
-                  <Share2 className="size-4.5" />
+                  <AnimatedIcon icon={ShareIcon} size={18} />
                 </button>
               </div>
 
@@ -690,10 +695,11 @@ const PostDetailPage = () => {
                 }`}
                 aria-label="Bookmark post"
               >
-                <Bookmark
-                  className={`size-4.5 transition-transform ${
-                    bookmarked ? "fill-amber-400" : ""
-                  }`}
+                <AnimatedIcon
+                  icon={BookmarkIcon}
+                  size={18}
+                  className={bookmarked ? "text-amber-400" : ""}
+                  fill={bookmarked ? "currentColor" : "none"}
                 />
               </button>
             </div>

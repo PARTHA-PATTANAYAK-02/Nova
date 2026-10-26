@@ -1,19 +1,22 @@
 import React, { useEffect, useState, useCallback } from "react";
 import {
   Folder,
-  FolderPlus,
-  Plus,
-  MoreHorizontal,
-  Trash2,
-  Edit2,
-  ArrowLeft,
-  Bookmark,
   Play,
-  Heart,
-  MessageCircle,
   Loader2,
   Images,
 } from "lucide-react";
+import {
+  FolderPlusIcon,
+  PlusIcon,
+  EllipsisIcon,
+  Trash2Icon,
+  PencilIcon,
+  ArrowLeftIcon,
+  BookmarkIcon,
+  HeartIcon,
+  MessageCircleIcon,
+} from "@animateicons/react/lucide";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
 import {
   Popover,
   PopoverContent,
@@ -318,9 +321,9 @@ const SavedCollectionsSection = ({
           <button
             type="button"
             onClick={() => setShowCreateModal(true)}
-            className="px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 bg-white/5 hover:bg-white/10 text-indigo-400 hover:text-indigo-300 border border-dashed border-indigo-500/30 transition-all cursor-pointer flex items-center gap-1"
+            className="px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 bg-white/5 hover:bg-white/10 text-indigo-400 hover:text-indigo-300 border border-dashed border-indigo-500/30 transition-all cursor-pointer flex items-center gap-1 group"
           >
-            <Plus className="size-3.5" />
+            <AnimatedIcon icon={PlusIcon} size={14} />
             <span>New</span>
           </button>
         )}
@@ -334,9 +337,9 @@ const SavedCollectionsSection = ({
             <button
               type="button"
               onClick={() => setActiveCollection(null)}
-              className="flex items-center gap-2 text-xs font-semibold text-white/70 hover:text-white transition-colors cursor-pointer py-1"
+              className="flex items-center gap-2 text-xs font-semibold text-white/70 hover:text-white transition-colors cursor-pointer py-1 group"
             >
-              <ArrowLeft className="size-4" />
+              <AnimatedIcon icon={ArrowLeftIcon} size={16} />
               <span>All Collections</span>
             </button>
 
@@ -364,7 +367,7 @@ const SavedCollectionsSection = ({
             </div>
           ) : (activeCollection === "all" ? allBookmarks : activeCollectionPosts).length === 0 ? (
             <div className="py-16 text-center text-white/50 text-xs">
-              <Bookmark className="size-8 mx-auto mb-2 opacity-30 text-indigo-400" />
+              <AnimatedIcon icon={BookmarkIcon} size={32} className="mx-auto mb-2 opacity-30 text-indigo-400" />
               <p className="font-semibold text-white/80">No posts in this collection yet.</p>
               <p className="text-[11px] text-white/40 mt-1">
                 Tap the bookmark icon on any post to save it here!
@@ -408,11 +411,11 @@ const SavedCollectionsSection = ({
 
                     <div className="nova-profile__tile-overlay">
                       <span className="nova-profile__tile-stat">
-                        <Heart className="size-4 fill-current" />
+                        <AnimatedIcon icon={HeartIcon} size={16} fill="currentColor" />
                         {post.likes?.length || 0}
                       </span>
                       <span className="nova-profile__tile-stat">
-                        <MessageCircle className="size-4" strokeWidth={2} />
+                        <AnimatedIcon icon={MessageCircleIcon} size={16} strokeWidth={2} />
                         {post.comments?.length || 0}
                       </span>
                     </div>
@@ -426,10 +429,10 @@ const SavedCollectionsSection = ({
                         e.stopPropagation();
                         setOrganizingPost(post);
                       }}
-                      className="absolute top-2 right-2 size-7 rounded-full bg-black/75 backdrop-blur-md text-white/80 hover:text-indigo-400 hover:bg-black/95 flex items-center justify-center opacity-0 group-hover/coltile:opacity-100 transition-opacity shadow-md z-10 cursor-pointer"
+                      className="absolute top-2 right-2 size-7 rounded-full bg-black/75 backdrop-blur-md text-white/80 hover:text-indigo-400 hover:bg-black/95 flex items-center justify-center opacity-0 group-hover/coltile:opacity-100 transition-opacity shadow-md z-10 cursor-pointer group"
                       title="Add to a collection"
                     >
-                      <FolderPlus className="size-3.5" />
+                      <AnimatedIcon icon={FolderPlusIcon} size={14} />
                     </button>
                   )}
 
@@ -438,10 +441,10 @@ const SavedCollectionsSection = ({
                     <button
                       type="button"
                       onClick={(e) => handleRemovePostFromCurrent(post._id, e)}
-                      className="absolute top-2 left-2 size-7 rounded-full bg-black/75 backdrop-blur-md text-white/70 hover:text-red-400 hover:bg-black/95 flex items-center justify-center opacity-0 group-hover/coltile:opacity-100 transition-opacity shadow-md z-10 cursor-pointer"
+                      className="absolute top-2 left-2 size-7 rounded-full bg-black/75 backdrop-blur-md text-white/70 hover:text-red-400 hover:bg-black/95 flex items-center justify-center opacity-0 group-hover/coltile:opacity-100 transition-opacity shadow-md z-10 cursor-pointer group"
                       title="Remove from this collection"
                     >
-                      <Trash2 className="size-3.5" />
+                      <AnimatedIcon icon={Trash2Icon} size={14} />
                     </button>
                   )}
                 </div>
@@ -467,7 +470,7 @@ const SavedCollectionsSection = ({
 
               <div className="relative z-10">
                 <h4 className="text-sm font-bold text-white drop-shadow-md flex items-center gap-1.5">
-                  <Bookmark className="size-3.5 fill-indigo-400 text-indigo-400" />
+                  <AnimatedIcon icon={BookmarkIcon} size={14} className="text-indigo-400" fill="currentColor" />
                   <span>All Posts</span>
                 </h4>
                 <p className="text-[11px] text-white/70 font-medium drop-shadow-sm">
@@ -500,9 +503,9 @@ const SavedCollectionsSection = ({
                       <PopoverTrigger asChild>
                         <button
                           type="button"
-                          className="size-7 rounded-full bg-black/60 backdrop-blur-md text-white/80 hover:text-white flex items-center justify-center transition-colors"
+                          className="size-7 rounded-full bg-black/60 backdrop-blur-md text-white/80 hover:text-white flex items-center justify-center transition-colors cursor-pointer group"
                         >
-                          <MoreHorizontal className="size-3.5" />
+                          <AnimatedIcon icon={EllipsisIcon} size={14} />
                         </button>
                       </PopoverTrigger>
                       <PopoverContent align="end" className="w-36 p-1 bg-[#181a2e] border-white/10 text-white">
@@ -512,17 +515,17 @@ const SavedCollectionsSection = ({
                             setRenamingCol(col);
                             setRenameValue(col.name);
                           }}
-                          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-white/10 transition-colors text-left"
+                          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-white/10 transition-colors text-left cursor-pointer group"
                         >
-                          <Edit2 className="size-3" />
+                          <AnimatedIcon icon={PencilIcon} size={13} />
                           <span>Rename</span>
                         </button>
                         <button
                           type="button"
                           onClick={(e) => handleDeleteCollection(col._id, e)}
-                          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-red-400 hover:bg-red-500/20 transition-colors text-left"
+                          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-red-400 hover:bg-red-500/20 transition-colors text-left cursor-pointer group"
                         >
-                          <Trash2 className="size-3" />
+                          <AnimatedIcon icon={Trash2Icon} size={13} />
                           <span>Delete</span>
                         </button>
                       </PopoverContent>
@@ -557,7 +560,7 @@ const SavedCollectionsSection = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 pb-2 border-b border-white/10">
-              <FolderPlus className="size-5 text-indigo-400" />
+              <AnimatedIcon icon={FolderPlusIcon} size={20} className="text-indigo-400" />
               <h3 className="text-sm font-bold text-white">New Collection</h3>
             </div>
 
@@ -605,7 +608,7 @@ const SavedCollectionsSection = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 pb-2 border-b border-white/10">
-              <Edit2 className="size-4 text-indigo-400" />
+              <AnimatedIcon icon={PencilIcon} size={16} className="text-indigo-400" />
               <h3 className="text-sm font-bold text-white">Rename Collection</h3>
             </div>
 

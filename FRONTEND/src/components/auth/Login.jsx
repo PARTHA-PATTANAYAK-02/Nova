@@ -21,11 +21,20 @@ const Login = () => {
   const changeEventHandler = (e) =>
     setInput({ ...input, [e.target.name]: e.target.value });
 
-  const getRedirectPath = () => {
-    if (location.state?.from?.pathname) {
-      return location.state.from.pathname + (location.state.from.search || "");
+  const getDestination = () => {
+    const fromPath = location.state?.from?.pathname;
+    if (
+      !fromPath ||
+      fromPath === "/" ||
+      fromPath === "/login" ||
+      fromPath === "/signup" ||
+      fromPath.startsWith("/settings") ||
+      fromPath.startsWith("/account-security") ||
+      location.state?.loggedOut
+    ) {
+      return "/";
     }
-    return "/welcome";
+    return fromPath + (location.state.from.search || "");
   };
 
   const handleSubmit = async (e) => {
@@ -38,10 +47,7 @@ const Login = () => {
       });
       if (res.data.success) {
         dispatch(setAuthUser(res.data.user));
-        const destination =
-          location.state?.from?.pathname && location.state.from.pathname !== "/"
-            ? location.state.from.pathname + (location.state.from.search || "")
-            : "/";
+        const destination = getDestination();
         navigate("/welcome", { state: { redirectTo: destination }, replace: true });
         setInput({ email: "", password: "" });
       }
@@ -56,10 +62,7 @@ const Login = () => {
 
   useEffect(() => {
     if (user) {
-      const destination =
-        location.state?.from?.pathname && location.state.from.pathname !== "/"
-          ? location.state.from.pathname + (location.state.from.search || "")
-          : "/";
+      const destination = getDestination();
       navigate("/welcome", { state: { redirectTo: destination }, replace: true });
     }
   }, [navigate, user, location]);

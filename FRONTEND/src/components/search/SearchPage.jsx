@@ -1,20 +1,23 @@
 import React, { useEffect, useState } from "react";
 import {
-  Search,
   UserRound,
-  X,
   ArrowRight,
-  Sparkles,
-  Users,
-  Hash,
-  Heart,
-  MessageCircle,
   Play,
-  Repeat2,
-  TrendingUp,
-  Compass,
-  Flame,
 } from "lucide-react";
+import {
+  SearchIcon,
+  XIcon,
+  SparklesIcon,
+  UsersIcon,
+  HeartIcon,
+  MessageCircleIcon,
+  Repeat2Icon,
+  TrendingUpIcon,
+  CompassIcon,
+  HashIcon,
+  FlameIcon,
+} from "@animateicons/react/lucide";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useDispatch, useSelector } from "react-redux";
@@ -44,6 +47,24 @@ const SearchPage = () => {
   const [exploreLoading, setExploreLoading] = useState(true);
   const [exploreError, setExploreError] = useState(null);
   const [openCommentDialog, setOpenCommentDialog] = useState(false);
+
+  // Typewriter effect: types "Explore what's trending." once on mount
+  const FULL_TITLE = "Explore what's trending.";
+  const [typedLength, setTypedLength] = useState(0);
+  const [typingComplete, setTypingComplete] = useState(false);
+
+  useEffect(() => {
+    let current = 0;
+    const timer = setInterval(() => {
+      current += 1;
+      setTypedLength(current);
+      if (current >= FULL_TITLE.length) {
+        clearInterval(timer);
+        setTimeout(() => setTypingComplete(true), 600);
+      }
+    }, 45);
+    return () => clearInterval(timer);
+  }, []);
 
   useGetSuggestedUsers();
 
@@ -162,12 +183,22 @@ const SearchPage = () => {
     <main className="nv-search">
       {/* ═══════════ HEADER ═══════════ */}
       <header className="nv-search__head">
-        <span className="nv-search__eyebrow">
-          <Sparkles className="size-3.5" strokeWidth={2.2} />
+        <span className="nv-search__eyebrow group">
+          <AnimatedIcon icon={SparklesIcon} size={14} strokeWidth={2.2} />
           Explore & Discover
         </span>
-        <h1 className="nv-search__title">
-          Explore what's <em>trending.</em>
+        <h1 className="nv-search__title min-h-[1.25em] flex items-baseline flex-wrap">
+          {typedLength <= 15 ? (
+            <span>{FULL_TITLE.slice(0, typedLength)}</span>
+          ) : (
+            <span>
+              Explore what's{" "}
+              <em>{FULL_TITLE.slice(15, typedLength)}</em>
+            </span>
+          )}
+          {!typingComplete && (
+            <span className="inline-block w-[2.5px] h-[0.85em] ml-1 bg-gradient-to-b from-primary to-accent animate-pulse align-middle" />
+          )}
         </h1>
         <p className="nv-search__sub">
           Discover viral posts, hot topics, and inspiring creators from across the network.
@@ -175,9 +206,9 @@ const SearchPage = () => {
       </header>
 
       {/* ═══════════ SEARCH BAR ═══════════ */}
-      <div className="nv-search__bar">
+      <div className="nv-search__bar group">
         <span className="nv-search__bar-icon">
-          <Search className="size-4" strokeWidth={2} />
+          <AnimatedIcon icon={SearchIcon} size={16} strokeWidth={2} />
         </span>
         <input
           value={query}
@@ -196,9 +227,9 @@ const SearchPage = () => {
             type="button"
             onClick={clearSearch}
             aria-label="Clear search"
-            className="nv-search__clear"
+            className="nv-search__clear cursor-pointer group/clear"
           >
-            <X className="size-3.5" strokeWidth={2.4} />
+            <AnimatedIcon icon={XIcon} size={14} strokeWidth={2.4} />
           </button>
         )}
       </div>
@@ -206,8 +237,8 @@ const SearchPage = () => {
       {/* ═══════════ TRENDING HASHTAGS SCROLLER ═══════════ */}
       {trendingTags.length > 0 && (
         <div className="mt-4 mb-6">
-          <div className="flex items-center gap-2 mb-2.5 px-1">
-            <Flame className="size-4 text-amber-400 animate-pulse" />
+          <div className="flex items-center gap-2 mb-2.5 px-1 group">
+            <AnimatedIcon icon={FlameIcon} size={16} className="text-amber-400" />
             <span className="text-xs font-semibold uppercase tracking-wider text-[var(--foreground)]/80">
               Trending Hashtags
             </span>
@@ -226,10 +257,10 @@ const SearchPage = () => {
                     bg-[var(--surface-2)]/80 hover:bg-primary/15
                     border border-[var(--border)] hover:border-primary/40
                     text-xs font-medium text-[var(--foreground)]
-                    transition-all duration-200 active:scale-95
+                    transition-all duration-200 active:scale-95 cursor-pointer
                   "
                 >
-                  <Hash className="size-3.5 text-primary group-hover:scale-110 transition-transform" />
+                  <AnimatedIcon icon={HashIcon} size={14} className="text-primary" />
                   <span className="font-semibold">{tagName}</span>
                   {count > 1 && (
                     <span className="text-[10px] text-[var(--muted-foreground)] px-1.5 py-0.2 rounded-full bg-[var(--surface)]">
@@ -250,7 +281,7 @@ const SearchPage = () => {
             type="button"
             onClick={() => setActiveTab("explore")}
             className={`
-              flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all
+              flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer group
               ${
                 activeTab === "explore"
                   ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
@@ -258,7 +289,7 @@ const SearchPage = () => {
               }
             `}
           >
-            <Compass className="size-4" />
+            <AnimatedIcon icon={CompassIcon} size={16} />
             Explore Grid
           </button>
 
@@ -266,7 +297,7 @@ const SearchPage = () => {
             type="button"
             onClick={() => setActiveTab("people")}
             className={`
-              flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all
+              flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer group
               ${
                 activeTab === "people"
                   ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
@@ -274,7 +305,7 @@ const SearchPage = () => {
               }
             `}
           >
-            <Users className="size-4" />
+            <AnimatedIcon icon={UsersIcon} size={16} />
             Discover People
           </button>
         </div>
@@ -299,7 +330,7 @@ const SearchPage = () => {
           ) : explorePosts.length === 0 ? (
             <div className="nv-search__empty">
               <span className="nv-search__empty-orb">
-                <Compass className="size-5" strokeWidth={1.8} />
+                <AnimatedIcon icon={CompassIcon} size={20} strokeWidth={1.8} />
               </span>
               <p className="nv-search__empty-title">No explore posts yet</p>
               <p className="nv-search__empty-sub">
@@ -352,7 +383,7 @@ const SearchPage = () => {
                       )}
                       {isRepost && (
                         <span className="p-1.5 rounded-full bg-black/60 backdrop-blur-md text-emerald-400 shadow-md">
-                          <Repeat2 className="size-3" />
+                          <AnimatedIcon icon={Repeat2Icon} size={12} parentSelector=".group" />
                         </span>
                       )}
                     </div>
@@ -366,11 +397,11 @@ const SearchPage = () => {
                     ">
                       <div className="flex items-center gap-4 sm:gap-6 text-sm sm:text-base font-bold drop-shadow">
                         <span className="flex items-center gap-1.5">
-                          <Heart className="size-4 sm:size-5 fill-white text-white" />
+                          <AnimatedIcon icon={HeartIcon} size={18} fill="white" className="text-white" parentSelector=".group" />
                           {post.likes?.length || 0}
                         </span>
                         <span className="flex items-center gap-1.5">
-                          <MessageCircle className="size-4 sm:size-5 fill-white text-white" />
+                          <AnimatedIcon icon={MessageCircleIcon} size={18} fill="white" className="text-white" parentSelector=".group" />
                           {post.comments?.length || 0}
                         </span>
                       </div>
@@ -398,7 +429,7 @@ const SearchPage = () => {
         <section className="nv-search__panel">
           <div className="nv-search__panel-head">
             <span className="nv-search__panel-title">
-              <Sparkles className="size-3.5" strokeWidth={2.2} />
+              <AnimatedIcon icon={SparklesIcon} size={14} strokeWidth={2.2} />
               Suggested for you
             </span>
             {suggestedList.length > 0 && (
@@ -482,7 +513,7 @@ const SearchPage = () => {
         ) : users.length === 0 ? (
           <div className="nv-search__empty">
             <span className="nv-search__empty-orb">
-              <Search className="size-5" strokeWidth={1.8} />
+              <AnimatedIcon icon={SearchIcon} size={20} strokeWidth={1.8} />
             </span>
             <p className="nv-search__empty-title">No profiles found</p>
             <p className="nv-search__empty-sub">
@@ -493,7 +524,7 @@ const SearchPage = () => {
           <section className="nv-search__panel">
             <div className="nv-search__panel-head">
               <span className="nv-search__panel-title">
-                <Users className="size-3.5" strokeWidth={2.2} />
+                <AnimatedIcon icon={UsersIcon} size={14} strokeWidth={2.2} />
                 Search Results
               </span>
               <span className="nv-search__panel-count">

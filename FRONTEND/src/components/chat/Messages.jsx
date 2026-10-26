@@ -19,7 +19,6 @@ import {
   Download,
   Copy,
   Plus,
-  MoreVertical,
   ChevronDown,
   ArrowLeft,
   Star,
@@ -32,6 +31,8 @@ import {
   Search,
   CheckSquare,
 } from "lucide-react";
+import { EllipsisVerticalIcon } from "@animateicons/react/lucide";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
 import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
 import { toast } from "sonner";
@@ -1762,7 +1763,7 @@ const Messages = ({
                                 className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-0.5 rounded-full text-white/60 hover:text-white hover:bg-white/10 cursor-pointer"
                                 title="Message options"
                               >
-                                <MoreVertical className="size-3" />
+                                <AnimatedIcon icon={EllipsisVerticalIcon} size={13} />
                               </button>
                             )}
                           </div>

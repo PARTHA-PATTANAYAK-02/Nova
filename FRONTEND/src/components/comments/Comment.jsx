@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link } from "react-router-dom";
-import { Heart, CornerDownRight, ChevronDown, ChevronUp } from "lucide-react";
+import { CornerDownRight, ChevronDown, ChevronUp } from "lucide-react";
+import { HeartIcon } from "@animateicons/react/lucide";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
 import { getDisplayName } from "@/lib/utils";
 import RichText from "@/components/common/RichText";
 import axios from "axios";
@@ -166,12 +168,13 @@ const CommentItem = ({
             onClick={handleLike}
             disabled={isLiking}
             aria-label={isLiked ? "Unlike comment" : "Like comment"}
-            className={`shrink-0 p-1 rounded-full transition-transform active:scale-75 ${
+            className={`shrink-0 p-1 rounded-full transition-transform active:scale-75 cursor-pointer ${
               isLiked ? "text-[#ff315d]" : "text-[var(--muted-foreground)]/60 hover:text-[var(--foreground)]"
             }`}
           >
-            <Heart
-              className="size-3.5"
+            <AnimatedIcon
+              icon={HeartIcon}
+              size={14}
               fill={isLiked ? "currentColor" : "none"}
               strokeWidth={1.8}
             />

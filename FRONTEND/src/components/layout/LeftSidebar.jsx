@@ -1,17 +1,19 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  Bell,
-  Home,
-  MessageCircle,
-  PlusSquare,
-  Bookmark,
-  Compass,
-  Search,
-  Settings,
-  X,
-  Trash2,
-} from "lucide-react";
-import React, { useState } from "react";
+  HouseIcon,
+  SearchIcon,
+  MessageCircleIcon,
+  BellRingIcon,
+  BookmarkIcon,
+  SettingsIcon,
+  SquarePlusIcon,
+  ExternalLinkIcon,
+  Trash2Icon,
+  XIcon,
+  ArrowRightIcon,
+} from "@animateicons/react/lucide";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
+import React, { useState, useEffect, useRef } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import axios from "axios";
 import { useDispatch, useSelector } from "react-redux";
@@ -40,6 +42,62 @@ const LeftSidebar = () => {
   );
   const dispatch = useDispatch();
   const [open, setOpen] = useState(false);
+
+  // Animated icon refs for hover & automatic trigger
+  const homeIconRef = useRef(null);
+  const exploreIconRef = useRef(null);
+  const chatIconRef = useRef(null);
+  const bellIconRef = useRef(null);
+  const savedIconRef = useRef(null);
+  const settingsIconRef = useRef(null);
+  const newPostIconRef = useRef(null);
+
+  // Automatic animation when a new notification arrives or unread notifications exist
+  const prevUnreadRef = useRef(unreadCount);
+  const prevNotifLenRef = useRef(likeNotification?.length || 0);
+
+  useEffect(() => {
+    const prevCount = prevUnreadRef.current;
+    const prevLen = prevNotifLenRef.current;
+    const currCount = unreadCount || 0;
+    const currLen = likeNotification?.length || 0;
+
+    // Trigger animation when count increases or a new notification arrives
+    if (currCount > prevCount || currLen > prevLen) {
+      bellIconRef.current?.startAnimation?.();
+    }
+
+    prevUnreadRef.current = currCount;
+    prevNotifLenRef.current = currLen;
+  }, [unreadCount, likeNotification]);
+
+  // Initial bell chime animation if user has unread notifications on mount
+  useEffect(() => {
+    if (unreadCount > 0) {
+      const timer = setTimeout(() => {
+        bellIconRef.current?.startAnimation?.();
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  // Automatic animation for Settings icon when profile is incomplete
+  useEffect(() => {
+    if (!profileComp.isComplete) {
+      const initialTimer = setTimeout(() => {
+        settingsIconRef.current?.startAnimation?.();
+      }, 1200);
+
+      const interval = setInterval(() => {
+        settingsIconRef.current?.startAnimation?.();
+      }, 16000);
+
+      return () => {
+        clearTimeout(initialTimer);
+        clearInterval(interval);
+      };
+    }
+  }, [profileComp.isComplete]);
 
   /* ---------- NOTIFICATIONS ---------- */
   const handleRemoveNotification = (notificationId) => {
@@ -99,7 +157,8 @@ const LeftSidebar = () => {
   const navItems = [
     {
       kind: "home",
-      icon: Home,
+      icon: HouseIcon,
+      iconRef: homeIconRef,
       text: "Home",
       path: "/",
       action: () => {
@@ -109,7 +168,8 @@ const LeftSidebar = () => {
     },
     {
       kind: "explore",
-      icon: Search,
+      icon: SearchIcon,
+      iconRef: exploreIconRef,
       text: "Explore",
       path: "/explore",
       isActiveOverride: () =>
@@ -118,25 +178,36 @@ const LeftSidebar = () => {
     },
     {
       kind: "chat",
-      icon: MessageCircle,
+      icon: MessageCircleIcon,
+      iconRef: chatIconRef,
       text: "Messages",
       path: "/chat",
       action: () => navigate("/chat"),
     },
-    { type: "notifications", kind: "notif" },
+    {
+      type: "notifications",
+      kind: "notif",
+      icon: BellRingIcon,
+      iconRef: bellIconRef,
+    },
     {
       kind: "saved",
-      icon: Bookmark,
+      icon: BookmarkIcon,
+      iconRef: savedIconRef,
       text: "Saved",
       isActiveOverride: () =>
-        (location.pathname === `/profile/${user?.username}` || location.pathname === `/profile/${user?._id}`) &&
+        (location.pathname === `/profile/${user?.username}` ||
+          location.pathname === `/profile/${user?._id}`) &&
         location.state?.tab === "saved",
       action: () =>
-        navigate(`/profile/${user?.username || user?._id}`, { state: { tab: "saved" } }),
+        navigate(`/profile/${user?.username || user?._id}`, {
+          state: { tab: "saved" },
+        }),
     },
     {
       kind: "settings",
-      icon: Settings,
+      icon: SettingsIcon,
+      iconRef: settingsIconRef,
       text: "Settings",
       path: "/settings",
       action: () => navigate("/settings"),
@@ -195,23 +266,19 @@ const LeftSidebar = () => {
                     <button
                       data-kind="notif"
                       data-active={location.pathname === "/notifications"}
+                      onMouseEnter={() => bellIconRef.current?.startAnimation?.()}
                       className="nvs2-nav-item group"
                     >
-                      <span className="nvs2-nav-icon">
-                        <Bell className="size-[18px]" strokeWidth={1.8} />
+                      <span className="nvs2-nav-icon relative">
+                        <BellRingIcon ref={bellIconRef} size={18} />
                         {unreadCount > 0 && (
-                          <>
-                            <span className="nvs2-nav-ping" aria-hidden />
-                            <span className="nvs2-nav-badge">
-                              {unreadCount > 9 ? "9+" : unreadCount}
-                            </span>
-                          </>
+                          <span className="absolute -top-1 -right-1 size-2 rounded-full bg-rose-500 ring-2 ring-[var(--surface)] animate-pulse" />
                         )}
                       </span>
                       <span className="nvs2-nav-label">Notifications</span>
                       {unreadCount > 0 && (
-                        <span className="ml-auto px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-pink-500/20 text-pink-400 border border-pink-500/30">
-                          {unreadCount}
+                        <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold bg-pink-500/20 text-pink-400 border border-pink-500/30">
+                          {unreadCount > 9 ? "9+" : unreadCount}
                         </span>
                       )}
                     </button>
@@ -244,23 +311,40 @@ const LeftSidebar = () => {
                           </p>
                         )}
                       </div>
-                      {likeNotification.length > 0 && (
+                      <div className="flex items-center gap-1.5">
                         <button
-                          onClick={handleClearAllNotifications}
+                          onClick={() => navigate("/notifications")}
+                          title="Open full Notification Center"
                           className="
-                            inline-flex items-center gap-1.5
+                            inline-flex items-center gap-1
                             px-2.5 py-1.5 rounded-lg
-                            text-[11px] font-medium
-                            text-[var(--muted-foreground)]
-                            hover:text-[var(--danger)] hover:bg-[var(--danger)]/8
+                            text-[11px] font-semibold
+                            text-primary bg-primary/10 hover:bg-primary/20
                             transition-colors duration-200 active:scale-[.95]
                             outline-none
                           "
                         >
-                          <Trash2 className="h-3.5 w-3.5" strokeWidth={1.8} />
-                          Clear all
+                          <AnimatedIcon icon={ExternalLinkIcon} size={12} />
+                          <span>Full View</span>
                         </button>
-                      )}
+                        {likeNotification.length > 0 && (
+                          <button
+                            onClick={handleClearAllNotifications}
+                            className="
+                              inline-flex items-center gap-1.5
+                              px-2.5 py-1.5 rounded-lg
+                              text-[11px] font-medium
+                              text-[var(--muted-foreground)]
+                              hover:text-[var(--danger)] hover:bg-[var(--danger)]/8
+                              transition-colors duration-200 active:scale-[.95]
+                              outline-none
+                            "
+                          >
+                            <AnimatedIcon icon={Trash2Icon} size={13} />
+                            Clear all
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {/* LIST */}
@@ -268,9 +352,9 @@ const LeftSidebar = () => {
                       {likeNotification.length === 0 ? (
                         <div className="py-12 flex flex-col items-center justify-center text-center">
                           <div className="size-12 rounded-full bg-[var(--surface-2)] flex items-center justify-center mb-3">
-                            <Bell
-                              className="h-5 w-5 text-[var(--muted-foreground)]"
-                              strokeWidth={1.6}
+                            <BellRingIcon
+                              size={20}
+                              className="text-[var(--muted-foreground)]"
                             />
                           </div>
                           <p className="text-sm font-medium text-[var(--foreground)]">
@@ -328,7 +412,7 @@ const LeftSidebar = () => {
                                 outline-none
                               "
                             >
-                              <X className="h-3.5 w-3.5" strokeWidth={2} />
+                              <AnimatedIcon icon={XIcon} size={13} />
                             </button>
                           </div>
                         ))
@@ -359,12 +443,13 @@ const LeftSidebar = () => {
                 data-kind={item.kind}
                 data-active={isActive}
                 onClick={item.action}
+                onMouseEnter={() => item.iconRef?.current?.startAnimation?.()}
                 className="nvs2-nav-item group"
               >
                 <span className="nvs2-nav-icon relative">
                   <Icon
-                    className="size-[18px]"
-                    strokeWidth={isActive ? 2.2 : 1.8}
+                    ref={item.iconRef}
+                    size={18}
                   />
                   {isSettingsIncomplete && (
                     <span className="absolute -top-1 -right-1 size-2 rounded-full bg-rose-500 ring-2 ring-[var(--surface)] animate-pulse" />
@@ -380,6 +465,7 @@ const LeftSidebar = () => {
         <div className="relative z-10 p-3 shrink-0 space-y-2 border-t border-[var(--border)]/50 bg-[var(--surface-2)]/30 backdrop-blur-md">
           <button
             onClick={() => setOpen(true)}
+            onMouseEnter={() => newPostIconRef.current?.startAnimation?.()}
             className="
               w-full h-10 rounded-xl
               bg-grad-btn text-white
@@ -389,11 +475,11 @@ const LeftSidebar = () => {
               hover:-translate-y-[1px] hover:brightness-[1.08]
               active:scale-[.97]
               transition-all duration-200 ease-[cubic-bezier(.2,.8,.2,1)]
-              border border-white/15
+              border border-transparent
               outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/45
             "
           >
-            <PlusSquare className="size-4" strokeWidth={2.2} />
+            <SquarePlusIcon ref={newPostIconRef} size={18} />
             New post
           </button>
 

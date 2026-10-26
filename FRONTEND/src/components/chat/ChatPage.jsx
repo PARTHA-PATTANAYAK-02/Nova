@@ -19,7 +19,6 @@ import {
   Trash2,
   Loader2,
   Image as ImageIcon,
-  MoreVertical,
   CheckSquare,
   Check,
   Copy,
@@ -59,6 +58,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { EllipsisVerticalIcon } from "@animateicons/react/lucide";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
 import {
   Dialog,
   DialogContent,
@@ -1465,7 +1466,7 @@ const ChatPage = () => {
                         title="Chat options & settings"
                         aria-label="Chat options"
                       >
-                        <MoreVertical className="size-4" strokeWidth={2.2} />
+                        <AnimatedIcon icon={EllipsisVerticalIcon} size={16} strokeWidth={2.2} />
                       </button>
                     </PopoverTrigger>
 

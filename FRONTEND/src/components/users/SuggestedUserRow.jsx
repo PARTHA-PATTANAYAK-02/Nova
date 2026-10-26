@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Check, Plus } from "lucide-react";
+import { CheckIcon, PlusIcon } from "@animateicons/react/lucide";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
 import { getDisplayName } from "@/lib/utils";
 
 const SuggestedUserRow = ({
@@ -65,18 +66,18 @@ const SuggestedUserRow = ({
         type="button"
         onClick={() => onFollow(user._id)}
         aria-pressed={isFollowing}
-        className={`nova-user-row__follow ${
+        className={`nova-user-row__follow group ${
           isFollowing ? "is-following" : "is-follow"
         }`}
       >
         {isFollowing ? (
           <>
-            <Check className="size-3" strokeWidth={2.6} />
+            <AnimatedIcon icon={CheckIcon} size={13} strokeWidth={2.6} />
             Following
           </>
         ) : (
           <>
-            <Plus className="size-3" strokeWidth={2.6} />
+            <AnimatedIcon icon={PlusIcon} size={13} strokeWidth={2.6} />
             Follow
           </>
         )}

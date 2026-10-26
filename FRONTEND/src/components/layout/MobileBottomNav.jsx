@@ -2,6 +2,16 @@ import React, { useEffect, useState } from "react";
 import {
   Heart, Home, MessageCircle, PlusSquare, LogOut, Search, Compass, Settings, X, User, Trash2,
 } from "lucide-react";
+import {
+  HouseIcon,
+  CompassIcon,
+  SquarePlusIcon,
+  MessageCircleIcon,
+  BellRingIcon,
+  UserIcon,
+  SettingsIcon,
+  LogOutIcon,
+} from "@animateicons/react/lucide";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -184,7 +194,7 @@ const MobileBottomNav = () => {
           <NavBtn
             to="/"
             active={isActive("/")}
-            icon={<Home className="size-[20px]" strokeWidth={isActive("/") ? 2.3 : 1.8} />}
+            icon={<HouseIcon size={20} />}
             label="Home"
             onClick={() => dispatch(setSelectedPost(null))}
           />
@@ -193,7 +203,7 @@ const MobileBottomNav = () => {
           <NavBtn
             to="/explore"
             active={isActive("/explore") || isActive("/search")}
-            icon={<Compass className="size-[20px]" strokeWidth={isActive("/explore") || isActive("/search") ? 2.3 : 1.8} />}
+            icon={<CompassIcon size={20} />}
             label="Explore"
           />
 
@@ -214,14 +224,14 @@ const MobileBottomNav = () => {
               outline-none
             "
           >
-            <PlusSquare className="size-[20px]" strokeWidth={2.2} />
+            <SquarePlusIcon size={20} />
           </button>
 
           {/* CHAT */}
           <NavBtn
             to="/chat"
             active={isActive("/chat")}
-            icon={<MessageCircle className="size-[20px]" strokeWidth={isActive("/chat") ? 2.3 : 1.8} />}
+            icon={<MessageCircleIcon size={20} />}
             label="Chat"
           />
 
@@ -240,12 +250,12 @@ const MobileBottomNav = () => {
                   outline-none
                 "
               >
-                <div className="relative">
-                  <Heart
-                    className={`size-[20px] transition-transform duration-250 ${
+                <div className="relative flex items-center justify-center">
+                  <BellRingIcon
+                    size={20}
+                    className={`transition-transform duration-250 ${
                       unreadCount > 0 ? "scale-105" : ""
                     }`}
-                    strokeWidth={1.8}
                   />
                   {unreadCount > 0 && (
                     <>
@@ -460,7 +470,7 @@ const MobileBottomNav = () => {
               "
             >
               <span className="size-8 rounded-lg flex items-center justify-center bg-[var(--surface-2)] group-hover:bg-[var(--primary)]/12 transition-colors duration-200">
-                <User className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" strokeWidth={1.8} />
+                <UserIcon size={16} />
               </span>
               <span className="flex-1 text-left font-medium">View Profile</span>
             </button>
@@ -477,7 +487,7 @@ const MobileBottomNav = () => {
               "
             >
               <span className="size-8 rounded-lg flex items-center justify-center bg-[var(--surface-2)] group-hover:bg-[var(--primary)]/12 transition-colors duration-200">
-                <Settings className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" strokeWidth={1.8} />
+                <SettingsIcon size={16} />
               </span>
               <span className="flex-1 text-left font-medium">Settings</span>
               {!profileComp.isComplete && (
@@ -499,7 +509,7 @@ const MobileBottomNav = () => {
                 "
               >
                 <span className="size-8 rounded-lg flex items-center justify-center bg-[var(--danger)]/8 group-hover:bg-[var(--danger)]/12 transition-colors duration-200">
-                  <LogOut className="h-4 w-4 group-hover:translate-x-0.5 transition-transform duration-200" strokeWidth={1.8} />
+                  <LogOutIcon size={16} />
                 </span>
                 <span className="font-medium">Logout</span>
               </button>

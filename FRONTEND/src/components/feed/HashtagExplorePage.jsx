@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { Hash, ArrowLeft, Heart, MessageCircle, Play, Sparkles, ImageOff } from "lucide-react";
+import { Play, ImageOff } from "lucide-react";
+import {
+  HashIcon,
+  ArrowLeftIcon,
+  HeartIcon,
+  MessageCircleIcon,
+  SparklesIcon,
+} from "@animateicons/react/lucide";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
 import axios from "axios";
 import { apiUrl } from "@/lib/api";
 import { useDispatch } from "react-redux";
@@ -56,14 +64,14 @@ const HashtagExplorePage = () => {
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="p-2 rounded-full text-white/70 hover:text-white hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+              className="p-2 rounded-full text-white/70 hover:text-white hover:bg-white/10 active:scale-95 transition-all cursor-pointer group"
               title="Go back"
             >
-              <ArrowLeft className="size-5" />
+              <AnimatedIcon icon={ArrowLeftIcon} size={20} />
             </button>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 group">
               <div className="size-9 rounded-xl bg-gradient-to-tr from-cyan-500/20 to-blue-600/30 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shadow-lg shadow-cyan-500/20">
-                <Hash className="size-5" />
+                <AnimatedIcon icon={HashIcon} size={18} />
               </div>
               <div>
                 <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white flex items-center gap-1.5">
@@ -76,8 +84,8 @@ const HashtagExplorePage = () => {
             </div>
           </div>
 
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/70 font-medium">
-            <Sparkles className="size-3.5 text-cyan-400" />
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/70 font-medium group">
+            <AnimatedIcon icon={SparklesIcon} size={14} className="text-cyan-400" />
             <span>Hashtag Feed</span>
           </div>
         </div>
@@ -108,9 +116,9 @@ const HashtagExplorePage = () => {
             </button>
           </div>
         ) : posts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+          <div className="flex flex-col items-center justify-center py-24 text-center gap-4 group">
             <div className="size-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shadow-xl shadow-cyan-500/10">
-              <Hash className="size-8" />
+              <AnimatedIcon icon={HashIcon} size={32} />
             </div>
             <div>
               <h2 className="text-lg font-bold text-white">No posts with #{cleanTag} yet</h2>
@@ -161,11 +169,11 @@ const HashtagExplorePage = () => {
                 {/* Hover Overlay with Stats */}
                 <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-4 text-white">
                   <span className="flex items-center gap-1.5 font-bold text-sm">
-                    <Heart className="size-4 fill-white text-white" />
+                    <AnimatedIcon icon={HeartIcon} size={16} fill="white" className="text-white" parentSelector=".group" />
                     {post.likes?.length || 0}
                   </span>
                   <span className="flex items-center gap-1.5 font-bold text-sm">
-                    <MessageCircle className="size-4 fill-white text-white" />
+                    <AnimatedIcon icon={MessageCircleIcon} size={16} fill="white" className="text-white" parentSelector=".group" />
                     {post.comments?.length || 0}
                   </span>
                 </div>

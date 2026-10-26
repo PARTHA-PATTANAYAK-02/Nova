@@ -76,17 +76,29 @@ import { isSoundEnabled, setSoundEnabled, playMessageSound } from "@/lib/sound";
 import { useTheme } from "@/hooks/useTheme";
 import PasswordResetForm from "@/components/auth/PasswordResetForm";
 import NovaQRCodeModal from "@/components/common/NovaQRCodeModal";
+import {
+  UserIcon,
+  LockIcon,
+  ShieldIcon,
+  MessageCircleIcon,
+  BellRingIcon,
+  PaletteIcon,
+  QrCodeIcon,
+  ActivityIcon,
+  Trash2Icon,
+  LogOutIcon,
+} from "@animateicons/react/lucide";
 
 const TABS = [
-  { id: "profile", label: "Profile Info", icon: User, desc: "Personal identity & details" },
-  { id: "security", label: "Account & Security", icon: Lock, desc: "Password & sessions" },
-  { id: "privacy", label: "Privacy & Safety", icon: Shield, desc: "Visibility & account controls" },
-  { id: "chat", label: "Chat & Messaging", icon: MessageCircle, desc: "DMs, receipts & audio" },
-  { id: "notifications", label: "Notifications", icon: Bell, desc: "Alert preferences" },
-  { id: "appearance", label: "Appearance & Theme", icon: Palette, desc: "Display & media quality" },
-  { id: "qrcode", label: "Nova QR Code", icon: QrCode, desc: "Share your profile card" },
-  { id: "activity", label: "Your Activity", icon: Activity, desc: "Time spent & insights" },
-  { id: "account", label: "Account & About", icon: Trash2, desc: "Data cache, about & danger" },
+  { id: "profile", label: "Profile Info", icon: UserIcon, desc: "Personal identity & details" },
+  { id: "security", label: "Account & Security", icon: LockIcon, desc: "Password & sessions" },
+  { id: "privacy", label: "Privacy & Safety", icon: ShieldIcon, desc: "Visibility & account controls" },
+  { id: "chat", label: "Chat & Messaging", icon: MessageCircleIcon, desc: "DMs, receipts & audio" },
+  { id: "notifications", label: "Notifications", icon: BellRingIcon, desc: "Alert preferences" },
+  { id: "appearance", label: "Appearance & Theme", icon: PaletteIcon, desc: "Display & media quality" },
+  { id: "qrcode", label: "Nova QR Code", icon: QrCodeIcon, desc: "Share your profile card" },
+  { id: "activity", label: "Your Activity", icon: ActivityIcon, desc: "Time spent & insights" },
+  { id: "account", label: "Account & About", icon: Trash2Icon, desc: "Data cache, about & danger" },
 ];
 
 const detectDevice = () => {
@@ -119,6 +131,25 @@ const SettingsPage = () => {
   const profileComp = getProfileCompletion(user);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+
+  const tabIconRefs = useRef({});
+  const logoutIconRef = useRef(null);
+
+  // Auto-animate Profile Info tab icon when profile is incomplete
+  useEffect(() => {
+    if (!profileComp.isComplete) {
+      const timer = setTimeout(() => {
+        tabIconRefs.current["profile"]?.startAnimation?.();
+      }, 1000);
+      const interval = setInterval(() => {
+        tabIconRefs.current["profile"]?.startAnimation?.();
+      }, 15000);
+      return () => {
+        clearTimeout(timer);
+        clearInterval(interval);
+      };
+    }
+  }, [profileComp.isComplete]);
   const {
     theme,
     dark,
@@ -636,6 +667,7 @@ const SettingsPage = () => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
+                  onMouseEnter={() => tabIconRefs.current[tab.id]?.startAnimation?.()}
                   className={`
                     shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all relative
                     ${
@@ -645,7 +677,13 @@ const SettingsPage = () => {
                     }
                   `}
                 >
-                  <Icon className="size-3.5" />
+                  <Icon
+                    ref={(el) => {
+                      if (!tabIconRefs.current) tabIconRefs.current = {};
+                      tabIconRefs.current[tab.id] = el;
+                    }}
+                    size={15}
+                  />
                   <span>{tab.label}</span>
                   {isIncomplete && (
                     <span className="size-2 rounded-full bg-rose-500 animate-pulse ml-0.5" />
@@ -674,6 +712,7 @@ const SettingsPage = () => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
+                  onMouseEnter={() => tabIconRefs.current[tab.id]?.startAnimation?.()}
                   className={`
                     w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left transition-all duration-200 group cursor-pointer
                     ${
@@ -685,11 +724,17 @@ const SettingsPage = () => {
                 >
                   <span
                     className={`
-                      p-2 rounded-lg transition-colors relative
+                      p-2 rounded-lg transition-colors relative flex items-center justify-center shrink-0
                       ${isActive ? "bg-white/20 text-white" : "bg-[var(--surface-2)] text-[var(--muted-foreground)] group-hover:text-primary"}
                     `}
                   >
-                    <Icon className="size-4" />
+                    <Icon
+                      ref={(el) => {
+                        if (!tabIconRefs.current) tabIconRefs.current = {};
+                        tabIconRefs.current[tab.id] = el;
+                      }}
+                      size={17}
+                    />
                     {isIncomplete && (
                       <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-rose-500 ring-2 ring-[var(--surface)] animate-pulse" />
                     )}
@@ -720,10 +765,11 @@ const SettingsPage = () => {
             <button
               type="button"
               onClick={() => setLogoutModalOpen(true)}
+              onMouseEnter={() => logoutIconRef.current?.startAnimation?.()}
               className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all duration-200 group cursor-pointer"
             >
-              <span className="p-2 rounded-lg bg-red-500/15 text-red-400 group-hover:scale-110 transition-transform">
-                <LogOut className="size-4" />
+              <span className="p-2 rounded-lg bg-red-500/15 text-red-400 group-hover:scale-110 transition-transform flex items-center justify-center shrink-0">
+                <LogOutIcon ref={logoutIconRef} size={17} />
               </span>
               <div className="flex-1 min-w-0">
                 <p className="text-xs sm:text-sm font-semibold truncate leading-tight">

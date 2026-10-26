@@ -8,7 +8,16 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link, useNavigate } from "react-router-dom";
-import { Send, SendHorizontal, MessageCircle, Loader2, Heart, Bookmark, X, Repeat2 } from "lucide-react";
+import { Loader2, Heart as LucideHeart } from "lucide-react";
+import {
+  HeartIcon,
+  MessageCircleIcon,
+  BookmarkIcon,
+  SendIcon,
+  Repeat2Icon,
+  XIcon,
+} from "@animateicons/react/lucide";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
 import { useDispatch, useSelector } from "react-redux";
 import Comment from "@/components/comments/Comment";
 import ShareDialog from "@/components/feed/ShareDialog";
@@ -451,7 +460,7 @@ const CommentDialog = ({ open, setOpen }) => {
               className="nova-comment-dialog__media-heart"
               aria-hidden="true"
             >
-              <Heart
+              <LucideHeart
                 size={140}
                 strokeWidth={2}
                 fill="#ff315d"
@@ -466,7 +475,7 @@ const CommentDialog = ({ open, setOpen }) => {
           {/* REPOST BANNER */}
           {reposter && (
             <div className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500/10 border-b border-emerald-500/20 text-xs font-semibold text-emerald-400">
-              <Repeat2 className="size-3.5 stroke-[2.5]" />
+              <AnimatedIcon icon={Repeat2Icon} size={14} className="stroke-[2.5]" />
               <span>{reposter._id === user?._id ? "You" : (reposter.fullName || reposter.username)} reposted</span>
             </div>
           )}
@@ -633,8 +642,10 @@ const CommentDialog = ({ open, setOpen }) => {
                   ) : (
                     <div className="nova-comment-dialog__empty">
                       <div className="nova-comment-dialog__empty-orb">
-                        <MessageCircle
-                          className="size-5 text-[var(--muted-foreground)]"
+                        <AnimatedIcon
+                          icon={MessageCircleIcon}
+                          size={20}
+                          className="text-[var(--muted-foreground)]"
                           strokeWidth={1.8}
                         />
                       </div>
@@ -669,12 +680,14 @@ const CommentDialog = ({ open, setOpen }) => {
                     onClick={handleLikeToggle}
                     disabled={liking}
                     aria-label={isLikedByMe ? "Unlike" : "Like"}
-                    className={`nova-comment-dialog__stat relative ${
+                    className={`nova-comment-dialog__stat relative cursor-pointer ${
                       isLikedByMe ? "is-liked" : ""
                     } ${heartPulse ? "is-pulsing nova-like-pop" : ""}`}
                   >
-                    <Heart
-                      className={`size-[18px] transition-transform duration-200 ${
+                    <AnimatedIcon
+                      icon={HeartIcon}
+                      size={18}
+                      className={`transition-transform duration-200 ${
                         heartPulse ? "scale-125" : ""
                       }`}
                       strokeWidth={2}
@@ -692,7 +705,7 @@ const CommentDialog = ({ open, setOpen }) => {
                   </button>
 
                   <div className="nova-comment-dialog__stat is-static">
-                    <MessageCircle className="size-[18px]" strokeWidth={2} />
+                    <AnimatedIcon icon={MessageCircleIcon} size={18} strokeWidth={2} />
                     <span className="nova-comment-dialog__stat-count">
                       {comments.length}
                     </span>
@@ -706,8 +719,10 @@ const CommentDialog = ({ open, setOpen }) => {
                     title="Share post"
                     className="nova-comment-dialog__stat hover:text-[var(--primary)] transition-colors cursor-pointer group/share"
                   >
-                    <SendHorizontal
-                      className="size-[18px] group-hover/share:scale-110 transition-transform"
+                    <AnimatedIcon
+                      icon={SendIcon}
+                      size={18}
+                      className="group-hover/share:scale-110 transition-transform"
                       strokeWidth={2}
                     />
                     <span className="nova-comment-dialog__stat-count text-xs">
@@ -722,15 +737,16 @@ const CommentDialog = ({ open, setOpen }) => {
                     disabled={saving || !user?._id}
                     aria-label={isSaved ? "Unsave" : "Save"}
                     aria-pressed={isSaved}
-                    className={`nova-comment-dialog__save ${
+                    className={`nova-comment-dialog__save cursor-pointer ${
                       isSaved ? "is-saved" : ""
                     }`}
                   >
                     {saving ? (
                       <Loader2 className="size-4 animate-spin" />
                     ) : (
-                      <Bookmark
-                        className="size-4"
+                      <AnimatedIcon
+                        icon={BookmarkIcon}
+                        size={16}
                         fill={isSaved ? "currentColor" : "none"}
                         strokeWidth={2}
                       />
@@ -757,7 +773,7 @@ const CommentDialog = ({ open, setOpen }) => {
                         className="p-0.5 hover:text-[var(--foreground)] transition-colors cursor-pointer"
                         aria-label="Cancel reply"
                       >
-                        <X className="size-3.5" />
+                        <AnimatedIcon icon={XIcon} size={14} />
                       </button>
                     </div>
                   )}
@@ -767,8 +783,8 @@ const CommentDialog = ({ open, setOpen }) => {
                       onChange={(e) => setText(e.target.value)}
                       placeholder={
                         replyingTo
-                          ? `Reply to @${replyingTo.username}…`
-                          : "Add a comment…"
+                           ? `Reply to @${replyingTo.username}…`
+                           : "Add a comment…"
                       }
                       rows={1}
                       className="nova-flat-inputvnova-comment-dialog__textarea min-h-[42px] max-h-32 resize-none !rounded-2xl !border-0 !bg-transparent !shadow-none !ring-0 !px-1 focus-visible:!ring-0"
@@ -778,12 +794,12 @@ const CommentDialog = ({ open, setOpen }) => {
                       onClick={sendMessageHandler}
                       disabled={!text.trim() || submitting}
                       aria-label="Send comment"
-                      className="nova-comment-dialog__send"
+                      className="nova-comment-dialog__send cursor-pointer"
                     >
                       {submitting ? (
                         <Loader2 className="size-4 animate-spin" />
                       ) : (
-                        <Send className="size-4" strokeWidth={2.2} />
+                        <AnimatedIcon icon={SendIcon} size={16} strokeWidth={2.2} />
                       )}
                     </button>
                   </div>

@@ -1,4 +1,5 @@
-import { Moon, Sun } from "lucide-react";
+import { SunIcon, MoonIcon } from "@animateicons/react/lucide";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
 import { useState, useRef } from "react";
 import { useTheme } from "@/hooks/useTheme";
 
@@ -8,9 +9,9 @@ const ThemeToggle = ({ size = "md", className = "" }) => {
   const btnRef = useRef(null);
 
   const sizeMap = {
-    sm: { box: "w-8 h-8", icon: "w-3.5 h-3.5" },
-    md: { box: "w-9 h-9", icon: "w-4 h-4" },
-    lg: { box: "w-11 h-11", icon: "w-5 h-5" },
+    sm: { box: "w-8 h-8", icon: 14 },
+    md: { box: "w-9 h-9", icon: 16 },
+    lg: { box: "w-11 h-11", icon: 20 },
   };
   const s = sizeMap[size] || sizeMap.md;
 
@@ -54,7 +55,7 @@ const ThemeToggle = ({ size = "md", className = "" }) => {
         hover:-translate-y-[1px] active:scale-[.94]
         outline-none focus:outline-none focus-visible:outline-none
         focus-visible:ring-2 focus-visible:ring-[var(--primary)]/45
-        focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]
+        focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] cursor-pointer group
         ${isAnimating ? "animate-theme-btn" : ""}
         ${className}
       `}
@@ -67,26 +68,15 @@ const ThemeToggle = ({ size = "md", className = "" }) => {
       )}
 
       <span
-        className={`relative ${s.icon} flex items-center justify-center ${
+        className={`relative flex items-center justify-center ${
           isAnimating ? "theme-icon-spin" : ""
         }`}
       >
-        <Sun
-          className={`
-            absolute inset-0 m-auto
-            transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]
-            ${dark ? "opacity-100 rotate-0 scale-100" : "opacity-0 rotate-90 scale-50"}
-          `}
-          strokeWidth={1.8}
-        />
-        <Moon
-          className={`
-            absolute inset-0 m-auto
-            transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]
-            ${dark ? "opacity-0 -rotate-90 scale-50" : "opacity-100 rotate-0 scale-100"}
-          `}
-          strokeWidth={1.8}
-        />
+        {dark ? (
+          <AnimatedIcon icon={SunIcon} size={s.icon} />
+        ) : (
+          <AnimatedIcon icon={MoonIcon} size={s.icon} />
+        )}
       </span>
     </button>
   );

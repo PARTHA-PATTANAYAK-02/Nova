@@ -1,15 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import {
-  Download,
-  Copy,
-  Check,
-  Share2,
-  X,
-  Sparkles,
-  QrCode,
-  ExternalLink,
-} from "lucide-react";
+  DownloadIcon,
+  CopyIcon,
+  CheckIcon,
+  ShareIcon,
+  XIcon,
+  QrCodeIcon,
+} from "@animateicons/react/lucide";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 
@@ -61,6 +59,13 @@ const NovaQRCodeModal = ({
   const [copied, setCopied] = useState(false);
   const [activeTheme, setActiveTheme] = useState(NEON_THEMES[0]);
   const [qrGenerated, setQrGenerated] = useState(false);
+
+  // Animated icon refs
+  const downloadIconRef = useRef(null);
+  const copyIconRef = useRef(null);
+  const shareIconRef = useRef(null);
+  const closeIconRef = useRef(null);
+  const qrIconRef = useRef(null);
 
   // Generate QR Code onto canvas
   useEffect(() => {
@@ -192,11 +197,12 @@ const NovaQRCodeModal = ({
         <button
           type="button"
           onClick={onClose}
+          onMouseEnter={() => closeIconRef.current?.startAnimation?.()}
           className="absolute top-3.5 right-3.5 p-1.5 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           title="Close"
           aria-label="Close"
         >
-          <X className="size-4" />
+          <XIcon ref={closeIconRef} size={16} />
         </button>
 
         {/* Compact Header: Avatar + Title + Subtitle in one sleek row */}
@@ -210,8 +216,11 @@ const NovaQRCodeModal = ({
                 </AvatarFallback>
               </Avatar>
             ) : (
-              <div className="size-10 rounded-xl bg-zinc-900 flex items-center justify-center text-white">
-                <QrCode className="size-5" />
+              <div
+                onMouseEnter={() => qrIconRef.current?.startAnimation?.()}
+                className="size-10 rounded-xl bg-zinc-900 flex items-center justify-center text-white cursor-pointer"
+              >
+                <QrCodeIcon ref={qrIconRef} size={20} />
               </div>
             )}
           </div>
@@ -270,22 +279,32 @@ const NovaQRCodeModal = ({
           <button
             type="button"
             onClick={handleDownload}
-            className="flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-white transition-all cursor-pointer"
+            onMouseEnter={() => downloadIconRef.current?.startAnimation?.()}
+            className="flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-white transition-all cursor-pointer group"
           >
-            <Download className="size-3.5 text-cyan-400" />
+            <span className="text-cyan-400 flex items-center justify-center">
+              <DownloadIcon ref={downloadIconRef} size={15} />
+            </span>
             <span className="text-[11px] font-medium">Save</span>
           </button>
 
           <button
             type="button"
             onClick={handleCopyLink}
-            className="flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-white transition-all cursor-pointer"
+            onMouseEnter={() => copyIconRef.current?.startAnimation?.()}
+            className="flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-white transition-all cursor-pointer group"
           >
-            {copied ? (
-              <Check className="size-3.5 text-emerald-400" />
-            ) : (
-              <Copy className="size-3.5 text-indigo-400" />
-            )}
+            <span className="flex items-center justify-center">
+              {copied ? (
+                <span className="text-emerald-400">
+                  <CheckIcon size={15} />
+                </span>
+              ) : (
+                <span className="text-indigo-400">
+                  <CopyIcon ref={copyIconRef} size={15} />
+                </span>
+              )}
+            </span>
             <span className="text-[11px] font-medium">
               {copied ? "Copied" : "Copy"}
             </span>
@@ -294,9 +313,12 @@ const NovaQRCodeModal = ({
           <button
             type="button"
             onClick={handleShare}
-            className="flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-white transition-all cursor-pointer"
+            onMouseEnter={() => shareIconRef.current?.startAnimation?.()}
+            className="flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-white transition-all cursor-pointer group"
           >
-            <Share2 className="size-3.5 text-rose-400" />
+            <span className="text-rose-400 flex items-center justify-center">
+              <ShareIcon ref={shareIconRef} size={15} />
+            </span>
             <span className="text-[11px] font-medium">Share</span>
           </button>
         </div>

@@ -1,18 +1,21 @@
 import React, { useState, useEffect } from "react";
 import {
-  Bell,
-  Heart,
-  MessageCircle,
-  Repeat2,
-  UserPlus,
-  Trash2,
-  CheckCheck,
   Loader2,
-  Sparkles,
-  ArrowRight,
   Inbox,
   Filter,
 } from "lucide-react";
+import {
+  BellRingIcon,
+  HeartIcon,
+  MessageCircleIcon,
+  Repeat2Icon,
+  UserPlusIcon,
+  Trash2Icon,
+  CheckCheckIcon,
+  SparklesIcon,
+  ArrowRightIcon,
+} from "@animateicons/react/lucide";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
@@ -120,15 +123,52 @@ const NotificationsPage = () => {
   const getNotificationIcon = (type) => {
     switch (type) {
       case "like":
-        return <Heart className="size-3.5 fill-[#ff315d] text-[#ff315d]" />;
+        return (
+          <AnimatedIcon
+            icon={HeartIcon}
+            size={14}
+            fill="#ff315d"
+            className="text-[#ff315d]"
+            parentSelector=".group"
+          />
+        );
       case "comment":
-        return <MessageCircle className="size-3.5 fill-cyan-400 text-cyan-400" />;
+        return (
+          <AnimatedIcon
+            icon={MessageCircleIcon}
+            size={14}
+            fill="currentColor"
+            className="text-cyan-400"
+            parentSelector=".group"
+          />
+        );
       case "repost":
-        return <Repeat2 className="size-3.5 text-emerald-400 stroke-[2.5]" />;
+        return (
+          <AnimatedIcon
+            icon={Repeat2Icon}
+            size={14}
+            className="text-emerald-400 stroke-[2.5]"
+            parentSelector=".group"
+          />
+        );
       case "follow":
-        return <UserPlus className="size-3.5 text-indigo-400 stroke-[2.5]" />;
+        return (
+          <AnimatedIcon
+            icon={UserPlusIcon}
+            size={14}
+            className="text-indigo-400 stroke-[2.5]"
+            parentSelector=".group"
+          />
+        );
       default:
-        return <Bell className="size-3.5 text-amber-400" />;
+        return (
+          <AnimatedIcon
+            icon={BellRingIcon}
+            size={14}
+            className="text-amber-400"
+            parentSelector=".group"
+          />
+        );
     }
   };
 
@@ -165,8 +205,8 @@ const NotificationsPage = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              <Sparkles className="size-3" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group">
+              <AnimatedIcon icon={SparklesIcon} size={12} />
               Activity Center
             </span>
             {unreadCount > 0 && (
@@ -189,9 +229,9 @@ const NotificationsPage = () => {
             <button
               type="button"
               onClick={handleMarkAllRead}
-              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-white/80 hover:text-white transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-white/80 hover:text-white transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 group"
             >
-              <CheckCheck className="size-3.5 text-emerald-400" />
+              <AnimatedIcon icon={CheckCheckIcon} size={14} className="text-emerald-400" />
               <span>Mark all read</span>
             </button>
           )}
@@ -199,9 +239,9 @@ const NotificationsPage = () => {
             <button
               type="button"
               onClick={handleClearAll}
-              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/20 text-xs font-semibold text-white/60 hover:text-red-400 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/20 text-xs font-semibold text-white/60 hover:text-red-400 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 group"
             >
-              <Trash2 className="size-3.5" />
+              <AnimatedIcon icon={Trash2Icon} size={14} />
               <span>Clear</span>
             </button>
           )}
@@ -215,28 +255,28 @@ const NotificationsPage = () => {
           {
             id: "likes",
             label: "Likes",
-            icon: Heart,
+            icon: HeartIcon,
             color: "text-[#ff315d]",
             count: likeNotification.filter((n) => n.type === "like").length,
           },
           {
             id: "comments",
             label: "Comments",
-            icon: MessageCircle,
+            icon: MessageCircleIcon,
             color: "text-cyan-400",
             count: likeNotification.filter((n) => n.type === "comment").length,
           },
           {
             id: "reposts",
             label: "Reposts",
-            icon: Repeat2,
+            icon: Repeat2Icon,
             color: "text-emerald-400",
             count: likeNotification.filter((n) => n.type === "repost").length,
           },
           {
             id: "follows",
             label: "Follows",
-            icon: UserPlus,
+            icon: UserPlusIcon,
             color: "text-indigo-400",
             count: likeNotification.filter((n) => n.type === "follow").length,
           },
@@ -247,13 +287,19 @@ const NotificationsPage = () => {
               key={tab.id}
               type="button"
               onClick={() => setFilter(tab.id)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer flex items-center gap-1.5 group ${
                 isActive
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
                   : "bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/5"
               }`}
             >
-              {tab.icon && <tab.icon className={`size-3.5 ${tab.color || ""}`} />}
+              {tab.icon && (
+                <AnimatedIcon
+                  icon={tab.icon}
+                  size={14}
+                  className={tab.color || ""}
+                />
+              )}
               <span>{tab.label}</span>
               {tab.count > 0 && (
                 <span
@@ -359,10 +405,10 @@ const NotificationsPage = () => {
                   <button
                     type="button"
                     onClick={(e) => handleRemoveSingle(n._id, e)}
-                    className="p-1.5 rounded-lg text-white/30 hover:text-red-400 hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                    className="p-1.5 rounded-lg text-white/30 hover:text-red-400 hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer group/del"
                     title="Remove notification"
                   >
-                    <Trash2 className="size-3.5" />
+                    <AnimatedIcon icon={Trash2Icon} size={14} />
                   </button>
                 </div>
               </div>

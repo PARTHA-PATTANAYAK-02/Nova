@@ -9,7 +9,17 @@ const ProtectedRoutes = ({ children }) => {
   const location = useLocation();
 
   useEffect(() => {
-    if (!user) navigate("/login", { state: { from: location } });
+    if (!user) {
+      const isSettingsOrAuth =
+        location.pathname.startsWith("/settings") ||
+        location.pathname.startsWith("/account-security") ||
+        location.pathname === "/login" ||
+        location.pathname === "/signup";
+      navigate("/login", {
+        state: { from: isSettingsOrAuth ? null : location },
+        replace: true,
+      });
+    }
   }, [user, navigate, location]);
 
   if (!user) {
