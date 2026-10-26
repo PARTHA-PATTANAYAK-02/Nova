@@ -4,6 +4,8 @@ import {
   Play,
   Loader2,
   Images,
+  Heart as LucideHeart,
+  Bookmark as LucideBookmark,
 } from "lucide-react";
 import {
   FolderPlusIcon,
@@ -411,7 +413,7 @@ const SavedCollectionsSection = ({
 
                     <div className="nova-profile__tile-overlay">
                       <span className="nova-profile__tile-stat">
-                        <AnimatedIcon icon={HeartIcon} size={16} fill="currentColor" />
+                        <LucideHeart size={16} fill="white" color="white" />
                         {post.likes?.length || 0}
                       </span>
                       <span className="nova-profile__tile-stat">
@@ -470,7 +472,7 @@ const SavedCollectionsSection = ({
 
               <div className="relative z-10">
                 <h4 className="text-sm font-bold text-white drop-shadow-md flex items-center gap-1.5">
-                  <AnimatedIcon icon={BookmarkIcon} size={14} className="text-indigo-400" fill="currentColor" />
+                  <LucideBookmark size={14} className="text-indigo-400" fill="currentColor" />
                   <span>All Posts</span>
                 </h4>
                 <p className="text-[11px] text-white/70 font-medium drop-shadow-sm">

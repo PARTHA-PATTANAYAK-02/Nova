@@ -3,6 +3,7 @@ import {
   UserRound,
   ArrowRight,
   Play,
+  Heart as LucideHeart,
 } from "lucide-react";
 import {
   SearchIcon,
@@ -397,7 +398,7 @@ const SearchPage = () => {
                     ">
                       <div className="flex items-center gap-4 sm:gap-6 text-sm sm:text-base font-bold drop-shadow">
                         <span className="flex items-center gap-1.5">
-                          <AnimatedIcon icon={HeartIcon} size={18} fill="white" className="text-white" parentSelector=".group" />
+                          <LucideHeart size={18} fill="white" color="white" />
                           {post.likes?.length || 0}
                         </span>
                         <span className="flex items-center gap-1.5">

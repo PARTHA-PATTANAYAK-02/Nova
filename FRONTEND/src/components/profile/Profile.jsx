@@ -989,7 +989,7 @@ const Profile = () => {
 
                       <div className="nova-profile__tile-overlay">
                         <span className="nova-profile__tile-stat">
-                          <HeartIcon size={16} />
+                          <Heart size={16} fill="white" color="white" />
                           {fmtCount(post.likes?.length || 0)}
                         </span>
                         <span className="nova-profile__tile-stat">

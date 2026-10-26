@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link, useNavigate } from "react-router-dom";
-import { Loader2, Heart as LucideHeart } from "lucide-react";
+import { Loader2, Heart as LucideHeart, Bookmark as LucideBookmark } from "lucide-react";
 import {
   HeartIcon,
   MessageCircleIcon,
@@ -685,15 +685,26 @@ const CommentDialog = ({ open, setOpen }) => {
                       isLikedByMe ? "is-liked" : ""
                     } ${heartPulse ? "is-pulsing nova-like-pop" : ""}`}
                   >
-                    <AnimatedIcon
-                      icon={HeartIcon}
-                      size={18}
-                      className={`transition-transform duration-200 ${
-                        heartPulse ? "scale-125" : ""
-                      }`}
-                      strokeWidth={2}
-                      fill={isLikedByMe ? "currentColor" : "none"}
-                    />
+                    {isLikedByMe ? (
+                      <LucideHeart
+                        size={18}
+                        strokeWidth={2}
+                        fill="#ff315d"
+                        color="#ff315d"
+                        className={`transition-transform duration-200 ${
+                          heartPulse ? "scale-125" : "scale-105"
+                        }`}
+                      />
+                    ) : (
+                      <AnimatedIcon
+                        icon={HeartIcon}
+                        size={18}
+                        className={`transition-transform duration-200 ${
+                          heartPulse ? "scale-125" : ""
+                        }`}
+                        strokeWidth={2}
+                      />
+                    )}
                     {heartPulse && (
                       <span
                         className="absolute inset-0 rounded-full border-2 border-[#ff315d] animate-ping opacity-75 pointer-events-none"
@@ -744,11 +755,17 @@ const CommentDialog = ({ open, setOpen }) => {
                   >
                     {saving ? (
                       <Loader2 className="size-4 animate-spin" />
+                    ) : isSaved ? (
+                      <LucideBookmark
+                        size={16}
+                        strokeWidth={2}
+                        fill="currentColor"
+                        color="currentColor"
+                      />
                     ) : (
                       <AnimatedIcon
                         icon={BookmarkIcon}
                         size={16}
-                        fill={isSaved ? "currentColor" : "none"}
                         strokeWidth={2}
                       />
                     )}

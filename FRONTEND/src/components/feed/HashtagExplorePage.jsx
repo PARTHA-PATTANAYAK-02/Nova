@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { Play, ImageOff } from "lucide-react";
+import { Play, ImageOff, Heart as LucideHeart } from "lucide-react";
 import {
   HashIcon,
   ArrowLeftIcon,
@@ -169,7 +169,7 @@ const HashtagExplorePage = () => {
                 {/* Hover Overlay with Stats */}
                 <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-4 text-white">
                   <span className="flex items-center gap-1.5 font-bold text-sm">
-                    <AnimatedIcon icon={HeartIcon} size={16} fill="white" className="text-white" parentSelector=".group" />
+                    <LucideHeart size={16} fill="white" color="white" />
                     {post.likes?.length || 0}
                   </span>
                   <span className="flex items-center gap-1.5 font-bold text-sm">

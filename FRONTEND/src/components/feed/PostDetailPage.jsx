@@ -8,6 +8,7 @@ import {
   VolumeX,
   Lock,
   Heart as LucideHeart,
+  Bookmark as LucideBookmark,
 } from "lucide-react";
 import {
   ArrowLeftIcon,
@@ -656,12 +657,19 @@ const PostDetailPage = () => {
                   }`}
                   aria-label="Like post"
                 >
-                  <AnimatedIcon
-                    icon={HeartIcon}
-                    size={20}
-                    className={liked ? "text-red-500" : ""}
-                    fill={liked ? "currentColor" : "none"}
-                  />
+                  {liked ? (
+                    <LucideHeart
+                      size={20}
+                      fill="#ef4444"
+                      color="#ef4444"
+                      className="scale-105 transition-transform"
+                    />
+                  ) : (
+                    <AnimatedIcon
+                      icon={HeartIcon}
+                      size={20}
+                    />
+                  )}
                 </button>
 
                 <button
@@ -696,12 +704,19 @@ const PostDetailPage = () => {
                 }`}
                 aria-label="Bookmark post"
               >
-                <AnimatedIcon
-                  icon={BookmarkIcon}
-                  size={18}
-                  className={bookmarked ? "text-amber-400" : ""}
-                  fill={bookmarked ? "currentColor" : "none"}
-                />
+                {bookmarked ? (
+                  <LucideBookmark
+                    size={18}
+                    fill="currentColor"
+                    color="currentColor"
+                    className="scale-105 transition-transform"
+                  />
+                ) : (
+                  <AnimatedIcon
+                    icon={BookmarkIcon}
+                    size={18}
+                  />
+                )}
               </button>
             </div>
 

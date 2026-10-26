@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link } from "react-router-dom";
-import { CornerDownRight, ChevronDown, ChevronUp } from "lucide-react";
+import { CornerDownRight, ChevronDown, ChevronUp, Heart as LucideHeart } from "lucide-react";
 import { HeartIcon } from "@animateicons/react/lucide";
 import AnimatedIcon from "@/components/common/AnimatedIcon";
 import { getDisplayName } from "@/lib/utils";
@@ -172,12 +172,15 @@ const CommentItem = ({
               isLiked ? "text-[#ff315d]" : "text-[var(--muted-foreground)]/60 hover:text-[var(--foreground)]"
             }`}
           >
-            <AnimatedIcon
-              icon={HeartIcon}
-              size={14}
-              fill={isLiked ? "currentColor" : "none"}
-              strokeWidth={1.8}
-            />
+            {isLiked ? (
+              <LucideHeart size={14} fill="#ff315d" color="#ff315d" className="scale-105" />
+            ) : (
+              <AnimatedIcon
+                icon={HeartIcon}
+                size={14}
+                strokeWidth={1.8}
+              />
+            )}
           </button>
         )}
       </article>
