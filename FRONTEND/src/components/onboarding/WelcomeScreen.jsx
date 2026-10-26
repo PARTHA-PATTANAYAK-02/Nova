@@ -1,11 +1,11 @@
 import { useEffect, useMemo } from "react";
 import { Sparkles } from "lucide-react";
 import { useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Home from "@/components/feed/Home";
 import MainLayout from "@/components/layout/MainLayout";
 
-const WELCOME_DURATION_MS = 5000;
+const DEFAULT_WELCOME_MS = 3600;
 
 const RevealText = ({ text }) => {
   const letters = useMemo(() => Array.from(text), [text]);
@@ -20,17 +20,19 @@ const RevealText = ({ text }) => {
   );
 };
 
-const WelcomeScreen = ({ greeting }) => {
+const WelcomeScreen = ({ greeting, duration = DEFAULT_WELCOME_MS }) => {
   const { user } = useSelector((store) => store.auth);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
+    const target = location.state?.redirectTo || "/";
     const t = setTimeout(
-      () => navigate("/", { replace: true }),
-      WELCOME_DURATION_MS,
+      () => navigate(target, { replace: true }),
+      duration,
     );
     return () => clearTimeout(t);
-  }, [navigate]);
+  }, [navigate, location.state, duration]);
 
   const message =
     greeting || `Welcome back, ${user?.fullName?.trim() || "friend"}`;

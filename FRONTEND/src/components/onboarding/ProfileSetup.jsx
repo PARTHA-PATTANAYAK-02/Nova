@@ -4,6 +4,7 @@ import {
   ArrowRight,
   CalendarDays,
   CheckCircle2,
+  Globe,
   ImagePlus,
   Loader2,
   Sparkles,
@@ -20,7 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import WelcomeScreen from "@/components/onboarding/WelcomeScreen";
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-const WELCOME_DURATION_MS = 4400;
+const WELCOME_DURATION_MS = 3800;
 const today = new Date();
 const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
@@ -34,13 +35,14 @@ const ProfileSetup = () => {
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
+  const [country, setCountry] = useState("");
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [coverPhoto, setCoverPhoto] = useState(null);
   const [profilePreview, setProfilePreview] = useState("");
   const [coverPreview, setCoverPreview] = useState("");
   const [usernameState, setUsernameState] = useState("idle");
   const [saving, setSaving] = useState(false);
-  const [screen, setScreen] = useState("intro");
+  const [screen, setScreen] = useState("setup");
 
   useEffect(() => {
     if (!user) navigate("/signup", { replace: true });
@@ -131,6 +133,7 @@ const ProfileSetup = () => {
     if (normalizedUsername) formData.append("username", normalizedUsername);
     if (bio.trim()) formData.append("bio", bio.trim());
     if (dateOfBirth) formData.append("dateOfBirth", dateOfBirth);
+    if (country.trim()) formData.append("country", country.trim());
     if (profilePhoto) formData.append("profilePhoto", profilePhoto);
     if (coverPhoto) formData.append("coverPhoto", coverPhoto);
 
@@ -140,6 +143,7 @@ const ProfileSetup = () => {
         normalizedUsername ||
         bio.trim() ||
         dateOfBirth ||
+        country.trim() ||
         profilePhoto ||
         coverPhoto
       ) {
@@ -317,6 +321,28 @@ const ProfileSetup = () => {
                   value={dateOfBirth}
                   max={todayDate}
                   onChange={(e) => setDateOfBirth(e.target.value)}
+                  className="nv-field__input nv-field__input--icon"
+                />
+              </div>
+            </div>
+
+            {/* country */}
+            <div className="nv-field">
+              <label htmlFor="setup-country" className="nv-field__label">
+                Country <span className="nv-field__opt">· optional</span>
+              </label>
+              <div className="nv-field__control">
+                <Globe
+                  className="nv-field__icon size-4"
+                  strokeWidth={1.9}
+                />
+                <input
+                  id="setup-country"
+                  type="text"
+                  placeholder="e.g. India, USA, UK"
+                  value={country}
+                  maxLength={80}
+                  onChange={(e) => setCountry(e.target.value)}
                   className="nv-field__input nv-field__input--icon"
                 />
               </div>

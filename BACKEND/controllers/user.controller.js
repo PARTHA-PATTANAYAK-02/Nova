@@ -672,11 +672,17 @@ export const getProfile = async (req, res) => {
     const isPrivateLocked = Boolean(user.isPrivate && !isOwner && !isFollowing);
 
     const userObj = user.toObject();
+    userObj.followersCount = (user.followers || []).length;
+    userObj.followingCount = (user.following || []).length;
+
     if (isPrivateLocked) {
       userObj.posts = [];
       userObj.pinnedPosts = [];
       userObj.bookmarks = [];
       userObj.isPrivateLocked = true;
+      userObj.followers = [];
+      userObj.following = [];
+      userObj.dateOfBirth = null;
     } else {
       userObj.isPrivateLocked = false;
     }
@@ -698,10 +704,50 @@ export const getProfile = async (req, res) => {
   }
 };
 
+export const verifyPassword = async (req, res) => {
+  try {
+    const userId = req.id;
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({
+        message: "Password is required.",
+        success: false,
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found.",
+        success: false,
+      });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({
+        message: "Incorrect password. Please try again.",
+        success: false,
+      });
+    }
+
+    return res.status(200).json({
+      message: "Password verified.",
+      success: true,
+    });
+  } catch (error) {
+    console.error("verifyPassword error:", error);
+    return res.status(500).json({
+      message: "Failed to verify password.",
+      success: false,
+    });
+  }
+};
+
 export const editProfile = async (req, res) => {
   try {
     const userId = req.id;
-    const { username, fullName, bio, gender, dateOfBirth, website } = req.body;
+    const { username, fullName, bio, gender, dateOfBirth, website, country } = req.body;
     const profilePicture = req.files?.profilePhoto?.[0];
     const coverPicture = req.files?.coverPhoto?.[0];
 
@@ -764,6 +810,44 @@ export const editProfile = async (req, res) => {
       user.dateOfBirth = parsedDate;
     }
     if (website !== undefined) user.website = website.trim();
+    if (country !== undefined) user.country = country.trim();
+
+    if (req.body.socialLinks !== undefined) {
+      try {
+        const parsed = typeof req.body.socialLinks === "string"
+          ? JSON.parse(req.body.socialLinks)
+          : req.body.socialLinks;
+        user.socialLinks = {
+          instagram: parsed?.instagram?.trim() || "",
+          github: parsed?.github?.trim() || "",
+          twitter: parsed?.twitter?.trim() || "",
+          youtube: parsed?.youtube?.trim() || "",
+          linkedin: parsed?.linkedin?.trim() || "",
+        };
+      } catch (e) {
+        user.socialLinks = {
+          instagram: req.body.instagram?.trim() || user.socialLinks?.instagram || "",
+          github: req.body.github?.trim() || user.socialLinks?.github || "",
+          twitter: req.body.twitter?.trim() || user.socialLinks?.twitter || "",
+          youtube: req.body.youtube?.trim() || user.socialLinks?.youtube || "",
+          linkedin: req.body.linkedin?.trim() || user.socialLinks?.linkedin || "",
+        };
+      }
+    }
+
+    if (req.body.featuredSocialPlatforms !== undefined) {
+      try {
+        const parsed = typeof req.body.featuredSocialPlatforms === "string"
+          ? JSON.parse(req.body.featuredSocialPlatforms)
+          : req.body.featuredSocialPlatforms;
+        if (Array.isArray(parsed)) {
+          user.featuredSocialPlatforms = parsed.slice(0, 2);
+        }
+      } catch (e) {
+        // ignore invalid json
+      }
+    }
+
     if (req.body.isPrivate !== undefined) {
       user.isPrivate = req.body.isPrivate === "true" || req.body.isPrivate === true;
     }

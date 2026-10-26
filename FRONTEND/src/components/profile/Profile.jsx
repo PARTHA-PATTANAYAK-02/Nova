@@ -37,6 +37,13 @@ import {
   Pin,
   PinOff,
   Repeat2,
+  MapPin,
+  Globe,
+  Instagram,
+  Github,
+  Twitter,
+  Youtube,
+  Linkedin,
 } from "lucide-react";
 import SavedCollectionsSection from "@/components/profile/SavedCollectionsSection";
 import NovaQRCodeModal from "@/components/common/NovaQRCodeModal";
@@ -572,7 +579,7 @@ const Profile = () => {
 
         <div className="nova-profile__body">
           <div className="nova-profile__avatar-wrap">
-            {profileStory?.items?.length ? (
+            {profileStory?.items?.length && !userProfile?.isPrivateLocked ? (
               <Popover>
                 <PopoverTrigger asChild>
                   <button
@@ -642,16 +649,22 @@ const Profile = () => {
               <h1 className="nova-profile__name">
                 {userProfile?.fullName || userProfile?.username || "Nova user"}
               </h1>
-              <div className="nova-profile__handle-row">
+              <div className="nova-profile__handle-row flex-wrap items-center gap-2">
                 {userProfile?.username && (
                   <span className="nova-profile__handle">
                     <AtSign className="size-3" strokeWidth={1.8} />
                     {userProfile.username}
                   </span>
                 )}
+                {userProfile?.country && (
+                  <span className="nova-profile__handle flex items-center gap-1 text-[var(--muted-foreground)]">
+                    <MapPin className="size-3 text-red-400 shrink-0" strokeWidth={1.8} />
+                    <span>{userProfile.country}</span>
+                  </span>
+                )}
                 {userProfile?.website && (
                   <a
-                    href={userProfile.website}
+                    href={userProfile.website.startsWith("http") ? userProfile.website : `https://${userProfile.website}`}
                     target="_blank"
                     rel="noreferrer"
                     className="nova-profile__link"
@@ -662,6 +675,30 @@ const Profile = () => {
                     </span>
                   </a>
                 )}
+                {/* Featured Social Links (Selected 1 or 2 platforms) */}
+                {Array.isArray(userProfile?.featuredSocialPlatforms) &&
+                  userProfile.featuredSocialPlatforms.map((platform) => {
+                    const url = userProfile?.socialLinks?.[platform];
+                    if (!url) return null;
+                    const fullUrl = url.startsWith("http") ? url : `https://${url}`;
+                    return (
+                      <a
+                        key={platform}
+                        href={fullUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="nova-profile__link capitalize flex items-center gap-1 hover:text-primary transition-colors"
+                        title={platform}
+                      >
+                        {platform === "instagram" && <Instagram className="size-3 text-pink-400 shrink-0" />}
+                        {platform === "github" && <Github className="size-3 text-zinc-300 shrink-0" />}
+                        {platform === "twitter" && <Twitter className="size-3 text-cyan-400 shrink-0" />}
+                        {platform === "youtube" && <Youtube className="size-3 text-red-500 shrink-0" />}
+                        {platform === "linkedin" && <Linkedin className="size-3 text-blue-400 shrink-0" />}
+                        <span className="text-[11px] font-medium">{platform}</span>
+                      </a>
+                    );
+                  })}
               </div>
             </div>
 
@@ -674,21 +711,33 @@ const Profile = () => {
               </div>
               <button
                 type="button"
-                onClick={() => setPeopleType("followers")}
-                className="nova-profile__stat is-clickable"
+                onClick={() => {
+                  if (userProfile?.isPrivateLocked) {
+                    toast.info("This account is private.");
+                    return;
+                  }
+                  setPeopleType("followers");
+                }}
+                className={`nova-profile__stat ${userProfile?.isPrivateLocked ? "cursor-default opacity-80" : "is-clickable"}`}
               >
                 <span className="nova-profile__stat-num">
-                  {fmtCount(userProfile?.followers?.length || 0)}
+                  {fmtCount(userProfile?.followersCount ?? userProfile?.followers?.length ?? 0)}
                 </span>
                 <span className="nova-profile__stat-label">Followers</span>
               </button>
               <button
                 type="button"
-                onClick={() => setPeopleType("following")}
-                className="nova-profile__stat is-clickable"
+                onClick={() => {
+                  if (userProfile?.isPrivateLocked) {
+                    toast.info("This account is private.");
+                    return;
+                  }
+                  setPeopleType("following");
+                }}
+                className={`nova-profile__stat ${userProfile?.isPrivateLocked ? "cursor-default opacity-80" : "is-clickable"}`}
               >
                 <span className="nova-profile__stat-num">
-                  {fmtCount(userProfile?.following?.length || 0)}
+                  {fmtCount(userProfile?.followingCount ?? userProfile?.following?.length ?? 0)}
                 </span>
                 <span className="nova-profile__stat-label">Following</span>
               </button>
@@ -726,8 +775,8 @@ const Profile = () => {
         </div>
       </section>
 
-      {/* ══════════════ INSTAGRAM STORY HIGHLIGHTS BAR ══════════════ */}
-      {highlights.length > 0 && (
+      {/* ══════════════ INSTAGRAM STORY HIGHLIGHTS BAR (HIDDEN IF PRIVATE) ══════════════ */}
+      {highlights.length > 0 && !userProfile?.isPrivateLocked && (
         <div className="nova-profile__highlights px-4 sm:px-6 py-4 max-w-4xl mx-auto w-full select-none">
           <div className="flex items-center gap-4 overflow-x-auto scroll-hide pb-2 pt-1">
             {/* List of Highlights */}

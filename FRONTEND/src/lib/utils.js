@@ -100,4 +100,28 @@ export const isSameUser = (a, b) => {
   return Boolean(idA && idB && idA === idB);
 };
 
+export const getProfileCompletion = (user) => {
+  if (!user) {
+    return { percentage: 0, missing: [], isComplete: false, doneCount: 0, totalCount: 5, items: [] };
+  }
+  const items = [
+    { key: "avatar", label: "Profile Photo", done: Boolean(user.profilePicture) },
+    { key: "username", label: "Username", done: Boolean(user.username && !user.username.startsWith("user_")) },
+    { key: "country", label: "Location / Country", done: Boolean(user.country && user.country.trim().length > 0) },
+    { key: "bio", label: "Bio", done: Boolean(user.bio && user.bio.trim().length > 0) },
+    { key: "cover", label: "Cover Banner", done: Boolean(user.coverPicture) },
+  ];
+  const doneCount = items.filter((i) => i.done).length;
+  const percentage = Math.round((doneCount / items.length) * 100);
+  const missing = items.filter((i) => !i.done).map((i) => i.label);
+  return {
+    percentage,
+    doneCount,
+    totalCount: items.length,
+    missing,
+    isComplete: doneCount === items.length,
+    items,
+  };
+};
+
 

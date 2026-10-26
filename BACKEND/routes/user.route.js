@@ -18,6 +18,7 @@ import {
   searchUsers,
   verifyPasswordResetOtp,
   verifyRegistrationOtp,
+  verifyPassword,
 } from "../controllers/user.controller.js";
 import isAuthenticated from "../middlewares/isAuthenticated.js";
 import upload from "../middlewares/multer.js";
@@ -45,6 +46,7 @@ router.route("/logout").get(logout);
 router.route("/sessions/logout-others").post(isAuthenticated, logoutOtherSessions);
 router.route("/account").delete(isAuthenticated, deleteAccount);
 router.route("/username/availability").get(isAuthenticated, checkUsernameAvailability);
+router.route("/verify-password").post(isAuthenticated, verifyPassword);
 router.route("/:id/profile").get(isAuthenticated, getProfile);
 router
   .route("/profile/edit")

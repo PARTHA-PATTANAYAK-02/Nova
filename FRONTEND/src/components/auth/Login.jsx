@@ -38,7 +38,11 @@ const Login = () => {
       });
       if (res.data.success) {
         dispatch(setAuthUser(res.data.user));
-        navigate(getRedirectPath(), { replace: true });
+        const destination =
+          location.state?.from?.pathname && location.state.from.pathname !== "/"
+            ? location.state.from.pathname + (location.state.from.search || "")
+            : "/";
+        navigate("/welcome", { state: { redirectTo: destination }, replace: true });
         setInput({ email: "", password: "" });
       }
     } catch (error) {
@@ -51,8 +55,14 @@ const Login = () => {
   };
 
   useEffect(() => {
-    if (user) navigate(getRedirectPath(), { replace: true });
-  }, [navigate, user]);
+    if (user) {
+      const destination =
+        location.state?.from?.pathname && location.state.from.pathname !== "/"
+          ? location.state.from.pathname + (location.state.from.search || "")
+          : "/";
+      navigate("/welcome", { state: { redirectTo: destination }, replace: true });
+    }
+  }, [navigate, user, location]);
 
   const isFromPost = Boolean(
     location.state?.from?.pathname?.startsWith("/post/")

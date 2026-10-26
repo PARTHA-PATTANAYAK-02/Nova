@@ -14,13 +14,14 @@ import { setPosts, setSelectedPost } from "@/redux/postSlice";
 import {
   markNotificationsRead, removeNotification, clearNotifications,
 } from "@/redux/rtnSlice";
-import { getDisplayName, getErrorMessage } from "@/lib/utils";
+import { getDisplayName, getErrorMessage, getProfileCompletion } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
 
 const MobileBottomNav = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useSelector((store) => store.auth);
+  const profileComp = getProfileCompletion(user);
   const { likeNotification, unreadCount } = useSelector(
     (store) => store.realTimeNotification,
   );
@@ -398,6 +399,9 @@ const MobileBottomNav = () => {
                 <AvatarImage src={user?.profilePicture} />
                 <AvatarFallback>{initial}</AvatarFallback>
               </Avatar>
+              {user?.showLastSeen !== false && (
+                <span className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full bg-emerald-500 ring-2 ring-[var(--surface)]" />
+              )}
             </span>
           </button>
         </div>
@@ -458,12 +462,7 @@ const MobileBottomNav = () => {
               <span className="size-8 rounded-lg flex items-center justify-center bg-[var(--surface-2)] group-hover:bg-[var(--primary)]/12 transition-colors duration-200">
                 <User className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" strokeWidth={1.8} />
               </span>
-              <span className="flex-1 text-left font-medium">
-                {user?.username ? "View profile" : "Complete your profile"}
-              </span>
-              {!user?.username && (
-                <span className="size-2 rounded-full bg-[var(--danger)]" />
-              )}
+              <span className="flex-1 text-left font-medium">View Profile</span>
             </button>
 
             <button
@@ -481,6 +480,9 @@ const MobileBottomNav = () => {
                 <Settings className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" strokeWidth={1.8} />
               </span>
               <span className="flex-1 text-left font-medium">Settings</span>
+              {!profileComp.isComplete && (
+                <span className="size-2 rounded-full bg-rose-500 animate-pulse ml-auto" />
+              )}
             </button>
 
             <div className="border-t border-[var(--border)]/60 p-1.5">

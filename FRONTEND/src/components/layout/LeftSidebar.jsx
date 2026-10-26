@@ -28,12 +28,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { apiUrl } from "@/lib/api";
-import { getDisplayName } from "@/lib/utils";
+import { getDisplayName, getProfileCompletion } from "@/lib/utils";
 
 const LeftSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useSelector((store) => store.auth);
+  const profileComp = getProfileCompletion(user);
   const { likeNotification, unreadCount } = useSelector(
     (store) => store.realTimeNotification,
   );
@@ -350,6 +351,7 @@ const LeftSidebar = () => {
             /* REGULAR ITEMS */
             const Icon = item.icon;
             const isActive = checkActive(item);
+            const isSettingsIncomplete = item.kind === "settings" && !profileComp.isComplete;
 
             return (
               <button
@@ -359,13 +361,16 @@ const LeftSidebar = () => {
                 onClick={item.action}
                 className="nvs2-nav-item group"
               >
-                <span className="nvs2-nav-icon">
+                <span className="nvs2-nav-icon relative">
                   <Icon
                     className="size-[18px]"
                     strokeWidth={isActive ? 2.2 : 1.8}
                   />
+                  {isSettingsIncomplete && (
+                    <span className="absolute -top-1 -right-1 size-2 rounded-full bg-rose-500 ring-2 ring-[var(--surface)] animate-pulse" />
+                  )}
                 </span>
-                <span className="nvs2-nav-label">{item.text}</span>
+                <span className="nvs2-nav-label flex-1">{item.text}</span>
               </button>
             );
           })}
@@ -411,7 +416,9 @@ const LeftSidebar = () => {
                 <AvatarImage src={user?.profilePicture} />
                 <AvatarFallback>{initial}</AvatarFallback>
               </Avatar>
-              <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-500 ring-2 ring-[var(--surface)]" />
+              {user?.showLastSeen !== false && (
+                <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-500 ring-2 ring-[var(--surface)]" />
+              )}
             </span>
             <div className="flex-1 min-w-0 text-left">
               <p className="text-[13px] font-semibold text-[var(--foreground)] truncate leading-tight group-hover:text-primary transition-colors">
