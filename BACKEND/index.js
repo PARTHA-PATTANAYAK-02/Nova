@@ -57,4 +57,18 @@ const startServer = async () => {
   });
 };
 
+const gracefulShutdown = () => {
+  server.close(() => {
+    process.exit(0);
+  });
+};
+process.once("SIGUSR2", () => {
+  server.close(() => {
+    process.kill(process.pid, "SIGUSR2");
+  });
+});
+process.on("SIGINT", gracefulShutdown);
+process.on("SIGTERM", gracefulShutdown);
+
 startServer();
+

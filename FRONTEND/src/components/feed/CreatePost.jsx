@@ -16,6 +16,8 @@ import {
   Upload,
   Sparkles,
   Check,
+  RefreshCw,
+  Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
@@ -26,6 +28,15 @@ import { getDisplayName } from "@/lib/utils";
 
 const CAPTION_MAX = 500;
 
+const AI_TONES = [
+  { id: "trending", label: "🔥 Trending" },
+  { id: "aesthetic", label: "🌸 Aesthetic" },
+  { id: "genz", label: "⚡ Gen-Z" },
+  { id: "deep", label: "💭 Deep & Quotes" },
+  { id: "minimal", label: "✨ Minimal" },
+  { id: "humor", label: "😂 Humor" },
+];
+
 const CreatePost = ({ open, setOpen }) => {
   const fileInputRef = useRef(null);
   const [file, setFile] = useState(null);
@@ -34,6 +45,13 @@ const CreatePost = ({ open, setOpen }) => {
   const [loading, setLoading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const previewUrlRef = useRef("");
+
+  // AI Caption states
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [selectedTone, setSelectedTone] = useState("trending");
+  const [aiCustomPrompt, setAiCustomPrompt] = useState("");
+  const [generatingAi, setGeneratingAi] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState(null);
 
   const dispatch = useDispatch();
   const { user } = useSelector((s) => s.auth);
@@ -118,13 +136,66 @@ const CreatePost = ({ open, setOpen }) => {
     previewUrlRef.current = "";
     setLoading(false);
     setDragging(false);
+    setAiPanelOpen(false);
+    setAiSuggestion(null);
+    setAiCustomPrompt("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleClose = () => {
-    if (loading) return;
+    if (loading || generatingAi) return;
     setOpen(false);
     resetForm();
+  };
+
+  const handleGenerateAiCaption = async (toneOverride) => {
+    try {
+      setGeneratingAi(true);
+      const toneToUse = toneOverride || selectedTone;
+      const fd = new FormData();
+      fd.append("tone", toneToUse);
+
+      const promptText = aiCustomPrompt.trim() || caption.trim();
+      if (promptText) {
+        fd.append("prompt", promptText);
+      }
+
+      if (file && file.type?.startsWith("image/")) {
+        fd.append("image", file);
+      }
+
+      const res = await axios.post(apiUrl("/api/v1/post/ai-caption"), fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+        withCredentials: true,
+      });
+
+      if (res.data?.success) {
+        setAiSuggestion(res.data);
+        const isGemini = res.data.model && res.data.model.includes("gemini");
+        toast.success(
+          isGemini
+            ? "✨ Generated with Gemini Vision!"
+            : "✨ AI Caption & Hashtags ready!",
+        );
+      }
+    } catch (err) {
+      console.error("AI Caption error:", err);
+      toast.error(
+        err?.response?.data?.message || "Could not generate AI caption.",
+      );
+    } finally {
+      setGeneratingAi(false);
+    }
+  };
+
+  const handleApplyAiCaption = () => {
+    if (!aiSuggestion) return;
+    const textToApply =
+      aiSuggestion.fullText ||
+      `${aiSuggestion.caption || ""}\n\n${(aiSuggestion.hashtags || []).join(" ")}`.trim();
+    setCaption(textToApply.slice(0, CAPTION_MAX));
+    toast.success("AI Caption applied to post! ✨");
+    setAiPanelOpen(false);
   };
 
   const createPostHandler = async () => {
@@ -330,9 +401,21 @@ const CreatePost = ({ open, setOpen }) => {
 
           <div className="nova-create-post__caption-wrap">
             <div className="nova-create-post__caption-head">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-                Caption
-              </label>
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+                  Caption
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setAiPanelOpen((prev) => !prev)}
+                  className={`nova-create-post__ai-toggle ${aiPanelOpen ? "is-active" : ""}`}
+                  title="Generate AI Caption & Hashtags"
+                >
+                  <Sparkles className="size-3 text-amber-400 animate-pulse" />
+                  <span>AI Magic</span>
+                </button>
+              </div>
+
               <span
                 className={`text-[11px] tabular-nums ${
                   caption.length > CAPTION_MAX - 50
@@ -343,6 +426,124 @@ const CreatePost = ({ open, setOpen }) => {
                 {caption.length}/{CAPTION_MAX}
               </span>
             </div>
+
+            {/* ═════════ AI MAGIC PANEL ═════════ */}
+            {aiPanelOpen && (
+              <div className="nova-create-post__ai-panel">
+                <div className="nova-create-post__ai-header">
+                  <div className="nova-create-post__ai-title">
+                    <Wand2 className="size-3.5 text-[var(--primary)]" />
+                    <span>AI Caption & Hashtags</span>
+                  </div>
+                  <span className="nova-create-post__ai-badge">
+                    {file?.type?.startsWith("image/")
+                      ? "Visual Vision 👁️"
+                      : "Smart Text ✨"}
+                  </span>
+                </div>
+
+                {/* Tone Pills */}
+                <div className="nova-create-post__ai-tones">
+                  {AI_TONES.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setSelectedTone(t.id)}
+                      className={`nova-create-post__ai-tone-btn ${
+                        selectedTone === t.id ? "is-selected" : ""
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Input & Generate Button */}
+                <div className="nova-create-post__ai-input-row">
+                  <input
+                    type="text"
+                    value={aiCustomPrompt}
+                    onChange={(e) => setAiCustomPrompt(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !generatingAi) {
+                        e.preventDefault();
+                        handleGenerateAiCaption();
+                      }
+                    }}
+                    placeholder={
+                      file?.type?.startsWith("image/")
+                        ? "Add details (e.g. Durga Puja, Kolkata) or leave blank for auto vision..."
+                        : "Topic or mood (e.g. Durga Puja, sunset, gym)..."
+                    }
+                    className="nova-create-post__ai-input"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleGenerateAiCaption()}
+                    disabled={generatingAi}
+                    className="nova-create-post__ai-gen-btn"
+                  >
+                    {generatingAi ? (
+                      <>
+                        <Loader2 className="size-3.5 animate-spin" />
+                        <span>Thinking...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="size-3.5" />
+                        <span>Generate</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* AI Result Card */}
+                {aiSuggestion && (
+                  <div className="nova-create-post__ai-result">
+                    <p className="nova-create-post__ai-result-text">
+                      {aiSuggestion.caption}
+                    </p>
+
+                    {aiSuggestion.hashtags &&
+                      aiSuggestion.hashtags.length > 0 && (
+                        <div className="nova-create-post__ai-tags">
+                          {aiSuggestion.hashtags.map((tag, idx) => (
+                            <span
+                              key={idx}
+                              className="nova-create-post__ai-tag"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                    <div className="nova-create-post__ai-result-actions">
+                      <button
+                        type="button"
+                        onClick={() => handleGenerateAiCaption()}
+                        disabled={generatingAi}
+                        className="nova-create-post__ai-regen-btn"
+                      >
+                        <RefreshCw
+                          className={`size-3 ${generatingAi ? "animate-spin" : ""}`}
+                        />
+                        <span>Try another</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleApplyAiCaption}
+                        className="nova-create-post__ai-apply-btn"
+                      >
+                        <Check className="size-3.5" />
+                        <span>Apply to Post</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="nova-create-post__caption-box">
               <Textarea

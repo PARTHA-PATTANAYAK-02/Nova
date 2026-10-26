@@ -5,6 +5,7 @@ import { User } from "../models/user.model.js";
 import { Comment } from "../models/comment.model.js";
 import { getReceiverSocketId, io } from "../socket/socket.js";
 import { createAndEmitNotification } from "../utils/notifications.js";
+import { generateAICaptionWithGemini } from "../services/aiCaption.service.js";
 
 // Emit the fully populated post to every connected user so all open feeds,
 // comment dialogs and notification deep-links stay up to date in real time.
@@ -753,5 +754,32 @@ export const toggleLikeComment = async (req, res) => {
   } catch (error) {
     console.error("toggleLikeComment error:", error);
     return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+/* ══════════════ AI MAGIC CAPTION & HASHTAG GENERATOR ══════════════ */
+export const generateAICaptionController = async (req, res) => {
+  try {
+    const { prompt, tone } = req.body || {};
+    const file = req.file;
+
+    const result = await generateAICaptionWithGemini({
+      prompt: prompt?.trim() || "",
+      tone: tone || "trending",
+      fileBuffer: file?.buffer || null,
+      mimeType: file?.mimetype || "image/jpeg",
+      filename: file?.originalname || "",
+    });
+
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error("generateAICaptionController error:", error.message || error);
+    return res.status(503).json({
+      success: false,
+      message: "AI Magic is currently unavailable. Please try again in a few moments.",
+    });
   }
 };

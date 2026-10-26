@@ -18,10 +18,12 @@ import {
   toggleRepost,
   quotePost,
   toggleLikeComment,
+  generateAICaptionController,
 } from "../controllers/post.controller.js";
 
 const router = express.Router();
 
+router.route("/ai-caption").post(isAuthenticated, uploadPost, generateAICaptionController);
 router
   .route("/addpost")
   .post(isAuthenticated, uploadPost, addNewPost);

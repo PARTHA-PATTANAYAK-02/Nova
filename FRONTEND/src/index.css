@@ -1631,6 +1631,245 @@ body[data-scroll-locked] {
   transition: width 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* ── AI Magic Caption & Hashtags ── */
+.nova-create-post__ai-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  box-shadow: 0 0 12px -3px color-mix(in srgb, var(--primary) 25%, transparent);
+}
+.nova-create-post__ai-toggle:hover {
+  background: color-mix(in srgb, var(--primary) 22%, transparent);
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+.nova-create-post__ai-toggle.is-active {
+  background: var(--grad-btn);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 14px -3px var(--glow);
+}
+
+.nova-create-post__ai-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface-2) 65%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border));
+  box-shadow: 0 8px 24px -10px color-mix(in srgb, var(--primary) 18%, transparent);
+  backdrop-filter: blur(16px);
+  animation: nova-ai-fade-in 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes nova-ai-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nova-create-post__ai-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nova-create-post__ai-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--foreground);
+}
+
+.nova-create-post__ai-badge {
+  font-size: 10px;
+  padding: 1.5px 7px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  color: var(--primary);
+  font-weight: 600;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+}
+
+.nova-create-post__ai-tones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.nova-create-post__ai-tone-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.nova-create-post__ai-tone-btn:hover {
+  color: var(--foreground);
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+}
+.nova-create-post__ai-tone-btn.is-selected {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  color: var(--primary);
+  font-weight: 600;
+  border-color: var(--primary);
+  box-shadow: 0 0 10px -2px color-mix(in srgb, var(--primary) 25%, transparent);
+}
+
+.nova-create-post__ai-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nova-create-post__ai-input {
+  flex: 1;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  font-size: 12px;
+  color: var(--foreground);
+  outline: none;
+  transition: border-color 0.2s;
+}
+.nova-create-post__ai-input:focus {
+  border-color: var(--primary);
+}
+.nova-create-post__ai-input::placeholder {
+  color: var(--muted-foreground);
+}
+
+.nova-create-post__ai-gen-btn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: var(--grad-btn);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px -3px var(--glow);
+  transition: all 0.2s ease;
+}
+.nova-create-post__ai-gen-btn:hover:not(:disabled) {
+  opacity: 0.95;
+  transform: translateY(-1px);
+}
+.nova-create-post__ai-gen-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.nova-create-post__ai-result {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--primary) 40%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nova-create-post__ai-result-text {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--foreground);
+  white-space: pre-wrap;
+}
+
+.nova-create-post__ai-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.nova-create-post__ai-tag {
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.nova-create-post__ai-result-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.nova-create-post__ai-apply-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--primary);
+  border: none;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.nova-create-post__ai-apply-btn:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.nova-create-post__ai-regen-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.18s ease;
+}
+.nova-create-post__ai-regen-btn:hover {
+  color: var(--foreground);
+}
+
+
+
 /* ═══════════════════════════════════════════════════════════════
    10 · COMMENTS & COMMENT DIALOG
    ═══════════════════════════════════════════════════════════════ */
