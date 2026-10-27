@@ -111,6 +111,11 @@ const InChatPostCard = ({ postId, isMine, onOpenPost }) => {
   const isVideo = post.mediaType === "video";
   const likeCount = (post.likes || []).length;
   const commentCount = (post.comments || []).length;
+  const collaborators = (post.collaborators || []).filter(
+    (c) =>
+      c &&
+      (c._id || c).toString() !== (author._id || author)?.toString()
+  );
 
   return (
     <div
@@ -123,18 +128,50 @@ const InChatPostCard = ({ postId, isMine, onOpenPost }) => {
     >
       {/* Author Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
-        <div className="flex items-center gap-2 min-w-0">
-          <Avatar className="size-6 ring-1 ring-white/30 shrink-0">
-            <AvatarImage src={author.profilePicture} />
-            <AvatarFallback className="text-[10px] bg-zinc-800 text-white font-bold">
-              {author.fullName?.[0] || author.username?.[0] || "U"}
-            </AvatarFallback>
-          </Avatar>
-          <span className="text-xs font-semibold text-white truncate max-w-[130px]">
-            {author.fullName || author.username || "User"}
-          </span>
+        <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+          {collaborators.length > 0 ? (
+            <div className="relative size-7 shrink-0 select-none">
+              <Avatar className="absolute top-0 left-0 size-5 border border-zinc-900 shadow-sm">
+                <AvatarImage src={author.profilePicture} />
+                <AvatarFallback className="text-[8px] bg-zinc-800 text-white font-bold">
+                  {author.fullName?.[0] || author.username?.[0] || "U"}
+                </AvatarFallback>
+              </Avatar>
+              <Avatar className="absolute bottom-0 right-0 size-5 border border-zinc-900 shadow-sm">
+                <AvatarImage src={collaborators[0]?.profilePicture} />
+                <AvatarFallback className="text-[8px] bg-zinc-800 text-white font-bold">
+                  {collaborators[0]?.fullName?.[0] || collaborators[0]?.username?.[0] || "U"}
+                </AvatarFallback>
+              </Avatar>
+            </div>
+          ) : (
+            <Avatar className="size-6 ring-1 ring-white/30 shrink-0">
+              <AvatarImage src={author.profilePicture} />
+              <AvatarFallback className="text-[10px] bg-zinc-800 text-white font-bold">
+                {author.fullName?.[0] || author.username?.[0] || "U"}
+              </AvatarFallback>
+            </Avatar>
+          )}
+          <div className="flex items-center gap-1 min-w-0 flex-1 truncate">
+            <span className="text-xs font-semibold text-white truncate">
+              {author.fullName || author.username || "User"}
+            </span>
+            {collaborators.length > 0 && (
+              <>
+                <span className="text-[11px] text-white/50 font-normal shrink-0">and</span>
+                <span className="text-xs font-semibold text-white truncate">
+                  {collaborators[0]?.fullName || collaborators[0]?.username}
+                </span>
+                {collaborators.length > 1 && (
+                  <span className="text-[10px] text-white/50 shrink-0">
+                    +{collaborators.length - 1}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
         </div>
-        <span className="flex items-center gap-1 text-[10px] font-medium text-pink-400 bg-pink-500/10 px-2 py-0.5 rounded-full border border-pink-500/20">
+        <span className="flex items-center gap-1 text-[10px] font-medium text-pink-400 bg-pink-500/10 px-2 py-0.5 rounded-full border border-pink-500/20 shrink-0">
           <Sparkles className="size-2.5" />
           <span>Post</span>
         </span>

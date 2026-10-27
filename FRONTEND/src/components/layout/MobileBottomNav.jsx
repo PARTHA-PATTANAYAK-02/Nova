@@ -113,12 +113,18 @@ const MobileBottomNav = () => {
         ? "sent you a message"
         : n.type === "follow"
           ? "started following you"
-          : "liked your post";
+          : n.type === "tag"
+            ? "tagged you in a post"
+            : n.type === "collab"
+              ? "invited you to collaborate on a post"
+              : n.type === "repost"
+                ? "reposted your post"
+                : "liked your post";
 
   const handleNotificationClick = (n) => {
     if (n.type === "message") {
       navigate("/chat", { state: { user: n.userDetails } });
-    } else if (n.type === "comment" || n.type === "like") {
+    } else if (n.type === "comment" || n.type === "like" || n.type === "tag" || n.type === "collab" || n.type === "repost") {
       navigate("/", { state: { notificationPostId: n.postId } });
     } else if (n.type === "follow" && n.userId) {
       navigate(`/profile/${n.userId}`);

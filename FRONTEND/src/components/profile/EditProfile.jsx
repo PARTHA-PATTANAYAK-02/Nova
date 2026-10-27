@@ -43,6 +43,7 @@ const EditProfile = () => {
     gender: user?.gender || "",
     dateOfBirth: user?.dateOfBirth ? user.dateOfBirth.slice(0, 10) : "",
     website: user?.website || "",
+    taggingPrivacy: user?.taggingPrivacy || "everyone",
     profilePhoto: null,
   });
 
@@ -54,6 +55,7 @@ const EditProfile = () => {
       gender: user?.gender || "",
       dateOfBirth: user?.dateOfBirth ? user.dateOfBirth.slice(0, 10) : "",
       website: user?.website || "",
+      taggingPrivacy: user?.taggingPrivacy || "everyone",
       profilePhoto: null,
     });
     setPhotoPreview(user?.profilePicture || "");
@@ -107,6 +109,7 @@ const EditProfile = () => {
     formData.append("gender", input.gender);
     formData.append("dateOfBirth", input.dateOfBirth);
     formData.append("website", input.website);
+    formData.append("taggingPrivacy", input.taggingPrivacy || "everyone");
     if (input.profilePhoto) formData.append("profilePhoto", input.profilePhoto);
     if (coverPhoto) formData.append("coverPhoto", coverPhoto);
 
@@ -284,6 +287,25 @@ const EditProfile = () => {
                 <SelectContent>
                   <SelectItem value="male">Male</SelectItem>
                   <SelectItem value="female">Female</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="nova-edit__field nova-edit__field--full">
+              <Label>Who can tag you</Label>
+              <Select
+                value={input.taggingPrivacy || "everyone"}
+                onValueChange={(taggingPrivacy) =>
+                  setInput((current) => ({ ...current, taggingPrivacy }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Who can tag you in posts" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="everyone">Everyone (Anyone can tag you)</SelectItem>
+                  <SelectItem value="following">People you follow only</SelectItem>
+                  <SelectItem value="no_one">No one (Disallow tagging)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -11,6 +11,7 @@ import {
   Eye,
   EyeOff,
   X,
+  Tag,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -36,6 +37,28 @@ const AccountSecurity = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [taggingPrivacy, setTaggingPrivacy] = useState(user?.taggingPrivacy || "everyone");
+  const [tagPrivacyLoading, setTagPrivacyLoading] = useState(false);
+
+  const handleUpdateTaggingPrivacy = async (val) => {
+    setTaggingPrivacy(val);
+    setTagPrivacyLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("taggingPrivacy", val);
+      const res = await axios.post(apiUrl("/api/v1/user/profile/edit"), formData, {
+        withCredentials: true,
+      });
+      if (res.data?.success) {
+        dispatch(setAuthUser({ ...user, taggingPrivacy: val }));
+        toast.success("Tagging privacy updated!");
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to update tagging privacy"));
+    } finally {
+      setTagPrivacyLoading(false);
+    }
+  };
 
   const deleteAccount = async (event) => {
     event.preventDefault();
@@ -112,6 +135,60 @@ const AccountSecurity = () => {
         </div>
         <div className="nova-sec__card-body">
           <PasswordResetForm email={user?.email} emailLocked />
+        </div>
+      </section>
+
+      <section className="nova-sec__card">
+        <div className="nova-sec__card-head">
+          <span className="nova-sec__card-orb nova-sec__card-orb--primary">
+            <Tag className="size-5" strokeWidth={2} />
+          </span>
+          <div className="nova-sec__card-meta">
+            <h2 className="nova-sec__card-title">Who can tag you in posts</h2>
+            <p className="nova-sec__card-sub">
+              Control whether everyone, only people you follow, or no one can tag your profile.
+            </p>
+          </div>
+        </div>
+        <div className="nova-sec__card-body pt-1">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <button
+              type="button"
+              disabled={tagPrivacyLoading}
+              onClick={() => handleUpdateTaggingPrivacy("everyone")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                taggingPrivacy === "everyone"
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "bg-[var(--surface-2)] text-[var(--muted-foreground)] border-[var(--border)] hover:text-[var(--foreground)]"
+              }`}
+            >
+              Everyone
+            </button>
+            <button
+              type="button"
+              disabled={tagPrivacyLoading}
+              onClick={() => handleUpdateTaggingPrivacy("following")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                taggingPrivacy === "following"
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "bg-[var(--surface-2)] text-[var(--muted-foreground)] border-[var(--border)] hover:text-[var(--foreground)]"
+              }`}
+            >
+              People You Follow Only
+            </button>
+            <button
+              type="button"
+              disabled={tagPrivacyLoading}
+              onClick={() => handleUpdateTaggingPrivacy("no_one")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                taggingPrivacy === "no_one"
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "bg-[var(--surface-2)] text-[var(--muted-foreground)] border-[var(--border)] hover:text-[var(--foreground)]"
+              }`}
+            >
+              No One (Disallow Tagging)
+            </button>
+          </div>
         </div>
       </section>
 

@@ -3585,8 +3585,10 @@ body[data-theme-accent="solid-red"] {
 
 .nova-profile__tabs {
   position: relative;
-  display: inline-grid;
-  grid-template-columns: 1fr 1fr;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
   gap: 4px;
   padding: 4px;
   border-radius: 999px;
@@ -3594,13 +3596,12 @@ body[data-theme-accent="solid-red"] {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-  width: 100%;
-  max-width: 260px;
+  width: auto;
+  max-width: 100%;
 }
 @media (min-width: 640px) {
   .nova-profile__tabs {
     width: auto;
-    min-width: 260px;
   }
 }
 .nova-profile__tabs--skeleton {
@@ -3623,6 +3624,8 @@ body[data-theme-accent="solid-red"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  white-space: nowrap;
+  flex-shrink: 0;
   gap: 6px;
   padding: 8px 16px;
   border-radius: 999px;
@@ -10942,6 +10945,97 @@ body:has(.nv-split),
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PREMIUM GREETING HERO ENTRANCE ANIMATIONS
+   ═══════════════════════════════════════════════════════════════ */
+@keyframes greetingFadeUp {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+    filter: blur(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes greetingSubtitleSlide {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+    letter-spacing: 0.12em;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    letter-spacing: 0.22em;
+  }
+}
+
+@keyframes greetingWave {
+  0% { transform: rotate(0deg); }
+  15% { transform: rotate(14deg); }
+  30% { transform: rotate(-8deg); }
+  45% { transform: rotate(14deg); }
+  60% { transform: rotate(-4deg); }
+  75% { transform: rotate(10deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes greetingGlowPulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(1.1);
+  }
+}
+
+.nova-greeting-container {
+  position: relative;
+  isolation: isolate;
+}
+
+.nova-greeting-glow {
+  position: absolute;
+  top: -20px;
+  left: -20px;
+  width: 150px;
+  height: 90px;
+  background: radial-gradient(circle, var(--primary) 0%, rgba(167, 139, 250, 0) 70%);
+  border-radius: 9999px;
+  filter: blur(34px);
+  pointer-events: none;
+  z-index: -1;
+  animation: greetingGlowPulse 6s ease-in-out infinite;
+}
+
+.nova-greeting-date {
+  animation: greetingSubtitleSlide 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.nova-greeting-title {
+  animation: greetingFadeUp 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+}
+
+.nova-greeting-wave {
+  display: inline-block;
+  transform-origin: 70% 70%;
+  animation: greetingWave 1.4s ease-in-out 0.5s 1;
+}
+
+.nova-greeting-name {
+  background: var(--grad-text);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+  position: relative;
 }
 
 /* ===== END SECTION 17 · COMMON ===== */

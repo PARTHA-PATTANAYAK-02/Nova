@@ -48,6 +48,8 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  Tag,
+  UserX,
 } from "lucide-react";
 import axios from "axios";
 import { toast } from "sonner";
@@ -87,12 +89,14 @@ import {
   ActivityIcon,
   Trash2Icon,
   LogOutIcon,
+  TagIcon,
 } from "@animateicons/react/lucide";
 
 const TABS = [
   { id: "profile", label: "Profile Info", icon: UserIcon, desc: "Personal identity & details" },
   { id: "security", label: "Account & Security", icon: LockIcon, desc: "Password & sessions" },
   { id: "privacy", label: "Privacy & Safety", icon: ShieldIcon, desc: "Visibility & account controls" },
+  { id: "tags", label: "Tagged Posts", icon: TagIcon, desc: "Review & manage tags on posts" },
   { id: "chat", label: "Chat & Messaging", icon: MessageCircleIcon, desc: "DMs, receipts & audio" },
   { id: "notifications", label: "Notifications", icon: BellRingIcon, desc: "Alert preferences" },
   { id: "appearance", label: "Appearance & Theme", icon: PaletteIcon, desc: "Display & media quality" },
@@ -173,8 +177,59 @@ const SettingsPage = () => {
 
   const currentDevice = detectDevice();
 
-  // Active tab state (can be initialized from location.state?.tab)
-  const [activeTab, setActiveTab] = useState(location.state?.tab || "profile");
+  // Active tab state (can be initialized from location.search or location.state?.tab)
+  const [activeTab, setActiveTab] = useState(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    return searchParams.get("tab") || location.state?.tab || "profile";
+  });
+
+  /* ═══════════════════════════════════════════════
+     TAB: TAGGED POSTS
+     ═══════════════════════════════════════════════ */
+  const [taggedPosts, setTaggedPosts] = useState([]);
+  const [loadingTaggedPosts, setLoadingTaggedPosts] = useState(false);
+  const [untaggingId, setUntaggingId] = useState(null);
+  const [untagConfirmModal, setUntagConfirmModal] = useState({ open: false, post: null });
+
+  useEffect(() => {
+    if (activeTab === "tags") {
+      setLoadingTaggedPosts(true);
+      axios
+        .get(apiUrl("/api/v1/post/tagged/me"), { withCredentials: true })
+        .then((res) => {
+          if (res.data?.success) {
+            setTaggedPosts(res.data.posts || []);
+          }
+        })
+        .catch((err) => {
+          toast.error(getErrorMessage(err, "Unable to load tagged posts"));
+        })
+        .finally(() => {
+          setLoadingTaggedPosts(false);
+        });
+    }
+  }, [activeTab]);
+
+  const handleRemoveTag = async (postId) => {
+    if (!postId || untaggingId) return;
+    setUntaggingId(postId);
+    try {
+      const res = await axios.post(
+        apiUrl(`/api/v1/post/${postId}/untag`),
+        {},
+        { withCredentials: true }
+      );
+      if (res.data?.success) {
+        setTaggedPosts((prev) => prev.filter((p) => p._id !== postId));
+        toast.success("Tag removed from post successfully");
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to remove tag from post"));
+    } finally {
+      setUntaggingId(null);
+      setUntagConfirmModal({ open: false, post: null });
+    }
+  };
 
   /* ═══════════════════════════════════════════════
      TAB 1: PROFILE INFO & UNLOCK LOGIC
@@ -421,6 +476,7 @@ const SettingsPage = () => {
   const [isPrivate, setIsPrivate] = useState(!!user?.isPrivate);
   const [showLastSeen, setShowLastSeen] = useState(user?.showLastSeen !== false);
   const [whoCanMessage, setWhoCanMessage] = useState(user?.whoCanMessage || "everyone");
+  const [taggingPrivacy, setTaggingPrivacy] = useState(user?.taggingPrivacy || "everyone");
   const [privacySaving, setPrivacySaving] = useState(false);
 
   const handleSavePrivacy = async () => {
@@ -430,6 +486,7 @@ const SettingsPage = () => {
       formData.append("isPrivate", isPrivate ? "true" : "false");
       formData.append("showLastSeen", showLastSeen ? "true" : "false");
       formData.append("whoCanMessage", whoCanMessage);
+      formData.append("taggingPrivacy", taggingPrivacy);
 
       const res = await axios.post(apiUrl("/api/v1/user/profile/edit"), formData, {
         withCredentials: true,
@@ -1714,6 +1771,60 @@ const SettingsPage = () => {
                   </div>
                 </div>
 
+                {/* Who Can Tag You in Posts */}
+                <div className="p-4 rounded-2xl bg-[var(--surface-2)]/50 border border-[var(--border)] space-y-2">
+                  <p className="text-sm font-bold text-[var(--foreground)]">
+                    Who Can Tag You in Posts
+                  </p>
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    Control who is allowed to tag you in photos and moments.
+                  </p>
+                  <div className="flex items-center gap-2.5 pt-1 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setTaggingPrivacy("everyone")}
+                      className={`
+                        px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer
+                        ${
+                          taggingPrivacy === "everyone"
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                            : "bg-[var(--surface)] text-[var(--muted-foreground)] border-[var(--border)] hover:text-[var(--foreground)]"
+                        }
+                      `}
+                    >
+                      Everyone
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTaggingPrivacy("following")}
+                      className={`
+                        px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer
+                        ${
+                          taggingPrivacy === "following"
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                            : "bg-[var(--surface)] text-[var(--muted-foreground)] border-[var(--border)] hover:text-[var(--foreground)]"
+                        }
+                      `}
+                    >
+                      People You Follow Only
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTaggingPrivacy("no_one")}
+                      className={`
+                        px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer
+                        ${
+                          taggingPrivacy === "no_one"
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                            : "bg-[var(--surface)] text-[var(--muted-foreground)] border-[var(--border)] hover:text-[var(--foreground)]"
+                        }
+                      `}
+                    >
+                      No One (Disallow Tagging)
+                    </button>
+                  </div>
+                </div>
+
                 <div className="pt-2 flex justify-end">
                   <button
                     type="button"
@@ -2482,6 +2593,202 @@ const SettingsPage = () => {
               </div>
             </div>
           )}
+
+          {/* ═══════════ TAGGED POSTS ═══════════ */}
+          {activeTab === "tags" && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-[var(--foreground)] flex items-center gap-2">
+                    <Tag className="size-5 text-primary" />
+                    <span>Posts You're Tagged In</span>
+                  </h2>
+                  <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+                    Review and manage all posts where friends and creators tagged you.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                    {taggedPosts.length} {taggedPosts.length === 1 ? "Tagged Post" : "Tagged Posts"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoadingTaggedPosts(true);
+                      axios
+                        .get(apiUrl("/api/v1/post/tagged/me"), { withCredentials: true })
+                        .then((res) => {
+                          if (res.data?.success) setTaggedPosts(res.data.posts || []);
+                        })
+                        .finally(() => setLoadingTaggedPosts(false));
+                    }}
+                    className="p-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
+                    title="Refresh tagged posts"
+                  >
+                    <RefreshCw className={`size-3.5 ${loadingTaggedPosts ? "animate-spin" : ""}`} />
+                  </button>
+                </div>
+              </div>
+
+              {loadingTaggedPosts ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-8">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div
+                      key={i}
+                      className="p-4 rounded-2xl bg-[var(--surface-2)]/60 border border-[var(--border)] animate-pulse space-y-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="size-10 rounded-full bg-[var(--surface-3)]" />
+                        <div className="space-y-1.5 flex-1">
+                          <div className="h-3.5 w-24 bg-[var(--surface-3)] rounded" />
+                          <div className="h-2.5 w-16 bg-[var(--surface-3)] rounded" />
+                        </div>
+                      </div>
+                      <div className="h-36 rounded-xl bg-[var(--surface-3)]" />
+                    </div>
+                  ))}
+                </div>
+              ) : taggedPosts.length === 0 ? (
+                <div className="text-center py-16 px-4 rounded-3xl bg-[var(--surface-2)]/30 border border-dashed border-[var(--border)] space-y-3">
+                  <div className="size-14 rounded-2xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center mx-auto">
+                    <UserX className="size-7 stroke-[1.7]" />
+                  </div>
+                  <h3 className="text-base font-bold text-[var(--foreground)]">
+                    No Tagged Posts Found
+                  </h3>
+                  <p className="text-xs text-[var(--muted-foreground)] max-w-sm mx-auto leading-relaxed">
+                    You haven't been tagged in any posts yet. When people tag you in photos or videos, they will automatically appear here so you can review or remove them anytime.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {taggedPosts.map((post) => {
+                    const author = post.author || {};
+                    const postMedia =
+                      post.media?.[0]?.url ||
+                      post.image ||
+                      post.media?.[0] ||
+                      "";
+                    const isVideo =
+                      post.mediaType === "video" ||
+                      post.media?.[0]?.mediaType === "video" ||
+                      (typeof postMedia === "string" && postMedia.match(/\.(mp4|webm|mov)(\?.*)?$/i));
+
+                    return (
+                      <div
+                        key={post._id}
+                        className="group relative rounded-2xl bg-[var(--surface-2)]/50 border border-[var(--border)] overflow-hidden hover:border-primary/40 transition-all flex flex-col justify-between"
+                      >
+                        <div className="p-3.5 flex items-center justify-between border-b border-[var(--border)]/50 bg-[var(--surface)]/40">
+                          <div
+                            onClick={() => navigate(`/profile/${author.username || author._id}`)}
+                            className="flex items-center gap-2.5 min-w-0 cursor-pointer"
+                          >
+                            <Avatar className="size-8 rounded-full border border-[var(--border)]">
+                              <AvatarImage src={author.profilePicture} />
+                              <AvatarFallback className="text-[11px] font-bold">
+                                {author.username?.[0]?.toUpperCase() || "U"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-[var(--foreground)] truncate group-hover:text-primary transition-colors">
+                                {author.fullName || author.username}
+                              </p>
+                              <p className="text-[10px] text-[var(--muted-foreground)] truncate">
+                                @{author.username}
+                              </p>
+                            </div>
+                          </div>
+
+                          <span className="text-[10px] text-[var(--muted-foreground)]">
+                            {post.createdAt
+                              ? new Date(post.createdAt).toLocaleDateString(undefined, {
+                                  month: "short",
+                                  day: "numeric",
+                                })
+                              : ""}
+                          </span>
+                        </div>
+
+                        {/* Media preview */}
+                        <div
+                          onClick={() =>
+                            navigate("/", { state: { notificationPostId: post._id } })
+                          }
+                          className="relative aspect-video bg-black/40 cursor-pointer overflow-hidden flex items-center justify-center"
+                        >
+                          {postMedia ? (
+                            isVideo ? (
+                              <video
+                                src={postMedia}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                muted
+                                playsInline
+                              />
+                            ) : (
+                              <img
+                                src={postMedia}
+                                alt="Tagged post"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                loading="lazy"
+                              />
+                            )
+                          ) : (
+                            <div className="p-4 text-center text-xs text-[var(--muted-foreground)]">
+                              {post.caption || "Post content"}
+                            </div>
+                          )}
+
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+                            <span className="text-xs text-white font-medium flex items-center gap-1.5 drop-shadow">
+                              <ExternalLink className="size-3.5" />
+                              View Post
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Caption & Actions */}
+                        <div className="p-3.5 space-y-3">
+                          {post.caption && (
+                            <p className="text-xs text-[var(--foreground)] line-clamp-2 leading-relaxed">
+                              {post.caption}
+                            </p>
+                          )}
+
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--border)]/40">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                navigate("/", { state: { notificationPostId: post._id } })
+                              }
+                              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>Open post</span>
+                              <ExternalLink className="size-3" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setUntagConfirmModal({ open: true, post })}
+                              disabled={untaggingId === post._id}
+                              className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                            >
+                              {untaggingId === post._id ? (
+                                <Loader2 className="size-3 animate-spin" />
+                              ) : (
+                                <UserX className="size-3" />
+                              )}
+                              <span>Remove Tag</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -2627,6 +2934,52 @@ const SettingsPage = () => {
             >
               {loggingOut ? <Loader2 className="size-3.5 animate-spin" /> : <LogOut className="size-3.5" />}
               <span>Log Out</span>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Untag Confirmation Dialog */}
+      <Dialog
+        open={untagConfirmModal.open}
+        onOpenChange={(v) =>
+          setUntagConfirmModal((prev) => ({ ...prev, open: v }))
+        }
+      >
+        <DialogContent className="max-w-[380px] bg-[var(--surface)] border-[var(--border)] text-[var(--foreground)] p-6 rounded-3xl shadow-2xl">
+          <DialogHeader>
+            <div className="size-11 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center mb-2">
+              <UserX className="size-5" />
+            </div>
+            <DialogTitle className="text-base font-bold text-[var(--foreground)]">
+              Remove tag from post?
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-[var(--muted-foreground)] leading-relaxed mt-1">
+            You will be removed from this post's tagged users. The post will no longer tag your profile and will be removed from this list.
+          </p>
+          <div className="flex items-center justify-end gap-2.5 mt-5">
+            <button
+              type="button"
+              onClick={() => setUntagConfirmModal({ open: false, post: null })}
+              className="px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--foreground)] transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={Boolean(untaggingId)}
+              onClick={() => handleRemoveTag(untagConfirmModal.post?._id)}
+              className="px-4 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-700 active:scale-95 text-white shadow-md transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {untaggingId ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  <span>Removing…</span>
+                </>
+              ) : (
+                "Remove Tag"
+              )}
             </button>
           </div>
         </DialogContent>

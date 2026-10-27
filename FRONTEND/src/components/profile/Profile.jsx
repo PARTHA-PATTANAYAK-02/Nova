@@ -43,6 +43,10 @@ import {
   Twitter,
   Youtube,
   Linkedin,
+  Layers,
+  Tag,
+  Users,
+  UserMinus,
 } from "lucide-react";
 import {
   QrCodeIcon,
@@ -68,6 +72,7 @@ import {
   XIcon,
   EllipsisIcon,
   Trash2Icon,
+  TagIcon,
 } from "@animateicons/react/lucide";
 import AnimatedIcon from "@/components/common/AnimatedIcon";
 import SavedCollectionsSection from "@/components/profile/SavedCollectionsSection";
@@ -161,6 +166,14 @@ const Profile = () => {
   const [viewedStoryIds, setViewedStoryIds] = useState(getGlobalViewedItemIds);
   const [followLoading, setFollowLoading] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [deleteModal, setDeleteModal] = useState({
+    open: false,
+    postId: null,
+    mode: "everyone",
+    title: "",
+    message: "",
+    confirmText: "",
+  });
   const [qrModalOpen, setQrModalOpen] = useState(false);
 
   /* ═══ Highlights State ═══ */
@@ -409,19 +422,18 @@ const Profile = () => {
     }
   };
 
-  const handleDeletePost = async (postId) => {
+  const handleDeletePost = async (postId, mode = "everyone") => {
     if (!postId || deletingId) return;
-    setOpenMenuId(null);
     setDeletingId(postId);
     try {
-      const res = await axios.delete(apiUrl(`/api/v1/post/delete/${postId}`), {
+      const res = await axios.delete(apiUrl(`/api/v1/post/delete/${postId}?mode=${mode}`), {
         withCredentials: true,
       });
       if (res.data.success) {
         setRemovedPostIds((prev) => new Set([...prev, postId]));
         const updatedPosts = (reduxPosts || []).filter((p) => p._id !== postId);
         dispatch(setPosts(updatedPosts));
-        toast.success(res.data.message || "Post deleted");
+        toast.success(res.data.message || (mode === "for_me" ? "Removed from your profile" : "Post deleted"));
       } else {
         toast.error("Unable to delete post.");
       }
@@ -429,6 +441,7 @@ const Profile = () => {
       toast.error(getErrorMessage(error, "Unable to delete this post."));
     } finally {
       setDeletingId(null);
+      setDeleteModal({ open: false, postId: null, mode: "everyone", title: "", message: "", confirmText: "" });
     }
   };
 
@@ -493,18 +506,50 @@ const Profile = () => {
   );
 
   const rawPosts =
-    activeTab === "posts" ? userProfile?.posts : userProfile?.bookmarks;
+    activeTab === "posts"
+      ? userProfile?.posts
+      : activeTab === "collabs"
+      ? (userProfile?.posts || []).filter(
+          (p) => Array.isArray(p.collaborators) && p.collaborators.length > 0
+        )
+      : userProfile?.bookmarks;
 
-  const displayedPost = (rawPosts || [])
+  const displayedPost = [...(rawPosts || [])]
     .filter((p) => !removedPostIds.has(p._id))
     .sort((a, b) => {
-      if (activeTab !== "posts") return 0;
-      const aPinned = pinnedIds.has(a._id?.toString());
-      const bPinned = pinnedIds.has(b._id?.toString());
-      if (aPinned && !bPinned) return -1;
-      if (!aPinned && bPinned) return 1;
-      return 0;
+      if (activeTab === "posts") {
+        const aPinned = pinnedIds.has(a._id?.toString());
+        const bPinned = pinnedIds.has(b._id?.toString());
+        if (aPinned && !bPinned) return -1;
+        if (!aPinned && bPinned) return 1;
+      }
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     });
+
+  const handleUntagPost = async (postId) => {
+    try {
+      const res = await axios.post(
+        apiUrl(`/api/v1/post/${postId}/untag`),
+        {},
+        { withCredentials: true }
+      );
+      if (res.data?.success) {
+        toast.success("Removed tag from post");
+        if (userProfile?.taggedPosts) {
+          dispatch(
+            setUserProfile({
+              ...userProfile,
+              taggedPosts: userProfile.taggedPosts.filter(
+                (p) => (p._id || p)?.toString() !== postId.toString()
+              ),
+            })
+          );
+        }
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to untag from post"));
+    }
+  };
 
   const handlePostClick = (post) => {
     dispatch(setSelectedPost(post));
@@ -745,7 +790,7 @@ const Profile = () => {
             <div className="nova-profile__stats">
               <div className="nova-profile__stat">
                 <span className="nova-profile__stat-num">
-                  {fmtCount(displayedPost?.length || 0)}
+                  {fmtCount(userProfile?.posts?.length || 0)}
                 </span>
                 <span className="nova-profile__stat-label">Posts</span>
               </div>
@@ -893,13 +938,23 @@ const Profile = () => {
                 <AnimatedIcon icon={Grid3x3Icon} size={15} />
                 Posts
               </button>
+              {isLoggedInUserProfile && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("saved")}
+                  className={`nova-tab ${activeTab === "saved" ? "is-active" : ""}`}
+                >
+                  <AnimatedIcon icon={BookmarkIcon} size={15} />
+                  Saved
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setActiveTab("saved")}
-                className={`nova-tab ${activeTab === "saved" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("collabs")}
+                className={`nova-tab ${activeTab === "collabs" ? "is-active" : ""}`}
               >
-                <AnimatedIcon icon={BookmarkIcon} size={15} />
-                Saved
+                <Users size={15} className="stroke-[2.2]" />
+                <span>Collabs</span>
               </button>
             </div>
           </div>
@@ -914,14 +969,22 @@ const Profile = () => {
           ) : displayedPost?.length > 0 ? (
             <div className="nova-profile__grid">
               {displayedPost.map((post, index) => {
-                const canManage = isLoggedInUserProfile && activeTab === "posts";
+                const isPostAuthor = (post.author?._id || post.author)?.toString() === user?._id?.toString();
+                const isCollaborator = (post.collaborators || []).some(
+                  (c) => (c?._id || c)?.toString() === user?._id?.toString()
+                );
+                const canManage =
+                  isLoggedInUserProfile && (activeTab === "posts" || activeTab === "collabs");
                 const isDeleting = deletingId === post._id;
                 const isPinned = pinnedIds.has(post._id?.toString());
                 const postAuthorId = (post.author?._id || post.author)?.toString();
+                const isCollab = (post.collaborators || []).length > 0;
                 const isRepost = Boolean(
+                  !isCollab &&
                   postAuthorId &&
                     userProfile?._id &&
-                    postAuthorId !== userProfile._id.toString(),
+                    postAuthorId !== userProfile._id.toString() &&
+                    (activeTab === "reposts" || post.repostOf)
                 );
                 const isQuote = Boolean(post.repostOf);
 
@@ -931,6 +994,15 @@ const Profile = () => {
                     className="nova-profile__tile"
                     style={{ animationDelay: `${Math.min(index * 35, 350)}ms` }}
                   >
+                    {activeTab === "collabs" && (
+                      <div
+                        className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-full bg-black/65 backdrop-blur-md border border-violet-500/40 text-violet-300 text-[10px] font-bold flex items-center gap-1 shadow-lg pointer-events-none"
+                        title="Collaboration post"
+                      >
+                        <Users size={11} className="stroke-[2.5]" />
+                        <span>Collab</span>
+                      </div>
+                    )}
                     {isPinned && activeTab === "posts" && (
                       <div
                         className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-amber-500/40 text-amber-400 text-[10px] font-bold flex items-center gap-1 shadow-lg pointer-events-none"
@@ -1021,34 +1093,121 @@ const Profile = () => {
                     <PopoverContent
                       align="end"
                       sideOffset={6}
-                      className="w-40 p-1 flex flex-col gap-0.5"
+                      className="w-48 p-1 flex flex-col gap-0.5"
                     >
-                      <button
-                        type="button"
-                        onClick={() => handleTogglePin(post._id)}
-                        className="nova-profile__menu-item flex items-center gap-2 cursor-pointer group"
-                      >
-                        {isPinned ? (
-                          <>
-                            <AnimatedIcon icon={PinOffIcon} size={14} className="text-amber-400" />
-                            <span>Unpin post</span>
-                          </>
-                        ) : (
-                          <>
-                            <AnimatedIcon icon={PinIcon} size={14} className="text-amber-400" />
-                            <span>Pin to profile</span>
-                          </>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeletePost(post._id)}
-                        disabled={isDeleting}
-                        className="nova-profile__menu-item is-danger flex items-center gap-2 cursor-pointer group"
-                      >
-                        <AnimatedIcon icon={Trash2Icon} size={14} strokeWidth={2} />
-                        {isDeleting ? "Deleting…" : "Delete post"}
-                      </button>
+                      {isPostAuthor ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePin(post._id)}
+                            className="nova-profile__menu-item flex items-center gap-2 cursor-pointer group"
+                          >
+                            {isPinned ? (
+                              <>
+                                <AnimatedIcon icon={PinOffIcon} size={14} className="text-amber-400" />
+                                <span>Unpin post</span>
+                              </>
+                            ) : (
+                              <>
+                                <AnimatedIcon icon={PinIcon} size={14} className="text-amber-400" />
+                                <span>Pin to profile</span>
+                              </>
+                            )}
+                          </button>
+
+                          {(post.collaborators || []).length > 0 ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  setDeleteModal({
+                                    open: true,
+                                    postId: post._id,
+                                    mode: "for_me",
+                                    title: "Leave collaboration?",
+                                    message:
+                                      "This post will be removed from your profile and feed, but will remain active for the other co-authors. Are you sure you want to leave?",
+                                    confirmText: "Leave & Remove",
+                                  });
+                                }}
+                                className="nova-profile__menu-item is-danger flex items-center gap-2 cursor-pointer group"
+                              >
+                                <UserMinus size={14} />
+                                <span>Leave collab</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  setDeleteModal({
+                                    open: true,
+                                    postId: post._id,
+                                    mode: "everyone",
+                                    title: "Delete for everyone?",
+                                    message:
+                                      "This will permanently delete this post, media, comments and likes for all co-authors. This action cannot be undone.",
+                                    confirmText: "Delete for everyone",
+                                  });
+                                }}
+                                className="nova-profile__menu-item is-danger flex items-center gap-2 cursor-pointer group"
+                              >
+                                <AnimatedIcon icon={Trash2Icon} size={14} strokeWidth={2} />
+                                <span>Delete for everyone</span>
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                setDeleteModal({
+                                  open: true,
+                                  postId: post._id,
+                                  mode: "everyone",
+                                  title: "Delete post?",
+                                  message:
+                                    "Are you sure you want to permanently delete this post? This action cannot be undone.",
+                                  confirmText: "Delete post",
+                                });
+                              }}
+                              className="nova-profile__menu-item is-danger flex items-center gap-2 cursor-pointer group"
+                            >
+                              <AnimatedIcon icon={Trash2Icon} size={14} strokeWidth={2} />
+                              <span>Delete post</span>
+                            </button>
+                          )}
+                        </>
+                      ) : isCollaborator ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpenMenuId(null);
+                            setDeleteModal({
+                              open: true,
+                              postId: post._id,
+                              mode: "for_me",
+                              title: "Delete from your profile?",
+                              message:
+                                "If you delete this post, you will leave this collaboration and it will no longer appear on your profile. The post will remain intact for the other authors. Do you want to continue?",
+                              confirmText: "Delete & Leave",
+                            });
+                          }}
+                          className="nova-profile__menu-item is-danger flex items-center gap-2 cursor-pointer group"
+                        >
+                          <AnimatedIcon icon={Trash2Icon} size={14} strokeWidth={2} />
+                          <span>Delete post</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleUntagPost(post._id)}
+                          className="nova-profile__menu-item is-danger flex items-center gap-2 cursor-pointer group"
+                        >
+                          <X size={14} />
+                          <span>Remove tag</span>
+                        </button>
+                      )}
                     </PopoverContent>
                   </Popover>
                 )}
@@ -1065,11 +1224,19 @@ const Profile = () => {
       ) : (
         <div className="nova-profile__empty">
           <div className="nova-profile__empty-orb">
-            <AnimatedIcon icon={CompassIcon} size={20} strokeWidth={1.8} />
+            {activeTab === "collabs" ? (
+              <Users size={22} className="text-violet-400 stroke-[2]" />
+            ) : (
+              <AnimatedIcon icon={CompassIcon} size={20} strokeWidth={1.8} />
+            )}
           </div>
-          <h3 className="nova-profile__empty-title">No posts yet</h3>
+          <h3 className="nova-profile__empty-title">
+            {activeTab === "collabs" ? "No Collabs Yet" : "No posts yet"}
+          </h3>
           <p className="nova-profile__empty-sub">
-            When they share photos, they'll appear here.
+            {activeTab === "collabs"
+              ? "Posts co-authored with other creators will appear here."
+              : "When they share photos, they'll appear here."}
           </p>
         </div>
       )}
@@ -1229,6 +1396,56 @@ const Profile = () => {
           if (!nextOpen) dispatch(setSelectedPost(null));
         }}
       />
+
+      {/* ── DELETE / LEAVE CONFIRMATION MODAL ── */}
+      <Dialog
+        open={deleteModal.open}
+        onOpenChange={(v) =>
+          setDeleteModal((prev) => ({ ...prev, open: v }))
+        }
+      >
+        <DialogContent className="max-w-[400px] p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] shadow-2xl">
+          <DialogHeader>
+            <div className="size-12 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center mb-3">
+              <Trash2 className="size-6" />
+            </div>
+            <DialogTitle className="text-lg font-bold tracking-tight text-[var(--foreground)]">
+              {deleteModal.title || "Confirm Deletion"}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs sm:text-sm text-[var(--muted-foreground)] leading-relaxed mt-1">
+            {deleteModal.message}
+          </p>
+          <div className="flex items-center justify-end gap-2.5 mt-5">
+            <button
+              type="button"
+              onClick={() =>
+                setDeleteModal((prev) => ({ ...prev, open: false }))
+              }
+              className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold border border-[var(--border)] bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--foreground)] transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={Boolean(deletingId)}
+              onClick={() =>
+                handleDeletePost(deleteModal.postId, deleteModal.mode)
+              }
+              className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-red-600 hover:bg-red-700 active:scale-95 text-white shadow-md transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {deletingId ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  <span>Processing…</span>
+                </>
+              ) : (
+                deleteModal.confirmText || "Delete"
+              )}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={Boolean(peopleType)}

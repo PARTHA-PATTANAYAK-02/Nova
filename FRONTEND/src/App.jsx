@@ -13,6 +13,7 @@ import {
   removeNotification,
   setLikeNotification,
   setNotifications,
+  removeNotificationByMatch,
 } from "./redux/rtnSlice";
 import axios from "axios";
 import { appendPost, removePost, setSelectedPost, updatePost } from "./redux/postSlice";
@@ -448,6 +449,10 @@ function App() {
           return;
         }
         dispatch(setLikeNotification(notification));
+      });
+
+      socketio.on("notificationRemoved", (removed) => {
+        if (removed) dispatch(removeNotificationByMatch(removed));
       });
 
       socketio.on("newPost", (newPost) => {

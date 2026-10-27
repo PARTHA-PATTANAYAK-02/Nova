@@ -25,6 +25,11 @@ const QuotePostModal = ({ isOpen, onClose, post }) => {
 
   const originalAuthor = post.author || {};
   const originalDisplayName = getDisplayName(originalAuthor, "User");
+  const collaborators = (post?.collaborators || []).filter(
+    (c) =>
+      c &&
+      (c._id || c).toString() !== (originalAuthor?._id || originalAuthor)?.toString()
+  );
 
   const handleShareQuote = async (e) => {
     e?.preventDefault();
@@ -99,17 +104,45 @@ const QuotePostModal = ({ isOpen, onClose, post }) => {
               </div>
             )}
             <div className="min-w-0 flex-1 flex flex-col justify-center text-left">
-              <div className="flex items-center gap-1.5">
-                <Avatar className="size-5 rounded-full">
-                  <AvatarImage src={originalAuthor.profilePicture} />
-                  <AvatarFallback className="text-[9px]">U</AvatarFallback>
-                </Avatar>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {collaborators.length > 0 ? (
+                  <div className="relative size-6 shrink-0 select-none mr-0.5">
+                    <Avatar className="absolute top-0 left-0 size-4 border border-zinc-900 shadow-sm">
+                      <AvatarImage src={originalAuthor.profilePicture} />
+                      <AvatarFallback className="text-[7px]">U</AvatarFallback>
+                    </Avatar>
+                    <Avatar className="absolute bottom-0 right-0 size-4 border border-zinc-900 shadow-sm">
+                      <AvatarImage src={collaborators[0]?.profilePicture} />
+                      <AvatarFallback className="text-[7px]">U</AvatarFallback>
+                    </Avatar>
+                  </div>
+                ) : (
+                  <Avatar className="size-5 rounded-full">
+                    <AvatarImage src={originalAuthor.profilePicture} />
+                    <AvatarFallback className="text-[9px]">U</AvatarFallback>
+                  </Avatar>
+                )}
                 <p className="text-xs font-semibold text-white truncate">
                   {originalDisplayName}
                 </p>
-                <span className="text-[11px] text-white/40 truncate">
-                  @{originalAuthor.username}
-                </span>
+                {collaborators.length > 0 && (
+                  <>
+                    <span className="text-[11px] text-white/50 font-normal">and</span>
+                    <p className="text-xs font-semibold text-white truncate">
+                      {collaborators[0]?.fullName || collaborators[0]?.username}
+                    </p>
+                    {collaborators.length > 1 && (
+                      <span className="text-[10px] text-white/50">
+                        +{collaborators.length - 1}
+                      </span>
+                    )}
+                  </>
+                )}
+                {collaborators.length === 0 && originalAuthor.username && (
+                  <span className="text-[11px] text-white/40 truncate">
+                    @{originalAuthor.username}
+                  </span>
+                )}
               </div>
               {post.caption && (
                 <p className="text-xs text-white/70 line-clamp-2 mt-1 leading-snug">

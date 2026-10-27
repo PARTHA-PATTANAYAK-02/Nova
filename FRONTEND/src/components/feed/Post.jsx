@@ -17,6 +17,10 @@ import {
   VolumeX,
   Heart as LucideHeart,
   Bookmark as LucideBookmark,
+  ChevronLeft,
+  ChevronRight,
+  Tag,
+  User,
 } from "lucide-react";
 import {
   HeartIcon,
@@ -34,6 +38,7 @@ import {
   ExpandIcon,
   Maximize2Icon,
   Minimize2Icon,
+  TagIcon,
 } from "@animateicons/react/lucide";
 import AnimatedIcon from "@/components/common/AnimatedIcon";
 import {
@@ -101,12 +106,86 @@ const Post = ({ post }) => {
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
   const [repostMenuOpen, setRepostMenuOpen] = useState(false);
   const [reposts, setReposts] = useState(post?.reposts || []);
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState({
+    open: false,
+    mode: "everyone",
+    title: "",
+    message: "",
+    confirmText: "",
+  });
 
-  /* ── ADAPTIVE MEDIA ASPECT ───────────────────── */
+  /* ── ADAPTIVE MEDIA ASPECT & CAROUSEL ───────────────────── */
+  const mediaItems = Array.isArray(post?.media) && post.media.length > 0
+    ? post.media
+    : post?.image
+    ? [{ url: post.image, mediaType: post.mediaType || "image" }]
+    : [];
+
+  const [activeSlide, setActiveSlide] = useState(0);
   const [mediaAspect, setMediaAspect] = useState(4 / 5);
   const [mediaReady, setMediaReady] = useState(false);
   const [mediaFitMode, setMediaFitMode] = useState("fill");
   const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  const currentMedia = mediaItems[activeSlide] || mediaItems[0] || {};
+  const isCurrentVideo = (() => {
+    if (currentMedia?.mediaType === "video" || currentMedia?.type === "video") return true;
+    if (currentMedia?.mediaType === "image" || currentMedia?.type === "image") return false;
+    const targetUrl = (typeof currentMedia === "string" ? currentMedia : "") || currentUrl || currentMedia?.url || "";
+    if (typeof targetUrl === "string") {
+      const lower = targetUrl.toLowerCase();
+      if (
+        lower.includes("/video/upload/") ||
+        lower.endsWith(".mp4") ||
+        lower.endsWith(".webm") ||
+        lower.endsWith(".mov") ||
+        lower.endsWith(".mkv")
+      ) return true;
+      if (
+        lower.includes("/image/upload/") ||
+        lower.endsWith(".jpg") ||
+        lower.endsWith(".jpeg") ||
+        lower.endsWith(".png") ||
+        lower.endsWith(".webp") ||
+        lower.endsWith(".gif")
+      ) return false;
+    }
+    if (mediaItems.length <= 1 && post?.mediaType === "video") return true;
+    return false;
+  })();
+  const currentUrl = currentMedia.url || post?.image;
+
+  const [showTags, setShowTags] = useState(false);
+
+  /* reset aspect & slide when post changes */
+  useEffect(() => {
+    setActiveSlide(0);
+    setMediaAspect(4 / 5);
+    setMediaReady(false);
+    setShowTags(false);
+  }, [post?._id]);
+
+  useEffect(() => {
+    setMediaReady(false);
+    setVideoPlaying(false);
+    setVideoTime(0);
+    setVideoEnded(false);
+    setShowTags(false);
+  }, [activeSlide]);
+
+  // Tagged users on current slide
+  const slideTags = (post?.taggedUsers || []).filter(
+    (t) => (t.mediaIndex ?? 0) === activeSlide && t.user
+  );
+
+  // Collaborators & unique tagged people on this post (excluding the author)
+  const collaborators = (post?.collaborators || []).filter(
+    (c) =>
+      c &&
+      (c._id || c).toString() !==
+        (post?.author?._id || post?.author)?.toString()
+  );
+
 
   const { user } = useSelector((s) => s.auth);
   const { posts, selectedPost } = useSelector((s) => s.post);
@@ -124,16 +203,21 @@ const Post = ({ post }) => {
   const lastTouchRef = useRef(0);
   const touchStartCoordsRef = useRef({ x: 0, y: 0 });
 
-  const isOwnPost = user?._id === post?.author?._id;
+  const isOwnPost = (post?.author?._id || post?.author)?.toString() === user?._id?.toString();
+  const isCollaborator = (post?.collaborators || []).some(
+    (c) => (c?._id || c)?.toString() === user?._id?.toString()
+  );
+  const isTaggedInPost = (post?.taggedUsers || []).some(
+    (t) => (t?.user?._id || t?.user)?.toString() === user?._id?.toString()
+  );
   const isFollowing = user?.following?.some(
     (i) => (i?._id || i)?.toString() === post?.author?._id?.toString(),
   );
 
-  /* reset aspect when post changes */
+  /* reset aspect when slide changes */
   useEffect(() => {
-    setMediaAspect(4 / 5);
     setMediaReady(false);
-  }, [post?._id]);
+  }, [activeSlide]);
 
   useEffect(() => {
     setLiked(post?.likes?.some((i) => (i?._id || i)?.toString() === user?._id?.toString()) || false);
@@ -174,7 +258,7 @@ const Post = ({ post }) => {
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || post?.mediaType !== "video") return undefined;
+    if (!video || !isCurrentVideo) return undefined;
 
     const handleVisibility = () => {
       if (document.visibilityState !== "visible") {
@@ -213,7 +297,7 @@ const Post = ({ post }) => {
       document.removeEventListener("visibilitychange", handleVisibility);
       video.pause();
     };
-  }, [post?._id, post?.mediaType]);
+  }, [post?._id, isCurrentVideo, activeSlide]);
 
   useEffect(
     () => () => {
@@ -315,10 +399,25 @@ const Post = ({ post }) => {
     const now = Date.now();
     const t = e.changedTouches?.[0];
     if (t) {
-      const dist = Math.hypot(
-        t.clientX - touchStartCoordsRef.current.x,
-        t.clientY - touchStartCoordsRef.current.y,
-      );
+      const deltaX = t.clientX - touchStartCoordsRef.current.x;
+      const deltaY = t.clientY - touchStartCoordsRef.current.y;
+      const dist = Math.hypot(deltaX, deltaY);
+
+      // Horizontal swipe navigation for carousel
+      if (
+        mediaItems.length > 1 &&
+        Math.abs(deltaX) > 40 &&
+        Math.abs(deltaX) > Math.abs(deltaY) * 1.3
+      ) {
+        if (deltaX < 0 && activeSlide < mediaItems.length - 1) {
+          setActiveSlide((prev) => prev + 1);
+          return;
+        } else if (deltaX > 0 && activeSlide > 0) {
+          setActiveSlide((prev) => prev - 1);
+          return;
+        }
+      }
+
       if (dist > 10) return; // Scrolled/dragged, not a tap
     }
     if (now - lastTouchRef.current < 280) {
@@ -414,20 +513,41 @@ const Post = ({ post }) => {
     }
   };
 
-  const deletePostHandler = async () => {
+  const deletePostHandler = async (mode = "everyone") => {
     if (actionLoading) return;
     try {
       setActionLoading("delete");
       const res = await axios.delete(
-        apiUrl(`/api/v1/post/delete/${post?._id}`),
+        apiUrl(`/api/v1/post/delete/${post?._id}?mode=${mode}`),
         { withCredentials: true },
       );
       if (res.data.success) {
         dispatch(setPosts(posts.filter((i) => i?._id !== post?._id)));
-        toast.success(res.data.message);
+        toast.success(res.data.message || (mode === "for_me" ? "Removed from your profile" : "Post deleted"));
       }
     } catch (error) {
       toast.error(getErrorMessage(error, "Unable to delete this post."));
+    } finally {
+      setActionLoading(null);
+      setDeleteConfirmModal({ open: false, mode: "everyone", title: "", message: "", confirmText: "" });
+    }
+  };
+
+
+  const untagHandler = async () => {
+    if (actionLoading || !post?._id) return;
+    try {
+      setActionLoading("untag");
+      const res = await axios.post(
+        apiUrl(`/api/v1/post/${post._id}/untag`),
+        {},
+        { withCredentials: true }
+      );
+      if (res.data.success) {
+        toast.success(res.data.message || "Removed your tag from this post");
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Unable to untag from post"));
     } finally {
       setActionLoading(null);
     }
@@ -458,8 +578,17 @@ const Post = ({ post }) => {
     }
   };
 
+  const isAuthorOrCollab = Boolean(
+    user?._id && (
+      (post.author?._id || post.author)?.toString() === user._id?.toString() ||
+      collaborators.some((c) => (c?._id || c)?.toString() === user._id?.toString())
+    )
+  );
+
   const repostedByMe = Boolean(
-    user?._id &&
+    !isAuthorOrCollab &&
+      collaborators.length === 0 &&
+      user?._id &&
       reposts?.some((id) => (id?._id || id)?.toString() === user._id?.toString())
   );
 
@@ -496,8 +625,7 @@ const Post = ({ post }) => {
     }
   };
 
-  const openChatWithAuthor = () =>
-    navigate("/chat", { state: { user: post.author } });
+
 
   const openComments = () => {
     dispatch(setSelectedPost(post));
@@ -526,7 +654,7 @@ const Post = ({ post }) => {
       "
     >
       {/* ── REPOST HEADER BANNER ────────────────────── */}
-      {repostedByMe && (
+      {repostedByMe && !collaborators.length && !isAuthorOrCollab && (
         <div className="flex items-center gap-1.5 px-4 pt-3 pb-0 text-xs font-semibold text-emerald-400 select-none">
           <AnimatedIcon icon={Repeat2Icon} size={13} strokeWidth={2.4} />
           <span>You reposted</span>
@@ -535,31 +663,90 @@ const Post = ({ post }) => {
 
       {/* ── HEADER ─────────────────────────────────── */}
       <header className="flex items-center gap-3 px-4 py-3">
-        <Link
-          to={`/profile/${post.author?.username || post.author?._id}`}
-          className="relative shrink-0 size-10 flex items-center justify-center"
-          aria-label={`${getDisplayName(post.author)} profile`}
-        >
-          <Avatar className="size-10 border border-[var(--border)] transition-transform hover:scale-105">
-            <AvatarImage
-              src={post.author?.profilePicture}
-              alt={getDisplayName(post.author)}
-            />
-            <AvatarFallback>
-              {getDisplayName(post.author, "U").charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-        </Link>
+        {collaborators.length > 0 ? (
+          <div className="relative size-10 shrink-0 select-none">
+            {/* Author Avatar (top-left) */}
+            <Link
+              to={`/profile/${post.author?.username || post.author?._id}`}
+              className="absolute top-0 left-0 size-7 rounded-full border-2 border-[var(--surface)] ring-1 ring-[var(--border)] overflow-hidden z-10 transition-transform hover:scale-110 hover:z-30 block bg-[var(--surface)] shadow-sm"
+              title={post.author?.fullName || post.author?.username}
+              aria-label={`${post.author?.fullName || post.author?.username} profile`}
+            >
+              <Avatar className="size-full">
+                <AvatarImage
+                  src={post.author?.profilePicture}
+                  alt={post.author?.fullName || post.author?.username}
+                  className="object-cover size-full"
+                />
+                <AvatarFallback className="text-[10px] font-bold">
+                  {(post.author?.fullName || post.author?.username || "U").charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </Link>
+            {/* Collaborator Avatar (bottom-right) */}
+            <Link
+              to={`/profile/${collaborators[0]?.username || collaborators[0]?._id}`}
+              className="absolute bottom-0 right-0 size-7 rounded-full border-2 border-[var(--surface)] ring-1 ring-[var(--border)] overflow-hidden z-20 transition-transform hover:scale-110 hover:z-30 block bg-[var(--surface)] shadow-sm"
+              title={collaborators[0]?.fullName || collaborators[0]?.username}
+              aria-label={`${collaborators[0]?.fullName || collaborators[0]?.username} profile`}
+            >
+              <Avatar className="size-full">
+                <AvatarImage
+                  src={collaborators[0]?.profilePicture}
+                  alt={collaborators[0]?.fullName || collaborators[0]?.username}
+                  className="object-cover size-full"
+                />
+                <AvatarFallback className="text-[10px] font-bold">
+                  {(collaborators[0]?.fullName || collaborators[0]?.username || "U").charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </Link>
+          </div>
+        ) : (
+          <Link
+            to={`/profile/${post.author?.username || post.author?._id}`}
+            className="relative shrink-0 size-10 flex items-center justify-center"
+            aria-label={`${post.author?.fullName || post.author?.username} profile`}
+          >
+            <Avatar className="size-10 border border-[var(--border)] transition-transform hover:scale-105">
+              <AvatarImage
+                src={post.author?.profilePicture}
+                alt={post.author?.fullName || post.author?.username}
+              />
+              <AvatarFallback>
+                {(post.author?.fullName || post.author?.username || "U").charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          </Link>
+        )}
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <Link
               to={`/profile/${post.author?.username || post.author?._id}`}
               className="text-[13.5px] font-semibold text-[var(--foreground)] truncate hover:text-[var(--primary)] transition-colors duration-200"
             >
-              {getDisplayName(post.author)}
+              {post.author?.fullName || post.author?.username}
             </Link>
-            {isOwnPost && (
+
+            {collaborators.length > 0 && (
+              <>
+                <span className="text-[12px] text-[var(--muted-foreground)] font-normal">and</span>
+                <Link
+                  to={`/profile/${collaborators[0]?.username || collaborators[0]?._id}`}
+                  className="text-[13.5px] font-semibold text-[var(--foreground)] truncate hover:text-[var(--primary)] transition-colors duration-200"
+                >
+                  {collaborators[0]?.fullName || collaborators[0]?.username}
+                </Link>
+                {collaborators.length > 1 && (
+                  <span className="text-[11px] font-medium text-[var(--muted-foreground)]">
+                    +{collaborators.length - 1} more
+                  </span>
+                )}
+              </>
+            )}
+
+            {isOwnPost && !collaborators.length && (
               <span className="shrink-0 text-[9px] font-bold tracking-wider uppercase px-1.5 py-[2px] rounded-md bg-[var(--primary)]/12 text-[var(--primary)]">
                 You
               </span>
@@ -665,9 +852,97 @@ const Post = ({ post }) => {
                 </button>
               )}
               {isOwnPost && (
+                <>
+                  {collaborators.length > 0 ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteConfirmModal({
+                            open: true,
+                            mode: "for_me",
+                            title: "Leave collaboration?",
+                            message:
+                              "This post will be removed from your profile and feed, but will remain active for the other co-authors. Are you sure you want to leave?",
+                            confirmText: "Leave & Remove",
+                          });
+                        }}
+                        disabled={!!actionLoading}
+                        className="
+                          flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
+                          text-[var(--danger)] hover:bg-[var(--danger)]/8
+                          active:scale-[.98] transition-all duration-200
+                          outline-none disabled:opacity-50 cursor-pointer group
+                        "
+                      >
+                        <AnimatedIcon icon={UserMinusIcon} size={16} />
+                        Leave collaboration
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteConfirmModal({
+                            open: true,
+                            mode: "everyone",
+                            title: "Delete for everyone?",
+                            message:
+                              "This will permanently delete this post, media, comments and likes for all co-authors. This action cannot be undone.",
+                            confirmText: "Delete for everyone",
+                          });
+                        }}
+                        disabled={!!actionLoading}
+                        className="
+                          flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
+                          text-[var(--danger)] hover:bg-[var(--danger)]/8
+                          active:scale-[.98] transition-all duration-200
+                          outline-none disabled:opacity-50 cursor-pointer group
+                        "
+                      >
+                        <AnimatedIcon icon={Trash2Icon} size={16} />
+                        Delete for everyone
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeleteConfirmModal({
+                          open: true,
+                          mode: "everyone",
+                          title: "Delete post?",
+                          message:
+                            "Are you sure you want to permanently delete this post? This action cannot be undone.",
+                          confirmText: "Delete post",
+                        });
+                      }}
+                      disabled={!!actionLoading}
+                      className="
+                        flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
+                        text-[var(--danger)] hover:bg-[var(--danger)]/8
+                        active:scale-[.98] transition-all duration-200
+                        outline-none disabled:opacity-50 cursor-pointer group
+                      "
+                    >
+                      <AnimatedIcon icon={Trash2Icon} size={16} />
+                      Delete post
+                    </button>
+                  )}
+                </>
+              )}
+
+              {!isOwnPost && isCollaborator && (
                 <button
                   type="button"
-                  onClick={deletePostHandler}
+                  onClick={() => {
+                    setDeleteConfirmModal({
+                      open: true,
+                      mode: "for_me",
+                      title: "Delete from your profile?",
+                      message:
+                        "If you delete this post, you will leave this collaboration and it will no longer appear on your profile. The post will remain intact for the other authors. Do you want to continue?",
+                      confirmText: "Delete & Leave",
+                    });
+                  }}
                   disabled={!!actionLoading}
                   className="
                     flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
@@ -678,6 +953,50 @@ const Post = ({ post }) => {
                 >
                   <AnimatedIcon icon={Trash2Icon} size={16} />
                   Delete post
+                </button>
+              )}
+
+              {isCollaborator && !isOwnPost && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenDialog(false);
+                    setDeleteConfirmModal({
+                      open: true,
+                      mode: "for_me",
+                      title: "Leave collaboration?",
+                      message:
+                        "This post will be removed from your profile and feed. The post will remain for the original author and any other collaborators.",
+                      confirmText: "Leave collaboration",
+                    });
+                  }}
+                  disabled={!!actionLoading}
+                  className="
+                    flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
+                    text-[var(--danger)] hover:bg-[var(--danger)]/8
+                    active:scale-[.98] transition-all duration-200
+                    outline-none disabled:opacity-50 cursor-pointer group
+                  "
+                >
+                  <AnimatedIcon icon={UserMinusIcon} size={16} />
+                  Leave collaboration (Remove from my profile)
+                </button>
+              )}
+
+              {isTaggedInPost && (
+                <button
+                  type="button"
+                  onClick={untagHandler}
+                  disabled={!!actionLoading}
+                  className="
+                    flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
+                    text-[var(--foreground)] hover:bg-[var(--surface-2)]
+                    active:scale-[.98] transition-all duration-200
+                    outline-none disabled:opacity-50 cursor-pointer group
+                  "
+                >
+                  <AnimatedIcon icon={TagIcon} size={16} className="text-pink-400" />
+                  Remove tag from post
                 </button>
               )}
             </div>
@@ -702,20 +1021,54 @@ const Post = ({ post }) => {
           >
             {/* Original author header */}
             <div className="flex items-center gap-2 p-3 pb-2">
-              <Avatar className="size-6 border border-[var(--border)]">
-                <AvatarImage src={post.repostOf.author?.profilePicture} />
-                <AvatarFallback className="text-[10px] font-bold">
-                  {getDisplayName(post.repostOf.author, "U").charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <span className="text-xs font-semibold text-[var(--foreground)] truncate group-hover/quote:text-[var(--primary)] transition-colors">
-                {getDisplayName(post.repostOf.author)}
-              </span>
-              {post.repostOf.author?.username && (
-                <span className="text-[11px] text-[var(--muted-foreground)] truncate">
-                  @{post.repostOf.author.username}
-                </span>
-              )}
+              {(() => {
+                const quoteCollabs = (post.repostOf.collaborators || []).filter(
+                  (c) => c && (c._id || c).toString() !== (post.repostOf.author?._id || post.repostOf.author)?.toString()
+                );
+                return (
+                  <>
+                    {quoteCollabs.length > 0 ? (
+                      <div className="relative size-7 shrink-0 select-none mr-0.5">
+                        <Avatar className="absolute top-0 left-0 size-5 border border-[var(--surface)] shadow-sm">
+                          <AvatarImage src={post.repostOf.author?.profilePicture} />
+                          <AvatarFallback className="text-[8px] font-bold">
+                            {getDisplayName(post.repostOf.author, "U").charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <Avatar className="absolute bottom-0 right-0 size-5 border border-[var(--surface)] shadow-sm">
+                          <AvatarImage src={quoteCollabs[0]?.profilePicture} />
+                          <AvatarFallback className="text-[8px] font-bold">
+                            {(quoteCollabs[0]?.fullName || quoteCollabs[0]?.username || "U").charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                      </div>
+                    ) : (
+                      <Avatar className="size-6 border border-[var(--border)]">
+                        <AvatarImage src={post.repostOf.author?.profilePicture} />
+                        <AvatarFallback className="text-[10px] font-bold">
+                          {getDisplayName(post.repostOf.author, "U").charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
+                    <span className="text-xs font-semibold text-[var(--foreground)] truncate group-hover/quote:text-[var(--primary)] transition-colors">
+                      {getDisplayName(post.repostOf.author)}
+                    </span>
+                    {quoteCollabs.length > 0 && (
+                      <>
+                        <span className="text-[11px] text-[var(--muted-foreground)] font-normal">and</span>
+                        <span className="text-xs font-semibold text-[var(--foreground)] truncate group-hover/quote:text-[var(--primary)] transition-colors">
+                          {quoteCollabs[0]?.fullName || quoteCollabs[0]?.username}
+                        </span>
+                      </>
+                    )}
+                    {quoteCollabs.length === 0 && post.repostOf.author?.username && (
+                      <span className="text-[11px] text-[var(--muted-foreground)] truncate">
+                        @{post.repostOf.author.username}
+                      </span>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Original caption */}
@@ -750,15 +1103,15 @@ const Post = ({ post }) => {
       ) : (
         /* ── REGULAR POST MEDIA ── */
         <div
-          className="group/media relative bg-[var(--surface-2)]/40 overflow-hidden w-full"
+          className="group/media relative bg-[var(--surface-2)]/40 overflow-hidden w-full select-none"
           style={mediaStyle}
           onDoubleClick={handleMediaDoubleClick}
           onTouchStart={(e) => {
             handleMediaTouchStart(e);
-            if (post.mediaType === "video") showControls();
+            if (isCurrentVideo) showControls();
           }}
           onTouchEnd={handleMediaTouchEnd}
-          onMouseMove={post.mediaType === "video" ? showControls : undefined}
+          onMouseMove={isCurrentVideo ? showControls : undefined}
           onMouseLeave={() => {
             if (videoPlaying) {
               window.clearTimeout(controlsTimeoutRef.current);
@@ -774,12 +1127,13 @@ const Post = ({ post }) => {
           <div className="absolute inset-0 skeleton" aria-hidden="true" />
         )}
 
-        {post.mediaType === "video" ? (
+        {isCurrentVideo ? (
           <>
             <video
               ref={videoRef}
+              key={currentUrl}
               data-feed-video
-              src={post.image}
+              src={currentUrl}
               className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
                 mediaReady ? "opacity-100" : "opacity-0"
               }`}
@@ -874,9 +1228,9 @@ const Post = ({ post }) => {
             {/* video controls overlay */}
             <div
               className={`
-                absolute left-3 right-3 bottom-3 z-20
-                rounded-2xl px-3 py-2.5
-                bg-black/55 backdrop-blur-xl border border-white/10
+                absolute left-0 right-0 bottom-0 z-20
+                px-3 pb-2.5 pt-6
+                bg-gradient-to-t from-black/75 via-black/25 to-transparent
                 transition-all duration-300
                 ${controlsVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none"}
               `}
@@ -988,6 +1342,20 @@ const Post = ({ post }) => {
                     />
                   </div>
                 </div>
+
+                {/* Full View Lightbox Button for Video */}
+                <button
+                  type="button"
+                  title="Full view"
+                  aria-label="Full view"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightboxOpen(true);
+                  }}
+                  className="size-8 rounded-full flex items-center justify-center hover:bg-white/15 transition-colors outline-none cursor-pointer active:scale-95 shrink-0"
+                >
+                  <AnimatedIcon icon={ExpandIcon} size={15} />
+                </button>
               </div>
             </div>
           </>
@@ -997,7 +1365,8 @@ const Post = ({ post }) => {
             {mediaFitMode === "fit" && (
               <div className="absolute inset-0 overflow-hidden pointer-events-none select-none">
                 <img
-                  src={post.image}
+                  key={`blur-${currentUrl}`}
+                  src={currentUrl}
                   alt=""
                   aria-hidden="true"
                   className="w-full h-full object-cover blur-2xl scale-125 opacity-40 brightness-75 transition-opacity duration-300"
@@ -1005,24 +1374,129 @@ const Post = ({ post }) => {
               </div>
             )}
             <img
+              key={currentUrl}
               className={`relative z-10 w-full h-full transition-all duration-300 ${
                 mediaFitMode === "fit" ? "object-contain" : "object-cover"
               } ${mediaReady ? "opacity-100" : "opacity-0"}`}
-              src={post.image}
-              alt={post.caption || "Post image"}
+              src={currentUrl}
+              alt={post.caption || `Post media ${activeSlide + 1}`}
               draggable={false}
               onLoad={handleImageLoad}
             />
           </div>
         )}
 
-        {/* Floating media overlay controls: Fit/Fill Toggle & Fullscreen Lightbox */}
-        <div
-          className="absolute bottom-3 right-3 z-20 flex items-center gap-1.5 pointer-events-auto opacity-100 md:opacity-0 md:group-hover/media:opacity-100 transition-opacity duration-200"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Fit / Fill toggle (for images) */}
-          {post.mediaType !== "video" && (
+        {/* Carousel slide counter badge (top right) */}
+        {mediaItems.length > 1 && (
+          <div className="absolute top-3 right-3 z-20 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-white text-[11px] font-semibold tracking-wide shadow-md pointer-events-none select-none">
+            {activeSlide + 1}/{mediaItems.length}
+          </div>
+        )}
+
+        {/* Carousel Left / Right Arrows */}
+        {mediaItems.length > 1 && activeSlide > 0 && (
+          <button
+            type="button"
+            aria-label="Previous slide"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveSlide((prev) => Math.max(0, prev - 1));
+            }}
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-lg transition-all active:scale-90 hover:scale-105 cursor-pointer opacity-90 hover:opacity-100"
+          >
+            <ChevronLeft size={20} />
+          </button>
+        )}
+        {mediaItems.length > 1 && activeSlide < mediaItems.length - 1 && (
+          <button
+            type="button"
+            aria-label="Next slide"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveSlide((prev) => Math.min(mediaItems.length - 1, prev + 1));
+            }}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-lg transition-all active:scale-90 hover:scale-105 cursor-pointer opacity-90 hover:opacity-100"
+          >
+            <ChevronRight size={20} />
+          </button>
+        )}
+
+        {/* Pagination Dots */}
+        {mediaItems.length > 1 && (
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md pointer-events-none">
+            {mediaItems.map((_, idx) => (
+              <span
+                key={idx}
+                className={`transition-all duration-300 rounded-full ${
+                  idx === activeSlide
+                    ? "w-2.5 h-2 bg-white shadow-sm"
+                    : "w-1.5 h-1.5 bg-white/45"
+                }`}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Tagged People Indicator Pill (Bottom Left) */}
+        {slideTags.length > 0 && (
+          <button
+            type="button"
+            title={showTags ? "Hide tags" : "Show tagged people"}
+            aria-label="Show tagged people"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowTags((prev) => !prev);
+            }}
+            className={`
+              absolute bottom-3 left-3 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full
+              backdrop-blur-md border text-white text-[11px] font-semibold shadow-lg
+              transition-all duration-200 active:scale-95 cursor-pointer
+              ${showTags ? "bg-black/85 border-pink-500/50 text-pink-300" : "bg-black/60 hover:bg-black/80 border-white/20"}
+            `}
+          >
+            <AnimatedIcon icon={TagIcon} size={13} className={showTags ? "text-pink-400" : "text-white"} />
+            <span>{slideTags.length === 1 ? `@${slideTags[0].user?.username}` : `${slideTags.length} tagged`}</span>
+          </button>
+        )}
+
+        {/* Interactive Tag Bubbles over the Photo */}
+        {showTags &&
+          slideTags.map((tag) => {
+            const u = tag.user;
+            if (!u) return null;
+            return (
+              <div
+                key={u._id || u.username}
+                style={{ left: `${tag.x ?? 50}%`, top: `${tag.y ?? 50}%` }}
+                className="absolute -translate-x-1/2 -translate-y-full mb-1.5 z-30 pointer-events-auto animate-in fade-in zoom-in-95 duration-200"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (u.username || u._id) {
+                    navigate(`/profile/${u.username || u._id}`);
+                  }
+                }}
+              >
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/85 hover:bg-black/95 backdrop-blur-md border border-white/30 text-white text-[11px] font-semibold shadow-2xl transition-transform hover:scale-105 active:scale-95 cursor-pointer">
+                  <Avatar className="size-4 shrink-0 border border-white/40">
+                    <AvatarImage src={u.profilePicture} />
+                    <AvatarFallback className="text-[9px]">
+                      {u.username?.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span>@{u.username}</span>
+                </div>
+                <div className="w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-black/85 mx-auto" />
+              </div>
+            );
+          })}
+
+        {/* Floating media overlay controls: Fit/Fill Toggle & Fullscreen Lightbox (Photos only) */}
+        {!isCurrentVideo && (
+          <div
+            className="absolute bottom-3 right-3 z-20 flex items-center gap-1.5 pointer-events-auto opacity-100 md:opacity-0 md:group-hover/media:opacity-100 transition-opacity duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Fit / Fill toggle (for images) */}
             <button
               type="button"
               title={mediaFitMode === "fill" ? "Fit whole photo (uncrop)" : "Fill frame"}
@@ -1043,27 +1517,27 @@ const Post = ({ post }) => {
                 size={14}
               />
             </button>
-          )}
 
-          {/* Full View Lightbox Button */}
-          <button
-            type="button"
-            title="Full view"
-            aria-label="Full view"
-            onClick={(e) => {
-              e.stopPropagation();
-              setLightboxOpen(true);
-            }}
-            className="
-              size-8 rounded-full flex items-center justify-center
-              bg-black/65 hover:bg-black/85 backdrop-blur-md
-              border border-white/20 text-white shadow-md
-              transition-all duration-200 active:scale-90 hover:scale-110 cursor-pointer
-            "
-          >
-            <AnimatedIcon icon={ExpandIcon} size={14} />
-          </button>
-        </div>
+            {/* Full View Lightbox Button */}
+            <button
+              type="button"
+              title="Full view"
+              aria-label="Full view"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxOpen(true);
+              }}
+              className="
+                size-8 rounded-full flex items-center justify-center
+                bg-black/65 hover:bg-black/85 backdrop-blur-md
+                border border-white/20 text-white shadow-md
+                transition-all duration-200 active:scale-90 hover:scale-110 cursor-pointer
+              "
+            >
+              <AnimatedIcon icon={ExpandIcon} size={14} />
+            </button>
+          </div>
+        )}
 
         {/* heart burst */}
         {heartBurst && (
@@ -1413,6 +1887,8 @@ const Post = ({ post }) => {
         open={lightboxOpen}
         onClose={() => setLightboxOpen(false)}
         post={post}
+        mediaItems={mediaItems}
+        initialSlide={activeSlide}
         liked={liked}
         postLike={postLike}
         onLike={likeOrDislikeHandler}
@@ -1424,6 +1900,49 @@ const Post = ({ post }) => {
         }}
         onShareClick={() => setShareOpen(true)}
       />
+
+      {/* ── DELETE / LEAVE CONFIRMATION MODAL ── */}
+      <Dialog
+        open={deleteConfirmModal.open}
+        onOpenChange={(v) =>
+          setDeleteConfirmModal((prev) => ({ ...prev, open: v }))
+        }
+      >
+        <DialogContent className="max-w-[400px] p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] shadow-2xl">
+          <DialogTitle className="text-lg font-bold tracking-tight text-[var(--foreground)] flex items-center gap-2.5">
+            <div className="size-9 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center shrink-0">
+              <AnimatedIcon icon={Trash2Icon} size={18} />
+            </div>
+            <span>{deleteConfirmModal.title || "Confirm Deletion"}</span>
+          </DialogTitle>
+          <p className="text-xs sm:text-sm text-[var(--muted-foreground)] leading-relaxed mt-2">
+            {deleteConfirmModal.message}
+          </p>
+          <div className="flex items-center justify-end gap-2.5 mt-5">
+            <button
+              type="button"
+              onClick={() =>
+                setDeleteConfirmModal((prev) => ({ ...prev, open: false }))
+              }
+              className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold border border-[var(--border)] bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--foreground)] transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={Boolean(actionLoading === "delete")}
+              onClick={() => deletePostHandler(deleteConfirmModal.mode)}
+              className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-red-600 hover:bg-red-700 active:scale-95 text-white shadow-md transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {actionLoading === "delete" ? (
+                <span>Processing…</span>
+              ) : (
+                deleteConfirmModal.confirmText || "Delete"
+              )}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </article>
   );
 };

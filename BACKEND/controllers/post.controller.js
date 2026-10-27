@@ -3,7 +3,8 @@ import cloudinary from "../utils/cloudinary.js";
 import { Post } from "../models/post.model.js";
 import { User } from "../models/user.model.js";
 import { Comment } from "../models/comment.model.js";
-import { getReceiverSocketId, io } from "../socket/socket.js";
+import { Notification } from "../models/notification.model.js";
+import { getReceiverSocketId, getReceiverSocketIds, io } from "../socket/socket.js";
 import { createAndEmitNotification } from "../utils/notifications.js";
 import {
   generateAICaptionWithGemini,
@@ -16,6 +17,8 @@ export const emitPostUpdated = async (postId) => {
   try {
     const post = await Post.findById(postId)
       .populate({ path: "author", select: "username fullName profilePicture" })
+      .populate({ path: "collaborators", select: "username fullName profilePicture" })
+      .populate({ path: "taggedUsers.user", select: "username fullName profilePicture" })
       .populate({
         path: "comments",
         options: { sort: { createdAt: 1 } },
@@ -31,60 +34,197 @@ export const emitPostUpdated = async (postId) => {
 };
 
 export const addNewPost = async (req, res) => {
-  let uploadedPublicId;
-  let resourceType = "image";
+  const uploadedItems = [];
   try {
     const caption = typeof req.body.caption === "string" ? req.body.caption.trim() : "";
-    const image = req.file;
+    const rawFiles = (req.mediaFiles && req.mediaFiles.length > 0)
+      ? req.mediaFiles
+      : (req.file ? [req.file] : []);
     const authorId = req.id;
 
-    if (!image) return res.status(400).json({ success: false, message: "Media file required" });
-    const isVideo = image.mimetype?.startsWith("video/");
-    const isImage = image.mimetype?.startsWith("image/");
-    if (!isVideo && !isImage) {
-      return res.status(400).json({ success: false, message: "Choose an image or video file" });
+    if (!rawFiles || rawFiles.length === 0) {
+      return res.status(400).json({ success: false, message: "Media file required" });
     }
-    if (isVideo && image.size > 50 * 1024 * 1024) {
-      return res.status(413).json({ success: false, message: "Videos must be 50 MB or smaller" });
-    }
-    if (isImage && image.size > 10 * 1024 * 1024) {
-      return res.status(413).json({ success: false, message: "Images must be 10 MB or smaller" });
+    if (rawFiles.length > 5) {
+      return res.status(400).json({ success: false, message: "Maximum 5 media files allowed" });
     }
     if (caption.length > 2200) {
       return res.status(400).json({ success: false, message: "Caption can be up to 2,200 characters" });
     }
 
-    const uploadBuffer = isVideo
-      ? image.buffer
-      : await sharp(image.buffer)
-          .rotate()
-          .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
-          .jpeg({ quality: 84, mozjpeg: true })
-          .toBuffer();
-    resourceType = isVideo ? "video" : "image";
-    const cloudResponse = await new Promise((resolve, reject) => {
-      cloudinary.uploader
-        .upload_stream(
-          { folder: "nova/posts", resource_type: resourceType },
-          (error, result) => (error ? reject(error) : resolve(result)),
-        )
-        .end(uploadBuffer);
-    });
-    uploadedPublicId = cloudResponse.public_id;
+    for (const file of rawFiles) {
+      const isVideo = file.mimetype?.startsWith("video/");
+      const isImage = file.mimetype?.startsWith("image/");
+      if (!isVideo && !isImage) {
+        return res.status(400).json({ success: false, message: "Choose only image or video files" });
+      }
+      if (isVideo && file.size > 50 * 1024 * 1024) {
+        return res.status(413).json({ success: false, message: "Videos must be 50 MB or smaller" });
+      }
+      if (isImage && file.size > 10 * 1024 * 1024) {
+        return res.status(413).json({ success: false, message: "Images must be 10 MB or smaller" });
+      }
+    }
+
+    const uploadedMedia = await Promise.all(
+      rawFiles.map(async (file) => {
+        const isVideo = file.mimetype?.startsWith("video/");
+        const resType = isVideo ? "video" : "image";
+        const uploadBuffer = isVideo
+          ? file.buffer
+          : await sharp(file.buffer)
+              .rotate()
+              .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
+              .jpeg({ quality: 84, mozjpeg: true })
+              .toBuffer();
+
+        const cloudResponse = await new Promise((resolve, reject) => {
+          cloudinary.uploader
+            .upload_stream(
+              { folder: "nova/posts", resource_type: resType },
+              (error, result) => (error ? reject(error) : resolve(result)),
+            )
+            .end(uploadBuffer);
+        });
+
+        uploadedItems.push({ publicId: cloudResponse.public_id, mediaType: resType });
+
+        return {
+          url: cloudResponse.secure_url,
+          mediaType: resType,
+          publicId: cloudResponse.public_id,
+        };
+      })
+    );
+
+    let parsedTaggedUsers = [];
+    if (req.body.taggedUsers) {
+      try {
+        const rawTags =
+          typeof req.body.taggedUsers === "string"
+            ? JSON.parse(req.body.taggedUsers)
+            : req.body.taggedUsers;
+        if (Array.isArray(rawTags)) {
+          parsedTaggedUsers = rawTags
+            .filter((t) => t && (t.user || t.userId))
+            .map((t) => ({
+              user: t.user?._id || t.user || t.userId,
+              x: typeof t.x === "number" ? Math.max(0, Math.min(100, t.x)) : 50,
+              y: typeof t.y === "number" ? Math.max(0, Math.min(100, t.y)) : 50,
+              mediaIndex: typeof t.mediaIndex === "number" ? t.mediaIndex : 0,
+            }));
+        }
+      } catch (parseErr) {
+        console.error("Failed to parse taggedUsers:", parseErr);
+      }
+    }
+
+    let parsedCollaborators = [];
+    if (req.body.collaborators) {
+      try {
+        const rawCollabs =
+          typeof req.body.collaborators === "string"
+            ? JSON.parse(req.body.collaborators)
+            : req.body.collaborators;
+        if (Array.isArray(rawCollabs)) {
+          parsedCollaborators = rawCollabs
+            .map((c) => (c?._id || c?.id || c)?.toString())
+            .filter((cId) => cId && cId !== authorId.toString());
+        }
+      } catch (parseErr) {
+        console.error("Failed to parse collaborators:", parseErr);
+      }
+    }
+
+    // Security & Permission: Collaborators must be mutual followers
+    let validatedCollaborators = [];
+    if (parsedCollaborators.length > 0) {
+      const authorUser = await User.findById(authorId).select("following followers");
+      const followingSet = new Set((authorUser?.following || []).map((id) => (id?._id || id)?.toString()));
+      const mutualIds = new Set(
+        (authorUser?.followers || [])
+          .map((id) => (id?._id || id)?.toString())
+          .filter((id) => id && followingSet.has(id))
+      );
+      validatedCollaborators = parsedCollaborators.filter((cId) => mutualIds.has(cId));
+    }
+
+    // Security & Permission: Tagged users must permit tagging
+    let validatedTaggedUsers = [];
+    if (parsedTaggedUsers.length > 0) {
+      const tagUserIds = parsedTaggedUsers.map((t) => (t.user?._id || t.user || t.userId)?.toString()).filter(Boolean);
+      const tagUsersInDb = await User.find({ _id: { $in: tagUserIds } }).select("taggingPrivacy following");
+      const tagMap = new Map(tagUsersInDb.map((u) => [u._id.toString(), u]));
+
+      validatedTaggedUsers = parsedTaggedUsers.filter((t) => {
+        const uid = (t.user?._id || t.user || t.userId)?.toString();
+        const u = tagMap.get(uid);
+        if (!u) return false;
+        if (u.taggingPrivacy === "no_one") return false;
+        if (u.taggingPrivacy === "following") {
+          const isFollowedByThem = (u.following || []).some(
+            (fId) => (fId?._id || fId)?.toString() === authorId.toString()
+          );
+          if (!isFollowedByThem) return false;
+        }
+        return true;
+      });
+    }
+
+    const firstItem = uploadedMedia[0];
     const post = await Post.create({
       caption,
-      image: cloudResponse.secure_url,
-      mediaType: resourceType,
-      mediaPublicId: uploadedPublicId,
+      image: firstItem.url,
+      mediaType: firstItem.mediaType,
+      mediaPublicId: firstItem.publicId,
+      media: uploadedMedia,
       author: authorId,
+      collaborators: validatedCollaborators,
+      taggedUsers: validatedTaggedUsers,
     });
+
     const user = await User.findById(authorId);
     if (user) {
       user.posts.push(post._id);
       await user.save();
     }
 
-    await post.populate({ path: "author", select: "-password" });
+    await post.populate([
+      { path: "author", select: "username fullName profilePicture" },
+      { path: "collaborators", select: "username fullName profilePicture" },
+      { path: "taggedUsers.user", select: "username fullName profilePicture" },
+    ]);
+
+    // Send notifications to all collaborators ("collab")
+    if (validatedCollaborators.length > 0) {
+      for (const cId of validatedCollaborators) {
+        createAndEmitNotification({
+          recipient: cId,
+          actor: authorId,
+          type: "collab",
+          postId: post._id,
+        }).catch((err) => console.error("Notification collab error:", err));
+      }
+    }
+
+    // Send notifications to all tagged users ("tag")
+    if (validatedTaggedUsers.length > 0) {
+      for (const t of validatedTaggedUsers) {
+        const taggedUserId = (t.user?._id || t.user)?.toString();
+        if (
+          taggedUserId &&
+          taggedUserId !== authorId.toString() &&
+          !validatedCollaborators.includes(taggedUserId)
+        ) {
+          createAndEmitNotification({
+            recipient: taggedUserId,
+            actor: authorId,
+            type: "tag",
+            postId: post._id,
+          }).catch((err) => console.error("Notification tag error:", err));
+        }
+      }
+    }
 
     io.emit("newPost", post);
 
@@ -94,15 +234,15 @@ export const addNewPost = async (req, res) => {
       success: true,
     });
   } catch (error) {
-    if (uploadedPublicId) {
-      try {
-        await cloudinary.uploader.destroy(uploadedPublicId, {
-          resource_type: resourceType,
-          invalidate: true,
-        });
-      } catch (cleanupError) {
-        console.error("Unable to remove failed post upload:", cleanupError);
-      }
+    if (uploadedItems.length > 0) {
+      await Promise.allSettled(
+        uploadedItems.map((item) =>
+          cloudinary.uploader.destroy(item.publicId, {
+            resource_type: item.mediaType,
+            invalidate: true,
+          })
+        )
+      );
     }
     console.error("addNewPost error:", error);
     return res.status(500).json({ success: false, message: "Unable to create post" });
@@ -120,6 +260,8 @@ export const getAllPost = async (req, res) => {
       .skip((page - 1) * limit)
       .limit(limit)
       .populate({ path: "author", select: "username fullName profilePicture" })
+      .populate({ path: "collaborators", select: "username fullName profilePicture" })
+      .populate({ path: "taggedUsers.user", select: "username fullName profilePicture" })
       .populate({
         path: "repostOf",
         populate: { path: "author", select: "username fullName profilePicture" },
@@ -153,6 +295,8 @@ export const getPostById = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id)
       .populate({ path: "author", select: "username fullName profilePicture" })
+      .populate({ path: "collaborators", select: "username fullName profilePicture" })
+      .populate({ path: "taggedUsers.user", select: "username fullName profilePicture" })
       .populate({
         path: "repostOf",
         populate: { path: "author", select: "username fullName profilePicture" },
@@ -191,6 +335,14 @@ export const getUserPost = async (req, res) => {
         select: "username fullName profilePicture",
       })
       .populate({
+        path: "collaborators",
+        select: "username fullName profilePicture",
+      })
+      .populate({
+        path: "taggedUsers.user",
+        select: "username fullName profilePicture",
+      })
+      .populate({
         path: "comments",
         sort: { createdAt: -1 },
         populate: {
@@ -222,17 +374,17 @@ export const likePost = async (req, res) => {
     if (!hasLiked) {
       post.likes.push(likeKrneWalaUserKiId);
       await post.save();
-    }
 
-    // implement socket io for real time notification
-    const postOwnerId = post.author.toString();
-    if (postOwnerId !== likeKrneWalaUserKiId) {
-      await createAndEmitNotification({
-        recipient: postOwnerId,
-        actor: likeKrneWalaUserKiId,
-        type: "like",
-        postId,
-      });
+      // Only send notification when a user freshly likes a post!
+      const postOwnerId = post.author.toString();
+      if (postOwnerId !== likeKrneWalaUserKiId) {
+        await createAndEmitNotification({
+          recipient: postOwnerId,
+          actor: likeKrneWalaUserKiId,
+          type: "like",
+          postId,
+        });
+      }
     }
 
     await emitPostUpdated(postId);
@@ -256,6 +408,29 @@ export const dislikePost = async (req, res) => {
     // dislike logic started
     post.likes = post.likes.filter((id) => id.toString() !== likeKrneWalaUserKiId.toString());
     await post.save();
+
+    // Clean up like notification from DB and emit removal via socket so recipient doesn't see false "liked your post"
+    try {
+      await Notification.deleteMany({
+        recipient: post.author,
+        actor: likeKrneWalaUserKiId,
+        type: "like",
+        postId,
+      });
+
+      const receiverSocketIds = getReceiverSocketIds(post.author.toString());
+      if (receiverSocketIds && receiverSocketIds.length > 0) {
+        for (const socketId of receiverSocketIds) {
+          io.to(socketId).emit("notificationRemoved", {
+            actor: likeKrneWalaUserKiId,
+            postId,
+            type: "like",
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.error("dislike notification clean error:", notifErr);
+    }
 
     await emitPostUpdated(postId);
 
@@ -363,29 +538,99 @@ export const deletePost = async (req, res) => {
   try {
     const postId = req.params.id;
     const authorId = req.id;
+    const mode = req.query.mode || req.body?.mode; // "for_me" or "everyone"
 
     const post = await Post.findById(postId);
-    if (!post)
+    if (!post) {
       return res
         .status(404)
         .json({ message: "Post not found", success: false });
+    }
 
-    // check if the logged-in user is the owner of the post
-    if (post.author.toString() !== authorId)
-      return res.status(403).json({ message: "Unauthorized" });
+    const isAuthor = post.author?.toString() === authorId?.toString();
+    const isCollaborator = (post.collaborators || []).some(
+      (c) => (c._id || c)?.toString() === authorId?.toString()
+    );
 
-    // delete post
+    if (!isAuthor && !isCollaborator) {
+      return res.status(403).json({ message: "Unauthorized", success: false });
+    }
+
+    // CASE 1: Collaborator leaves/deletes from their profile OR Author chooses "for_me" when collaborators exist
+    if (isCollaborator || (isAuthor && mode === "for_me" && post.collaborators.length > 0)) {
+      if (isCollaborator) {
+        // Remove collaborator from post
+        post.collaborators = (post.collaborators || []).filter(
+          (c) => (c._id || c)?.toString() !== authorId?.toString()
+        );
+        await post.save();
+
+        // Also remove post from this user's posts
+        await User.findByIdAndUpdate(authorId, {
+          $pull: { posts: postId },
+        });
+
+        await emitPostUpdated(postId);
+
+        return res.status(200).json({
+          success: true,
+          message: "You removed yourself from the collaboration",
+          removedForMe: true,
+          postId,
+        });
+      } else {
+        // Author leaves and transfers primary authorship to the first collaborator
+        const newAuthorId = (post.collaborators[0]?._id || post.collaborators[0])?.toString();
+        post.author = newAuthorId;
+        post.collaborators = (post.collaborators || []).filter(
+          (c) => (c._id || c)?.toString() !== newAuthorId
+        );
+        await post.save();
+
+        await User.findByIdAndUpdate(authorId, {
+          $pull: { posts: postId },
+        });
+
+        await User.findByIdAndUpdate(newAuthorId, {
+          $addToSet: { posts: postId },
+        });
+
+        await emitPostUpdated(postId);
+
+        return res.status(200).json({
+          success: true,
+          message: "You removed yourself from the post",
+          removedForMe: true,
+          postId,
+        });
+      }
+    }
+
+    // CASE 2: Permanent deletion for everyone (by the original Author)
     await Post.findByIdAndDelete(postId);
 
-    // remove the post id from the user's post
-    let user = await User.findById(authorId);
-    user.posts = user.posts.filter((id) => id.toString() !== postId);
-    await user.save();
+    // remove the post id from author's posts & all collaborators' posts
+    const allInvolvedUserIds = [post.author, ...(post.collaborators || [])];
+    await User.updateMany(
+      { _id: { $in: allInvolvedUserIds } },
+      { $pull: { posts: postId, bookmarks: postId } }
+    );
 
     // delete associated comments
     await Comment.deleteMany({ post: postId });
 
-    if (post.mediaPublicId) {
+    if (Array.isArray(post.media) && post.media.length > 0) {
+      await Promise.allSettled(
+        post.media.map((item) =>
+          item.publicId
+            ? cloudinary.uploader.destroy(item.publicId, {
+                resource_type: item.mediaType === "video" ? "video" : "image",
+                invalidate: true,
+              })
+            : Promise.resolve()
+        )
+      );
+    } else if (post.mediaPublicId) {
       try {
         await cloudinary.uploader.destroy(post.mediaPublicId, {
           resource_type: post.mediaType === "video" ? "video" : "image",
@@ -400,7 +645,9 @@ export const deletePost = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Post deleted",
+      message: "Post deleted for everyone",
+      deletedForEveryone: true,
+      postId,
     });
   } catch (error) {
     console.error("deletePost error:", error);
@@ -457,6 +704,7 @@ export const getPostsByTag = async (req, res) => {
     const posts = await Post.find({ caption: { $regex: tagRegex } })
       .sort({ createdAt: -1 })
       .populate("author", "username profilePicture fullName")
+      .populate({ path: "taggedUsers.user", select: "username fullName profilePicture" })
       .populate({
         path: "comments",
         options: { sort: { createdAt: -1 } },
@@ -485,6 +733,7 @@ export const getExploreFeed = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(60)
       .populate("author", "username profilePicture fullName")
+      .populate({ path: "taggedUsers.user", select: "username fullName profilePicture" })
       .populate({
         path: "repostOf",
         populate: { path: "author", select: "username fullName profilePicture" },
@@ -840,5 +1089,50 @@ export const generateAICommentsController = async (req, res) => {
       ],
       fallback: true,
     });
+  }
+};
+
+export const untagMeFromPost = async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const userId = req.id;
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ message: "Post not found", success: false });
+    }
+
+    post.taggedUsers = (post.taggedUsers || []).filter(
+      (t) => (t.user?._id || t.user)?.toString() !== userId.toString()
+    );
+    await post.save();
+    await emitPostUpdated(post._id);
+
+    return res.status(200).json({
+      message: "Untagged successfully",
+      success: true,
+      post,
+    });
+  } catch (error) {
+    console.error("untagMeFromPost error:", error);
+    return res.status(500).json({
+      message: "Failed to remove tag from post",
+      success: false,
+    });
+  }
+};
+
+export const getMyTaggedPosts = async (req, res) => {
+  try {
+    const userId = req.id;
+    const posts = await Post.find({ "taggedUsers.user": userId })
+      .sort({ createdAt: -1 })
+      .populate("author", "username fullName profilePicture")
+      .populate("collaborators", "username fullName profilePicture")
+      .populate("taggedUsers.user", "username fullName profilePicture");
+
+    return res.status(200).json({ success: true, posts });
+  } catch (error) {
+    console.error("getMyTaggedPosts error:", error);
+    return res.status(500).json({ success: false, message: "Unable to load tagged posts" });
   }
 };

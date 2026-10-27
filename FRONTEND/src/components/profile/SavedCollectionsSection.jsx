@@ -405,8 +405,14 @@ const SavedCollectionsSection = ({
                       />
                     )}
 
-                    {post.mediaType === "video" && (
-                      <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 backdrop-blur-md text-white">
+                    {post.media?.length > 1 && (
+                      <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 backdrop-blur-md text-white shadow-md z-10">
+                        <Images className="size-3" />
+                      </div>
+                    )}
+
+                    {post.mediaType === "video" && !post.media?.length && (
+                      <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 backdrop-blur-md text-white shadow-md z-10">
                         <Play className="size-3 fill-white" />
                       </div>
                     )}

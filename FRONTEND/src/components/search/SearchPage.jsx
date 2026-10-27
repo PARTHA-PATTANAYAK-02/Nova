@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Play,
   Heart as LucideHeart,
+  Layers,
 } from "lucide-react";
 import {
   SearchIcon,
@@ -377,6 +378,11 @@ const SearchPage = () => {
 
                     {/* Media Type Badges (Top Right) */}
                     <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
+                      {post.media?.length > 1 && (
+                        <span className="p-1.5 rounded-full bg-black/60 backdrop-blur-md text-white shadow-md">
+                          <Layers className="size-3 stroke-[2.2]" />
+                        </span>
+                      )}
                       {isVideo && (
                         <span className="p-1.5 rounded-full bg-black/60 backdrop-blur-md text-white shadow-md">
                           <Play className="size-3 fill-white" />

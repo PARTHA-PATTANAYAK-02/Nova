@@ -20,6 +20,8 @@ import {
   toggleLikeComment,
   generateAICaptionController,
   generateAICommentsController,
+  untagMeFromPost,
+  getMyTaggedPosts,
 } from "../controllers/post.controller.js";
 
 const router = express.Router();
@@ -43,7 +45,9 @@ router.route("/:id/quote").post(isAuthenticated, quotePost);
 router.route("/:id/comment").post(isAuthenticated, addComment);
 router.route("/:id/comment/all").post(isAuthenticated, getCommentsOfPost);
 router.route("/delete/:id").delete(isAuthenticated, deletePost);
+router.route("/tagged/me").get(isAuthenticated, getMyTaggedPosts);
 router.route("/:id/bookmark").get(isAuthenticated, bookmarkPost);
+router.route("/:id/untag").post(isAuthenticated, untagMeFromPost);
 router.route("/:id").get(isAuthenticated, getPostById);
 
 export default router;

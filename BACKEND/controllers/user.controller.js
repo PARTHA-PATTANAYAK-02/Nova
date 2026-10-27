@@ -43,6 +43,7 @@ const sendOtpForPurpose = async ({ email, purpose }) => {
 export const searchUsers = async (req, res) => {
   try {
     const query = req.query.q?.trim() || "";
+    const type = req.query.type || ""; // "collab" | "tag" | ""
     const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(
       Math.max(Number.parseInt(req.query.limit, 10) || 20, 1),
@@ -58,9 +59,32 @@ export const searchUsers = async (req, res) => {
       _id: { $ne: req.id },
       $or: [{ username: searchRegex }, { fullName: searchRegex }],
     };
+
+    if (type === "collab") {
+      // Must be mutual followers: current user follows candidate AND candidate follows current user
+      const currentUser = await User.findById(req.id).select("following followers");
+      const followingSet = new Set((currentUser?.following || []).map((id) => (id?._id || id)?.toString()));
+      const mutualIds = (currentUser?.followers || [])
+        .map((id) => (id?._id || id)?.toString())
+        .filter((id) => id && id !== req.id.toString() && followingSet.has(id));
+
+      filter._id = { $in: mutualIds };
+    } else if (type === "tag") {
+      // Check candidate's taggingPrivacy settings
+      filter.taggingPrivacy = { $ne: "no_one" };
+      filter.$and = [
+        {
+          $or: [
+            { taggingPrivacy: { $in: ["everyone", null] } },
+            { taggingPrivacy: "following", following: req.id },
+          ],
+        },
+      ];
+    }
+
     const [users, total] = await Promise.all([
       User.find(filter)
-        .select("username fullName profilePicture bio followers following")
+        .select("username fullName profilePicture bio followers following taggingPrivacy")
         .sort({ username: 1 })
         .skip((page - 1) * limit)
         .limit(limit)
@@ -675,10 +699,54 @@ export const getProfile = async (req, res) => {
     userObj.followersCount = (user.followers || []).length;
     userObj.followingCount = (user.following || []).length;
 
+    // Fetch posts where this user is tagged or collaborator
+    const taggedPosts = await Post.find({
+      $or: [
+        { "taggedUsers.user": user._id },
+        { collaborators: user._id },
+      ],
+    })
+      .sort({ createdAt: -1 })
+      .populate({ path: "author", select: "username fullName profilePicture" })
+      .populate({ path: "collaborators", select: "username fullName profilePicture" })
+      .populate({
+        path: "repostOf",
+        populate: { path: "author", select: "username fullName profilePicture" },
+      })
+      .populate({ path: "taggedUsers.user", select: "username fullName profilePicture" });
+
+    userObj.taggedPosts = taggedPosts || [];
+
+    // Also include collab posts in user's main posts if not already present
+    const collabPosts = await Post.find({
+      collaborators: user._id,
+      author: { $ne: user._id },
+    })
+      .sort({ createdAt: -1 })
+      .populate({ path: "author", select: "username fullName profilePicture" })
+      .populate({ path: "collaborators", select: "username fullName profilePicture" })
+      .populate({
+        path: "repostOf",
+        populate: { path: "author", select: "username fullName profilePicture" },
+      })
+      .populate({ path: "taggedUsers.user", select: "username fullName profilePicture" });
+
+    if (collabPosts.length > 0 && Array.isArray(userObj.posts)) {
+      const postIds = new Set((userObj.posts || []).map((p) => p._id?.toString()));
+      for (const cp of collabPosts) {
+        if (!postIds.has(cp._id?.toString())) {
+          userObj.posts.push(cp);
+          postIds.add(cp._id?.toString());
+        }
+      }
+      userObj.posts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+
     if (isPrivateLocked) {
       userObj.posts = [];
       userObj.pinnedPosts = [];
       userObj.bookmarks = [];
+      userObj.taggedPosts = [];
       userObj.isPrivateLocked = true;
       userObj.followers = [];
       userObj.following = [];
@@ -857,6 +925,9 @@ export const editProfile = async (req, res) => {
     if (req.body.whoCanMessage !== undefined && ["everyone", "followers"].includes(req.body.whoCanMessage)) {
       user.whoCanMessage = req.body.whoCanMessage;
     }
+    if (req.body.taggingPrivacy !== undefined && ["everyone", "following", "no_one"].includes(req.body.taggingPrivacy)) {
+      user.taggingPrivacy = req.body.taggingPrivacy;
+    }
     if (profilePicture) {
       const cloudResponse = await cloudinary.uploader.upload(
         getDataUri(profilePicture),
@@ -886,6 +957,45 @@ export const editProfile = async (req, res) => {
 };
 export const getSuggestedUsers = async (req, res) => {
   try {
+    const type = req.query.type || "";
+
+    if (type === "collab") {
+      // Return mutual followers for collaboration
+      const currentUser = await User.findById(req.id).select("following followers");
+      const followingSet = new Set((currentUser?.following || []).map((id) => (id?._id || id)?.toString()));
+      const mutualIds = (currentUser?.followers || [])
+        .map((id) => (id?._id || id)?.toString())
+        .filter((id) => id && id !== req.id.toString() && followingSet.has(id));
+
+      const collabCandidates = await User.find({ _id: { $in: mutualIds } })
+        .select("username fullName profilePicture bio")
+        .limit(15);
+
+      return res.status(200).json({
+        success: true,
+        users: collabCandidates || [],
+      });
+    }
+
+    if (type === "tag") {
+      // Return users who allow tagging
+      const candidates = await User.find({
+        _id: { $ne: req.id },
+        taggingPrivacy: { $ne: "no_one" },
+        $or: [
+          { taggingPrivacy: { $in: ["everyone", null] } },
+          { taggingPrivacy: "following", following: req.id },
+        ],
+      })
+        .select("username fullName profilePicture bio")
+        .limit(15);
+
+      return res.status(200).json({
+        success: true,
+        users: candidates || [],
+      });
+    }
+
     const currentUser = await User.findById(req.id).select("following");
     const followingIds = (currentUser?.following || []).map((id) => (id?._id || id)?.toString());
     const excludedIds = [req.id, ...followingIds];

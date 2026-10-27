@@ -507,6 +507,12 @@ const StoryViewer = ({
   const pollData = pollsByItem[currentItem._id] || currentItem.poll;
   const questionData = currentItem.questionSticker;
   const sharedPostData = currentItem.sharedPost;
+  const sharedPostCollaborators = (sharedPostData?.collaborators || []).filter(
+    (c) =>
+      c &&
+      (c._id || c).toString() !==
+        (sharedPostData?.author?._id || sharedPostData?.author)?.toString()
+  );
 
   const viewer = (
     <div
@@ -547,28 +553,58 @@ const StoryViewer = ({
             >
               {/* Header: Author Info */}
               <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-white/10 bg-white/[0.02]">
-                <Link
-                  to={`/profile/${sharedPostData.author?.username || sharedPostData.author?._id}`}
-                  onClick={() => onClose()}
-                  className="flex items-center gap-2.5 min-w-0 hover:opacity-85 transition-opacity"
-                >
-                  <Avatar className="size-8 ring-1.5 ring-purple-500/40 shadow">
-                    <AvatarImage src={sharedPostData.author?.profilePicture} />
-                    <AvatarFallback className="bg-zinc-800 text-white font-bold text-xs">
-                      {sharedPostData.author?.fullName?.[0] || sharedPostData.author?.username?.[0] || "U"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 text-left">
-                    <p className="text-xs font-semibold text-white truncate leading-tight">
-                      {sharedPostData.author?.fullName || sharedPostData.author?.username}
-                    </p>
-                    <p className="text-[10px] text-zinc-400 truncate leading-tight">
-                      @{sharedPostData.author?.username || "user"}
+                <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2 text-left">
+                  {sharedPostCollaborators.length > 0 ? (
+                    <div className="relative size-8 shrink-0 select-none">
+                      <Avatar className="absolute top-0 left-0 size-6 ring-1 ring-purple-500/40 shadow">
+                        <AvatarImage src={sharedPostData.author?.profilePicture} />
+                        <AvatarFallback className="bg-zinc-800 text-white font-bold text-[9px]">
+                          {sharedPostData.author?.fullName?.[0] || sharedPostData.author?.username?.[0] || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <Avatar className="absolute bottom-0 right-0 size-6 ring-1 ring-purple-500/40 shadow">
+                        <AvatarImage src={sharedPostCollaborators[0]?.profilePicture} />
+                        <AvatarFallback className="bg-zinc-800 text-white font-bold text-[9px]">
+                          {sharedPostCollaborators[0]?.fullName?.[0] || sharedPostCollaborators[0]?.username?.[0] || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
+                  ) : (
+                    <Avatar className="size-8 ring-1.5 ring-purple-500/40 shadow shrink-0">
+                      <AvatarImage src={sharedPostData.author?.profilePicture} />
+                      <AvatarFallback className="bg-zinc-800 text-white font-bold text-xs">
+                        {sharedPostData.author?.fullName?.[0] || sharedPostData.author?.username?.[0] || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                  <div className="min-w-0 text-left flex-1 truncate">
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <p className="text-xs font-semibold text-white truncate leading-tight">
+                        {sharedPostData.author?.fullName || sharedPostData.author?.username}
+                      </p>
+                      {sharedPostCollaborators.length > 0 && (
+                        <>
+                          <span className="text-[10px] text-zinc-400 font-normal">and</span>
+                          <p className="text-xs font-semibold text-white truncate leading-tight">
+                            {sharedPostCollaborators[0]?.fullName || sharedPostCollaborators[0]?.username}
+                          </p>
+                          {sharedPostCollaborators.length > 1 && (
+                            <span className="text-[9px] text-zinc-400">
+                              +{sharedPostCollaborators.length - 1}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-zinc-400 truncate leading-tight mt-0.5">
+                      {sharedPostCollaborators.length > 0
+                        ? "Collaborators"
+                        : `@${sharedPostData.author?.username || "user"}`}
                     </p>
                   </div>
-                </Link>
+                </div>
 
-                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-[10px] font-medium text-zinc-300">
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-[10px] font-medium text-zinc-300 shrink-0">
                   <Sparkles className="size-2.5 text-purple-400" />
                   <span>Post</span>
                 </div>

@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link, useNavigate } from "react-router-dom";
-import { Loader2, Heart as LucideHeart, Bookmark as LucideBookmark } from "lucide-react";
+import { Loader2, Heart as LucideHeart, Bookmark as LucideBookmark, ChevronLeft, ChevronRight, Play, Pause, Volume2, VolumeX, RotateCcw } from "lucide-react";
 import {
   HeartIcon,
   MessageCircleIcon,
@@ -62,7 +62,7 @@ const CommentDialog = ({ open, setOpen }) => {
   const [text, setText] = useState("");
   const navigate = useNavigate();
   const { selectedPost, posts } = useSelector((store) => store.post);
-  const { user, userProfile } = useSelector((store) => store.auth);
+  const { user } = useSelector((store) => store.auth);
   const [postDetail, setPostDetail] = useState(null);
   const [loading, setLoading] = useState(false);
   const [comments, setComments] = useState([]);
@@ -75,6 +75,15 @@ const CommentDialog = ({ open, setOpen }) => {
   const [mediaBurst, setMediaBurst] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const dispatch = useDispatch();
+
+  // Video states
+  const dialogVideoRef = useRef(null);
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  const [videoTime, setVideoTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [isVideoMuted, setIsVideoMuted] = useState(false);
+  const [videoEnded, setVideoEnded] = useState(false);
+  const [activeSlide, setActiveSlide] = useState(0);
 
   const mediaBurstTimeoutRef = useRef(null);
   const lastTapRef = useRef(0);
@@ -93,8 +102,17 @@ const CommentDialog = ({ open, setOpen }) => {
       setSaving(false);
       setMediaBurst(false);
       setVisibleCount(25);
+      setVideoPlaying(false);
+      setVideoTime(0);
+      setVideoEnded(false);
     }
   }, [open]);
+
+  useEffect(() => {
+    setVideoPlaying(false);
+    setVideoTime(0);
+    setVideoEnded(false);
+  }, [activeSlide]);
 
   /* ─── FETCH FULL POST ─── */
   useEffect(() => {
@@ -129,6 +147,45 @@ const CommentDialog = ({ open, setOpen }) => {
   }, [open, selectedPost?._id]);
 
   const post = postDetail || selectedPost;
+
+  const mediaItems =
+    Array.isArray(post?.media) && post.media.length > 0
+      ? post.media
+      : post?.image
+      ? [{ url: post.image, mediaType: post.mediaType || "image" }]
+      : [];
+
+  useEffect(() => {
+    setActiveSlide(0);
+  }, [post?._id, open]);
+
+  const currentMedia = mediaItems[activeSlide] || mediaItems[0] || {};
+  const currentUrl = currentMedia.url || post?.image;
+  const isCurrentVideo = (() => {
+    if (currentMedia?.mediaType === "video" || currentMedia?.type === "video") return true;
+    if (currentMedia?.mediaType === "image" || currentMedia?.type === "image") return false;
+    const targetUrl = (typeof currentMedia === "string" ? currentMedia : "") || currentUrl || currentMedia?.url || "";
+    if (typeof targetUrl === "string") {
+      const lower = targetUrl.toLowerCase();
+      if (
+        lower.includes("/video/upload/") ||
+        lower.endsWith(".mp4") ||
+        lower.endsWith(".webm") ||
+        lower.endsWith(".mov") ||
+        lower.endsWith(".mkv")
+      ) return true;
+      if (
+        lower.includes("/image/upload/") ||
+        lower.endsWith(".jpg") ||
+        lower.endsWith(".jpeg") ||
+        lower.endsWith(".png") ||
+        lower.endsWith(".webp") ||
+        lower.endsWith(".gif")
+      ) return false;
+    }
+    if (mediaItems.length <= 1 && post?.mediaType === "video") return true;
+    return false;
+  })();
 
   useEffect(() => {
     const saved =
@@ -284,10 +341,24 @@ const CommentDialog = ({ open, setOpen }) => {
     const now = Date.now();
     const t = e.changedTouches?.[0];
     if (t) {
-      const dist = Math.hypot(
-        t.clientX - touchStartCoordsRef.current.x,
-        t.clientY - touchStartCoordsRef.current.y,
-      );
+      const deltaX = t.clientX - touchStartCoordsRef.current.x;
+      const deltaY = t.clientY - touchStartCoordsRef.current.y;
+      const dist = Math.hypot(deltaX, deltaY);
+
+      if (
+        mediaItems.length > 1 &&
+        Math.abs(deltaX) > 40 &&
+        Math.abs(deltaX) > Math.abs(deltaY) * 1.3
+      ) {
+        if (deltaX < 0 && activeSlide < mediaItems.length - 1) {
+          setActiveSlide((prev) => prev + 1);
+          return;
+        } else if (deltaX > 0 && activeSlide > 0) {
+          setActiveSlide((prev) => prev - 1);
+          return;
+        }
+      }
+
       if (dist > 10) return; // Scrolled/dragged, not a tap
     }
     if (now - lastTapRef.current < 280) {
@@ -399,12 +470,28 @@ const CommentDialog = ({ open, setOpen }) => {
   const authorInitial = authorName.charAt(0).toUpperCase();
   const showSkeleton = loading && !postDetail;
 
+  // Collaborators on this post (excluding the main author)
+  const collaborators = (post?.collaborators || []).filter(
+    (c) =>
+      c &&
+      (c._id || c).toString() !== (author?._id || author)?.toString()
+  );
+
   const postAuthorId = (author?._id || author)?.toString();
+  const isCollab = (post?.collaborators || []).length > 0;
+  const isAuthorOrCollab = Boolean(
+    user?._id && (
+      postAuthorId === user._id.toString() ||
+      (post?.collaborators || []).some((c) => (c?._id || c)?.toString() === user._id.toString())
+    )
+  );
+
+  // Collab posts or author/collaborator posts must NEVER show repost banner!
   const reposter =
-    userProfile && postAuthorId && postAuthorId !== userProfile._id?.toString()
-      ? userProfile
-      : user && post?.reposts?.some((id) => (id?._id || id)?.toString() === user._id?.toString())
-      ? user
+    !isCollab &&
+    !isAuthorOrCollab &&
+    (post?.repostAuthor || post?.repostedBy)
+      ? (post.repostAuthor || post.repostedBy)
       : null;
 
   return (
@@ -427,32 +514,178 @@ const CommentDialog = ({ open, setOpen }) => {
         >
           <div className="nova-comment-dialog__media-glow" aria-hidden />
 
-          <div className="nova-comment-dialog__media-frame">
-            {post?.image && !showSkeleton ? (
-              post.mediaType === "video" ? (
-                <video
-                  key={post._id}
-                  src={post.image}
-                  className="nova-comment-dialog__video"
-                  controls
-                  playsInline
-                  disablePictureInPicture
-                  controlsList="nodownload noplaybackrate"
-                  preload="metadata"
-                  aria-label="Post video"
-                  onContextMenu={(event) => event.preventDefault()}
-                  onDoubleClick={(event) => event.preventDefault()}
-                />
+          <div className="nova-comment-dialog__media-frame relative select-none">
+            {currentUrl && !showSkeleton ? (
+              isCurrentVideo ? (
+                <div className="relative size-full flex items-center justify-center bg-black overflow-hidden select-none">
+                  <video
+                    key={currentUrl}
+                    ref={dialogVideoRef}
+                    src={currentUrl}
+                    className="nova-comment-dialog__video size-full object-contain cursor-pointer"
+                    playsInline
+                    muted={isVideoMuted}
+                    preload="metadata"
+                    aria-label="Post video"
+                    onContextMenu={(event) => event.preventDefault()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const v = dialogVideoRef.current;
+                      if (!v) return;
+                      if (v.ended) {
+                        v.currentTime = 0;
+                        setVideoTime(0);
+                        setVideoEnded(false);
+                      }
+                      if (v.paused) {
+                        v.play().catch(() => {});
+                      } else {
+                        v.pause();
+                      }
+                    }}
+                    onLoadedMetadata={(e) => setVideoDuration(e.currentTarget.duration || 0)}
+                    onTimeUpdate={(e) => setVideoTime(e.currentTarget.currentTime || 0)}
+                    onPlay={() => {
+                      setVideoPlaying(true);
+                      setVideoEnded(false);
+                    }}
+                    onPause={() => setVideoPlaying(false)}
+                    onEnded={() => {
+                      setVideoPlaying(false);
+                      setVideoEnded(true);
+                    }}
+                  />
+
+                  {/* Center Play / Replay button when paused */}
+                  {!videoPlaying && (
+                    <button
+                      type="button"
+                      aria-label={videoEnded ? "Replay video" : "Play video"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const v = dialogVideoRef.current;
+                        if (!v) return;
+                        if (v.ended || videoEnded) {
+                          v.currentTime = 0;
+                          setVideoTime(0);
+                          setVideoEnded(false);
+                        }
+                        v.play().catch(() => {});
+                      }}
+                      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 size-14 rounded-full flex items-center justify-center bg-black/45 hover:bg-black/65 backdrop-blur-md border border-white/20 text-white shadow-2xl hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                    >
+                      {videoEnded ? (
+                        <RotateCcw size={22} strokeWidth={2} />
+                      ) : (
+                        <Play size={22} fill="currentColor" className="ml-1" />
+                      )}
+                    </button>
+                  )}
+
+                  {/* Top-Left Mute / Unmute Button */}
+                  <button
+                    type="button"
+                    aria-label={isVideoMuted ? "Unmute" : "Mute"}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const next = !isVideoMuted;
+                      setIsVideoMuted(next);
+                      if (dialogVideoRef.current) dialogVideoRef.current.muted = next;
+                    }}
+                    className="absolute top-3 left-3 z-20 size-8 rounded-full bg-black/50 hover:bg-black/75 backdrop-blur-md border border-white/20 text-white flex items-center justify-center transition-all hover:scale-110 active:scale-95 cursor-pointer shadow-md"
+                  >
+                    {isVideoMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                  </button>
+
+                  {/* Sleek Minimal Progress Line (Normal line, NO black box!) */}
+                  <div
+                    className="absolute bottom-0 left-0 right-0 z-30 h-1 hover:h-2 bg-white/25 transition-all cursor-pointer group/line"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div
+                      className="h-full bg-white transition-all duration-75 relative shadow-[0_0_8px_rgba(255,255,255,0.8)]"
+                      style={{
+                        width: `${videoDuration ? Math.min(100, (videoTime / videoDuration) * 100) : 0}%`,
+                      }}
+                    />
+                    <input
+                      type="range"
+                      min="0"
+                      max={videoDuration || 1}
+                      step="0.05"
+                      value={Math.min(videoTime, videoDuration || 0)}
+                      onChange={(e) => {
+                        const t = Number(e.target.value);
+                        setVideoTime(t);
+                        if (dialogVideoRef.current) dialogVideoRef.current.currentTime = t;
+                      }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      aria-label="Seek video"
+                    />
+                  </div>
+                </div>
               ) : (
                 <img
-                  src={post.image}
-                  alt="Post"
+                  key={currentUrl}
+                  src={currentUrl}
+                  alt={post.caption || `Post media ${activeSlide + 1}`}
                   className="nova-comment-dialog__image"
                   draggable={false}
                 />
               )
             ) : (
               <div className="nova-comment-dialog__media-skeleton" />
+            )}
+
+            {/* Slide counter */}
+            {mediaItems.length > 1 && (
+              <div className="absolute top-3 right-3 z-20 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-white text-[11px] font-semibold tracking-wide pointer-events-none select-none">
+                {activeSlide + 1} / {mediaItems.length}
+              </div>
+            )}
+
+            {/* Left & Right Chevrons */}
+            {mediaItems.length > 1 && activeSlide > 0 && (
+              <button
+                type="button"
+                aria-label="Previous slide"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveSlide((prev) => Math.max(0, prev - 1));
+                }}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-black/60 hover:bg-black/85 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-lg transition-all active:scale-90 cursor-pointer"
+              >
+                <ChevronLeft size={18} />
+              </button>
+            )}
+            {mediaItems.length > 1 && activeSlide < mediaItems.length - 1 && (
+              <button
+                type="button"
+                aria-label="Next slide"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveSlide((prev) => Math.min(mediaItems.length - 1, prev + 1));
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-black/60 hover:bg-black/85 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-lg transition-all active:scale-90 cursor-pointer"
+              >
+                <ChevronRight size={18} />
+              </button>
+            )}
+
+            {/* Pagination dots */}
+            {mediaItems.length > 1 && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md pointer-events-none">
+                {mediaItems.map((_, idx) => (
+                  <span
+                    key={idx}
+                    className={`transition-all duration-300 rounded-full ${
+                      idx === activeSlide
+                        ? "w-2.5 h-1.5 bg-white shadow-sm"
+                        : "w-1.5 h-1.5 bg-white/45"
+                    }`}
+                  />
+                ))}
+              </div>
             )}
           </div>
 
@@ -499,25 +732,88 @@ const CommentDialog = ({ open, setOpen }) => {
               </div>
             ) : (
               <div className="nova-comment-dialog__header-inner">
-                <Link
-                  to={`/profile/${author.username || author._id}`}
-                  className="nova-comment-dialog__header-avatar"
-                >
-                  <Avatar className="size-9 border border-[var(--border)]">
-                    <AvatarImage src={authorAvatar} />
-                    <AvatarFallback>{authorInitial}</AvatarFallback>
-                  </Avatar>
-                </Link>
-                <div className="nova-comment-dialog__header-meta">
+                {collaborators.length > 0 ? (
+                  <div className="relative size-10 shrink-0 select-none">
+                    {/* Author Avatar (top-left) */}
+                    <Link
+                      to={`/profile/${author.username || author._id}`}
+                      className="absolute top-0 left-0 size-7 rounded-full border-2 border-[var(--surface)] ring-1 ring-[var(--border)] overflow-hidden z-10 transition-transform hover:scale-110 hover:z-30 block bg-[var(--surface)] shadow-sm"
+                      title={author.fullName || author.username}
+                      aria-label={`${author.fullName || author.username} profile`}
+                    >
+                      <Avatar className="size-full">
+                        <AvatarImage
+                          src={authorAvatar}
+                          alt={author.fullName || author.username}
+                          className="object-cover size-full"
+                        />
+                        <AvatarFallback className="text-[10px] font-bold">
+                          {authorInitial}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Link>
+                    {/* Collaborator Avatar (bottom-right) */}
+                    <Link
+                      to={`/profile/${collaborators[0]?.username || collaborators[0]?._id}`}
+                      className="absolute bottom-0 right-0 size-7 rounded-full border-2 border-[var(--surface)] ring-1 ring-[var(--border)] overflow-hidden z-20 transition-transform hover:scale-110 hover:z-30 block bg-[var(--surface)] shadow-sm"
+                      title={collaborators[0]?.fullName || collaborators[0]?.username}
+                      aria-label={`${collaborators[0]?.fullName || collaborators[0]?.username} profile`}
+                    >
+                      <Avatar className="size-full">
+                        <AvatarImage
+                          src={collaborators[0]?.profilePicture}
+                          alt={collaborators[0]?.fullName || collaborators[0]?.username}
+                          className="object-cover size-full"
+                        />
+                        <AvatarFallback className="text-[10px] font-bold">
+                          {(collaborators[0]?.fullName || collaborators[0]?.username || "U").charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Link>
+                  </div>
+                ) : (
                   <Link
                     to={`/profile/${author.username || author._id}`}
-                    className="nova-comment-dialog__header-name"
+                    className="nova-comment-dialog__header-avatar"
                   >
-                    {authorName}
+                    <Avatar className="size-9 border border-[var(--border)]">
+                      <AvatarImage src={authorAvatar} />
+                      <AvatarFallback>{authorInitial}</AvatarFallback>
+                    </Avatar>
                   </Link>
+                )}
+                <div className="nova-comment-dialog__header-meta min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Link
+                      to={`/profile/${author.username || author._id}`}
+                      className="nova-comment-dialog__header-name hover:text-[var(--primary)] transition-colors"
+                    >
+                      {authorName}
+                    </Link>
+                    {collaborators.length > 0 && (
+                      <>
+                        <span className="text-[12px] text-[var(--muted-foreground)] font-normal">and</span>
+                        <Link
+                          to={`/profile/${collaborators[0]?.username || collaborators[0]?._id}`}
+                          className="nova-comment-dialog__header-name hover:text-[var(--primary)] transition-colors"
+                        >
+                          {collaborators[0]?.fullName || collaborators[0]?.username}
+                        </Link>
+                        {collaborators.length > 1 && (
+                          <span className="text-[11px] font-medium text-[var(--muted-foreground)]">
+                            +{collaborators.length - 1} more
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
                   <span className="nova-comment-dialog__header-sub">
                     {post?.repostOf ? (
                       <span className="text-cyan-400 font-medium">Quoted a post 💬</span>
+                    ) : post?.location ? (
+                      post.location
+                    ) : collaborators.length > 0 ? (
+                      "Authors"
                     ) : (
                       "Post author"
                     )}
@@ -535,15 +831,42 @@ const CommentDialog = ({ open, setOpen }) => {
               <>
                 {post?.caption && (
                   <article className="nova-comment-caption">
-                    <Link
-                      to={`/profile/${author.username || author._id}`}
-                      className="nova-comment-caption__avatar"
-                    >
-                      <Avatar className="nova-comment__avatar-img">
-                        <AvatarImage src={authorAvatar} />
-                        <AvatarFallback>{authorInitial}</AvatarFallback>
-                      </Avatar>
-                    </Link>
+                    {collaborators.length > 0 ? (
+                      <div className="relative size-8 shrink-0 select-none mr-2">
+                        <Link
+                          to={`/profile/${author.username || author._id}`}
+                          className="absolute top-0 left-0 size-6 rounded-full border-2 border-[var(--surface)] ring-1 ring-[var(--border)] overflow-hidden z-10 block"
+                          title={authorName}
+                        >
+                          <Avatar className="size-full">
+                            <AvatarImage src={authorAvatar} />
+                            <AvatarFallback className="text-[9px] font-bold">{authorInitial}</AvatarFallback>
+                          </Avatar>
+                        </Link>
+                        <Link
+                          to={`/profile/${collaborators[0]?.username || collaborators[0]?._id}`}
+                          className="absolute bottom-0 right-0 size-6 rounded-full border-2 border-[var(--surface)] ring-1 ring-[var(--border)] overflow-hidden z-20 block"
+                          title={collaborators[0]?.fullName || collaborators[0]?.username}
+                        >
+                          <Avatar className="size-full">
+                            <AvatarImage src={collaborators[0]?.profilePicture} />
+                            <AvatarFallback className="text-[9px] font-bold">
+                              {(collaborators[0]?.fullName || collaborators[0]?.username || "U").charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                        </Link>
+                      </div>
+                    ) : (
+                      <Link
+                        to={`/profile/${author.username || author._id}`}
+                        className="nova-comment-caption__avatar"
+                      >
+                        <Avatar className="nova-comment__avatar-img">
+                          <AvatarImage src={authorAvatar} />
+                          <AvatarFallback>{authorInitial}</AvatarFallback>
+                        </Avatar>
+                      </Link>
+                    )}
                     <div className="nova-comment-caption__content">
                       <p className="nova-comment__line">
                         <Link
@@ -552,6 +875,17 @@ const CommentDialog = ({ open, setOpen }) => {
                         >
                           {authorName}
                         </Link>{" "}
+                        {collaborators.length > 0 && (
+                          <>
+                            <span className="text-[12px] text-[var(--muted-foreground)] font-normal mx-1">and</span>
+                            <Link
+                              to={`/profile/${collaborators[0]?.username || collaborators[0]?._id}`}
+                              className="nova-comment-caption__author"
+                            >
+                              {collaborators[0]?.fullName || collaborators[0]?.username}
+                            </Link>{" "}
+                          </>
+                        )}
                         <span className="nova-comment-caption__text">
                           {post.caption}
                         </span>
@@ -566,21 +900,55 @@ const CommentDialog = ({ open, setOpen }) => {
                           }}
                           className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/60 hover:bg-[var(--surface-2)] hover:border-[var(--primary)]/40 transition-all p-3 cursor-pointer group/quote select-none"
                         >
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <Avatar className="size-5 border border-[var(--border)]">
-                              <AvatarImage src={post.repostOf.author?.profilePicture} />
-                              <AvatarFallback className="text-[9px] font-bold">
-                                {getDisplayName(post.repostOf.author, "U").charAt(0).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-xs font-semibold text-[var(--foreground)] group-hover/quote:text-[var(--primary)] transition-colors">
-                              {getDisplayName(post.repostOf.author)}
-                            </span>
-                            {post.repostOf.author?.username && (
-                              <span className="text-[11px] text-[var(--muted-foreground)]">
-                                @{post.repostOf.author.username}
-                              </span>
-                            )}
+                          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                            {(() => {
+                              const quoteCollabs = (post.repostOf.collaborators || []).filter(
+                                (c) => c && (c._id || c).toString() !== (post.repostOf.author?._id || post.repostOf.author)?.toString()
+                              );
+                              return (
+                                <>
+                                  {quoteCollabs.length > 0 ? (
+                                    <div className="relative size-6 shrink-0 select-none mr-0.5">
+                                      <Avatar className="absolute top-0 left-0 size-4 border border-[var(--surface)] shadow-sm">
+                                        <AvatarImage src={post.repostOf.author?.profilePicture} />
+                                        <AvatarFallback className="text-[7px] font-bold">
+                                          {getDisplayName(post.repostOf.author, "U").charAt(0).toUpperCase()}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <Avatar className="absolute bottom-0 right-0 size-4 border border-[var(--surface)] shadow-sm">
+                                        <AvatarImage src={quoteCollabs[0]?.profilePicture} />
+                                        <AvatarFallback className="text-[7px] font-bold">
+                                          {(quoteCollabs[0]?.fullName || quoteCollabs[0]?.username || "U").charAt(0).toUpperCase()}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                    </div>
+                                  ) : (
+                                    <Avatar className="size-5 border border-[var(--border)]">
+                                      <AvatarImage src={post.repostOf.author?.profilePicture} />
+                                      <AvatarFallback className="text-[9px] font-bold">
+                                        {getDisplayName(post.repostOf.author, "U").charAt(0).toUpperCase()}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                  )}
+                                  <span className="text-xs font-semibold text-[var(--foreground)] group-hover/quote:text-[var(--primary)] transition-colors">
+                                    {getDisplayName(post.repostOf.author)}
+                                  </span>
+                                  {quoteCollabs.length > 0 && (
+                                    <>
+                                      <span className="text-[11px] text-[var(--muted-foreground)] font-normal">and</span>
+                                      <span className="text-xs font-semibold text-[var(--foreground)] group-hover/quote:text-[var(--primary)] transition-colors">
+                                        {quoteCollabs[0]?.fullName || quoteCollabs[0]?.username}
+                                      </span>
+                                    </>
+                                  )}
+                                  {quoteCollabs.length === 0 && post.repostOf.author?.username && (
+                                    <span className="text-[11px] text-[var(--muted-foreground)]">
+                                      @{post.repostOf.author.username}
+                                    </span>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                           {post.repostOf.caption && (
                             <p className="text-xs text-[var(--foreground)]/90 leading-relaxed line-clamp-3">

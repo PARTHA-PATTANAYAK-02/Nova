@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { Play, ImageOff, Heart as LucideHeart } from "lucide-react";
+import { Play, ImageOff, Heart as LucideHeart, Layers } from "lucide-react";
 import {
   HashIcon,
   ArrowLeftIcon,
@@ -159,9 +159,14 @@ const HashtagExplorePage = () => {
                   />
                 )}
 
-                {/* Video Play Badge */}
-                {post.mediaType === "video" && (
-                  <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 backdrop-blur-md text-white">
+                {/* Media Badges */}
+                {post.media?.length > 1 && (
+                  <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 backdrop-blur-md text-white shadow-md z-10">
+                    <Layers className="size-3 stroke-[2.2]" />
+                  </div>
+                )}
+                {post.mediaType === "video" && !post.media?.length && (
+                  <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 backdrop-blur-md text-white shadow-md z-10">
                     <Play className="size-3 fill-white" />
                   </div>
                 )}

@@ -9,6 +9,9 @@ import {
   Lock,
   Heart as LucideHeart,
   Bookmark as LucideBookmark,
+  ChevronLeft,
+  ChevronRight,
+  User,
 } from "lucide-react";
 import {
   ArrowLeftIcon,
@@ -22,6 +25,7 @@ import {
   ExternalLinkIcon,
   QrCodeIcon,
   FolderPlusIcon,
+  TagIcon,
 } from "@animateicons/react/lucide";
 import AnimatedIcon from "@/components/common/AnimatedIcon";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -80,14 +84,27 @@ const PostDetailPage = () => {
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
 
-  // Video
+  // Video & Carousel
   const videoRef = useRef(null);
   const [isMuted, setIsMuted] = useState(true);
+  const [videoTime, setVideoTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [showTags, setShowTags] = useState(false);
 
   // Refs
   const lastTapRef = useRef(0);
   const commentInputRef = useRef(null);
   const commentsListRef = useRef(null);
+
+  useEffect(() => {
+    setActiveSlide(0);
+    setShowTags(false);
+  }, [post?._id]);
+
+  useEffect(() => {
+    setShowTags(false);
+  }, [activeSlide]);
 
   /* ═══ FETCH POST DETAIL ═══ */
   useEffect(() => {
@@ -140,7 +157,7 @@ const PostDetailPage = () => {
     return () => {
       isMounted = false;
     };
-  }, [id, user?._id, user?.bookmarks, user?.following]);
+  }, [id, user]);
 
   /* ═══ LIKE / DISLIKE HANDLER ═══ */
   const handleLikeToggle = async () => {
@@ -425,7 +442,32 @@ const PostDetailPage = () => {
 
   const author = post.author || {};
   const isMine = author._id === user?._id;
-  const isVideo = post.mediaType === "video";
+
+  const mediaItems =
+    Array.isArray(post?.media) && post.media.length > 0
+      ? post.media
+      : post?.image
+      ? [{ url: post.image, mediaType: post.mediaType || "image" }]
+      : [];
+
+
+  const currentMedia = mediaItems[activeSlide] || mediaItems[0] || {};
+  const currentUrl = currentMedia.url || post?.image;
+  const isVideo = currentMedia.mediaType === "video";
+
+  // Tagged users on current slide
+  const slideTags = (post?.taggedUsers || []).filter(
+    (t) => (t.mediaIndex ?? 0) === activeSlide && t.user
+  );
+
+  // Collaborators & unique tagged people on this post (excluding the author)
+  const collaborators = (post?.collaborators || []).filter(
+    (c) =>
+      c &&
+      (c._id || c).toString() !==
+        (post?.author?._id || post?.author)?.toString()
+  );
+
 
   return (
     <MainLayout>
@@ -441,7 +483,7 @@ const PostDetailPage = () => {
             <span>Back</span>
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap justify-center max-w-md">
             <span className="text-xs font-semibold text-[var(--foreground)] tracking-tight">
               Post by
             </span>
@@ -449,8 +491,24 @@ const PostDetailPage = () => {
               to={`/profile/${author.username || author._id}`}
               className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
             >
-              @{author.username}
+              {author.fullName || author.username}
             </Link>
+            {collaborators.length > 0 && (
+              <>
+                <span className="text-xs text-[var(--muted-foreground)] font-normal">and</span>
+                <Link
+                  to={`/profile/${collaborators[0].username || collaborators[0]._id}`}
+                  className="font-bold text-primary hover:underline text-xs"
+                >
+                  {collaborators[0].fullName || collaborators[0].username}
+                </Link>
+                {collaborators.length > 1 && (
+                  <span className="text-[11px] font-medium text-[var(--muted-foreground)]">
+                    +{collaborators.length - 1} other{collaborators.length > 2 ? "s" : ""}
+                  </span>
+                )}
+              </>
+            )}
           </div>
 
           {/* Spacer for balanced alignment */}
@@ -462,18 +520,21 @@ const PostDetailPage = () => {
         {/* Left: Media Column (Desktop col-span-7 / Mobile flex-none) */}
         <div
           onClick={handleMediaDoubleTap}
-          className="md:col-span-7 bg-black flex items-center justify-center relative select-none overflow-hidden h-[42vh] sm:h-[48vh] md:h-full shrink-0"
+          className="md:col-span-7 bg-black flex items-center justify-center relative select-none overflow-hidden h-[42vh] sm:h-[48vh] md:h-full shrink-0 group/media"
         >
           {isVideo ? (
             <div className="relative size-full flex items-center justify-center">
               <video
+                key={currentUrl}
                 ref={videoRef}
-                src={post.image}
+                src={currentUrl}
                 autoPlay
                 loop
                 muted={isMuted}
                 playsInline
-                className="size-full object-contain"
+                className="size-full object-contain cursor-pointer"
+                onLoadedMetadata={(e) => setVideoDuration(e.currentTarget.duration || 0)}
+                onTimeUpdate={(e) => setVideoTime(e.currentTarget.currentTime || 0)}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (videoRef.current) {
@@ -488,54 +549,241 @@ const PostDetailPage = () => {
                   e.stopPropagation();
                   setIsMuted(!isMuted);
                 }}
-                className="absolute bottom-3 right-3 size-8 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-white flex items-center justify-center hover:bg-black/80 transition-colors cursor-pointer"
+                className="absolute bottom-3 right-3 size-8 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-white flex items-center justify-center hover:bg-black/80 transition-colors cursor-pointer z-20"
               >
                 {isMuted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
               </button>
+
+              {/* Sleek Minimal Progress Line */}
+              <div
+                className="absolute bottom-0 left-0 right-0 z-30 h-1 hover:h-2 bg-white/20 transition-all cursor-pointer group/line"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div
+                  className="h-full bg-white transition-all duration-75 relative shadow-[0_0_8px_rgba(255,255,255,0.8)]"
+                  style={{
+                    width: `${videoDuration ? Math.min(100, (videoTime / videoDuration) * 100) : 0}%`,
+                  }}
+                />
+                <input
+                  type="range"
+                  min="0"
+                  max={videoDuration || 1}
+                  step="0.05"
+                  value={Math.min(videoTime, videoDuration || 0)}
+                  onChange={(e) => {
+                    const t = Number(e.target.value);
+                    setVideoTime(t);
+                    if (videoRef.current) videoRef.current.currentTime = t;
+                  }}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  aria-label="Seek video"
+                />
+              </div>
             </div>
           ) : (
             <img
-              src={post.image}
-              alt={post.caption || "Post photo"}
+              key={currentUrl}
+              src={currentUrl}
+              alt={post.caption || `Post photo ${activeSlide + 1}`}
               className="size-full object-contain mx-auto"
               draggable={false}
             />
           )}
 
+          {/* Carousel slide counter badge */}
+          {mediaItems.length > 1 && (
+            <div className="absolute top-3 right-3 z-20 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-white text-[11px] font-semibold tracking-wide pointer-events-none select-none">
+              {activeSlide + 1} / {mediaItems.length}
+            </div>
+          )}
+
+          {/* Carousel Left / Right Arrows */}
+          {mediaItems.length > 1 && activeSlide > 0 && (
+            <button
+              type="button"
+              aria-label="Previous slide"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveSlide((prev) => Math.max(0, prev - 1));
+              }}
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-20 size-9 rounded-full bg-black/60 hover:bg-black/85 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-lg transition-all active:scale-90 cursor-pointer"
+            >
+              <ChevronLeft size={20} />
+            </button>
+          )}
+          {mediaItems.length > 1 && activeSlide < mediaItems.length - 1 && (
+            <button
+              type="button"
+              aria-label="Next slide"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveSlide((prev) => Math.min(mediaItems.length - 1, prev + 1));
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-20 size-9 rounded-full bg-black/60 hover:bg-black/85 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-lg transition-all active:scale-90 cursor-pointer"
+            >
+              <ChevronRight size={20} />
+            </button>
+          )}
+
+          {/* Pagination dots */}
+          {mediaItems.length > 1 && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md pointer-events-none">
+              {mediaItems.map((_, idx) => (
+                <span
+                  key={idx}
+                  className={`transition-all duration-300 rounded-full ${
+                    idx === activeSlide
+                      ? "w-2.5 h-1.5 bg-white shadow-sm"
+                      : "w-1.5 h-1.5 bg-white/45"
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+
           {/* Double Tap Heart Burst */}
           {heartBurst && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-heart-burst">
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-heart-burst z-30">
               <LucideHeart className="size-20 fill-red-500 text-red-500 drop-shadow-[0_0_24px_rgba(239,68,68,0.85)]" />
             </div>
           )}
+
+          {/* Tagged People Indicator Pill (Bottom Left) */}
+          {slideTags.length > 0 && (
+            <button
+              type="button"
+              title={showTags ? "Hide tags" : "Show tagged people"}
+              aria-label="Show tagged people"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowTags((prev) => !prev);
+              }}
+              className={`
+                absolute bottom-3 left-3 z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-full
+                backdrop-blur-md border text-white text-[11px] font-semibold shadow-lg
+                transition-all duration-200 active:scale-95 cursor-pointer
+                ${showTags ? "bg-black/85 border-pink-500/50 text-pink-300" : "bg-black/60 hover:bg-black/80 border-white/20"}
+              `}
+            >
+              <AnimatedIcon icon={TagIcon} size={13} className={showTags ? "text-pink-400" : "text-white"} />
+              <span>{slideTags.length === 1 ? `@${slideTags[0].user?.username}` : `${slideTags.length} tagged`}</span>
+            </button>
+          )}
+
+          {/* Interactive Tag Bubbles over the Photo */}
+          {showTags &&
+            slideTags.map((tag) => {
+              const u = tag.user;
+              if (!u) return null;
+              return (
+                <div
+                  key={u._id || u.username}
+                  style={{ left: `${tag.x ?? 50}%`, top: `${tag.y ?? 50}%` }}
+                  className="absolute -translate-x-1/2 -translate-y-full mb-1.5 z-40 pointer-events-auto animate-in fade-in zoom-in-95 duration-200"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (u.username || u._id) {
+                      navigate(`/profile/${u.username || u._id}`);
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/85 hover:bg-black/95 backdrop-blur-md border border-white/30 text-white text-[11px] font-semibold shadow-2xl transition-transform hover:scale-105 active:scale-95 cursor-pointer">
+                    <Avatar className="size-4 shrink-0 border border-white/40">
+                      <AvatarImage src={u.profilePicture} />
+                      <AvatarFallback className="text-[9px]">
+                        {u.username?.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span>@{u.username}</span>
+                  </div>
+                  <div className="w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-black/85 mx-auto" />
+                </div>
+              );
+            })}
         </div>
 
         {/* Right: Info, Comments & Actions Column (Desktop col-span-5 / Mobile flex-1 min-h-0) */}
         <div className="md:col-span-5 flex-1 min-h-0 flex flex-col justify-between border-t md:border-t-0 md:border-l border-[var(--border)] bg-[var(--surface)] overflow-hidden">
           {/* Header: Author & Follow */}
           <div className="p-3 sm:p-3.5 border-b border-[var(--border)]/70 flex items-center justify-between shrink-0 bg-[var(--surface)]">
-            <Link
-              to={`/profile/${author.username || author._id}`}
-              className="flex items-center gap-2.5 min-w-0 hover:opacity-85 transition-opacity"
-            >
-              <Avatar className="size-9 ring-1.5 ring-primary/30 shrink-0">
-                <AvatarImage src={author.profilePicture} />
-                <AvatarFallback className="bg-zinc-800 text-white font-bold text-xs">
-                  {author.fullName?.[0] || author.username?.[0] || "U"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 text-left">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-xs sm:text-sm font-semibold text-[var(--foreground)] truncate">
-                    {author.fullName || author.username}
-                  </p>
-                  <AnimatedIcon icon={SparklesIcon} size={12} className="text-pink-500 shrink-0" />
+            {collaborators.length > 0 ? (
+              <div className="flex items-center gap-2.5 min-w-0">
+                {/* Overlapping Dual Avatars */}
+                <div className="relative size-10 shrink-0 select-none">
+                  <Link
+                    to={`/profile/${author.username || author._id}`}
+                    className="absolute top-0 left-0 size-7 rounded-full border-2 border-[var(--surface)] ring-1 ring-[var(--border)] overflow-hidden z-10 transition-transform hover:scale-110 hover:z-30 block bg-[var(--surface)] shadow-sm"
+                    title={author.fullName || author.username}
+                  >
+                    <Avatar className="size-full">
+                      <AvatarImage src={author.profilePicture} className="object-cover size-full" />
+                      <AvatarFallback className="text-[10px] font-bold">
+                        {(author.fullName || author.username || "U").charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Link>
+                  <Link
+                    to={`/profile/${collaborators[0].username || collaborators[0]._id}`}
+                    className="absolute bottom-0 right-0 size-7 rounded-full border-2 border-[var(--surface)] ring-1 ring-[var(--border)] overflow-hidden z-20 transition-transform hover:scale-110 hover:z-30 block bg-[var(--surface)] shadow-sm"
+                    title={collaborators[0].fullName || collaborators[0].username}
+                  >
+                    <Avatar className="size-full">
+                      <AvatarImage src={collaborators[0].profilePicture} className="object-cover size-full" />
+                      <AvatarFallback className="text-[10px] font-bold">
+                        {(collaborators[0].fullName || collaborators[0].username || "U").charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Link>
                 </div>
-                <p className="text-[11px] text-[var(--muted-foreground)] truncate">
-                  @{author.username}
-                </p>
+                {/* Full Names */}
+                <div className="min-w-0 text-left">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Link
+                      to={`/profile/${author.username || author._id}`}
+                      className="text-xs sm:text-sm font-semibold text-[var(--foreground)] truncate hover:underline hover:text-primary"
+                    >
+                      {author.fullName || author.username}
+                    </Link>
+                    <span className="text-xs text-[var(--muted-foreground)] font-normal">and</span>
+                    <Link
+                      to={`/profile/${collaborators[0].username || collaborators[0]._id}`}
+                      className="text-xs sm:text-sm font-semibold text-[var(--foreground)] truncate hover:underline hover:text-primary"
+                    >
+                      {collaborators[0].fullName || collaborators[0].username}
+                    </Link>
+                    {collaborators.length > 1 && (
+                      <span className="text-[11px] font-medium text-[var(--muted-foreground)]">
+                        +{collaborators.length - 1} more
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-            </Link>
+            ) : (
+              <Link
+                to={`/profile/${author.username || author._id}`}
+                className="flex items-center gap-2.5 min-w-0 hover:opacity-85 transition-opacity"
+              >
+                <Avatar className="size-9 ring-1.5 ring-primary/30 shrink-0">
+                  <AvatarImage src={author.profilePicture} />
+                  <AvatarFallback className="bg-zinc-800 text-white font-bold text-xs">
+                    {author.fullName?.[0] || author.username?.[0] || "U"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 text-left">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs sm:text-sm font-semibold text-[var(--foreground)] truncate">
+                      {author.fullName || author.username}
+                    </p>
+                    <AnimatedIcon icon={SparklesIcon} size={12} className="text-pink-500 shrink-0" />
+                  </div>
+                  <p className="text-[11px] text-[var(--muted-foreground)] truncate">
+                    @{author.username}
+                  </p>
+                </div>
+              </Link>
+            )}
 
             {!isMine && (
               <button

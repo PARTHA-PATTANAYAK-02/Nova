@@ -3,6 +3,8 @@ import {
   Loader2,
   Inbox,
   Calendar,
+  Tag,
+  Users,
 } from "lucide-react";
 import {
   BellRingIcon,
@@ -14,6 +16,7 @@ import {
   CheckCheckIcon,
   SparklesIcon,
   SendIcon,
+  TagIcon,
 } from "@animateicons/react/lucide";
 import AnimatedIcon from "@/components/common/AnimatedIcon";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -245,6 +248,10 @@ const NotificationsPage = () => {
             className="text-purple-400"
           />
         );
+      case "collab":
+        return <AnimatedIcon icon={Users} size={13} className="text-violet-400 stroke-[2.5]" />;
+      case "tag":
+        return <AnimatedIcon icon={TagIcon} size={13} className="text-pink-400" />;
       default:
         return (
           <AnimatedIcon
@@ -258,6 +265,8 @@ const NotificationsPage = () => {
 
   const getActionText = (n) => {
     switch (n.type) {
+      case "collab":
+        return "invited you to collaborate on a post";
       case "like":
         return "liked your post";
       case "comment":
@@ -268,6 +277,8 @@ const NotificationsPage = () => {
         return "started following you";
       case "message":
         return "sent you a message";
+      case "tag":
+        return "tagged you in a post";
       default:
         return "interacted with you";
     }
@@ -296,8 +307,10 @@ const NotificationsPage = () => {
 
   const FILTER_TABS = [
     { id: "all", label: "All" },
+    { id: "collab", label: "Collabs", icon: Users, color: "text-violet-400" },
     { id: "like", label: "Likes", icon: HeartIcon, color: "text-[#ff315d]" },
     { id: "comment", label: "Comments", icon: MessageCircleIcon, color: "text-cyan-400" },
+    { id: "tag", label: "Tags", icon: TagIcon, color: "text-pink-400" },
     { id: "repost", label: "Reposts", icon: Repeat2Icon, color: "text-emerald-400" },
     { id: "follow", label: "Follows", icon: UserPlusIcon, color: "text-indigo-400" },
     { id: "message", label: "Messages", icon: SendIcon, color: "text-purple-400" },
@@ -383,6 +396,23 @@ const NotificationsPage = () => {
           );
         })}
       </div>
+
+      {/* Quick link to Tagged Posts manager in Settings */}
+      {filter === "tag" && (
+        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-[var(--foreground)]">
+          <div className="flex items-center gap-2">
+            <Tag className="size-4 text-indigo-400 shrink-0" />
+            <span className="text-[11px] sm:text-xs">Want to review or remove tags from all posts in one place?</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/settings?tab=tags")}
+            className="px-3 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-[11px] transition-all shrink-0 cursor-pointer shadow-sm shadow-indigo-600/30"
+          >
+            Manage Tagged Posts
+          </button>
+        </div>
+      )}
 
       {/* ═══════════ DATE-GROUPED NOTIFICATION LIST ═══════════ */}
       {initialLoading ? (

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect } from "react";
 import Feed from "@/components/feed/Feed";
 import { Outlet, useLocation } from "react-router-dom";
 import RightSidebar from "@/components/layout/RightSidebar";

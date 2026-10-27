@@ -24,6 +24,7 @@ import {
   Bookmark,
   Plus,
   QrCode,
+  X,
 } from "lucide-react";
 import NovaQRCodeModal from "@/components/common/NovaQRCodeModal";
 import { apiUrl } from "@/lib/api";
@@ -104,6 +105,14 @@ const ShareDialog = ({ open, onOpenChange, post }) => {
       return name.includes(q) || uname.includes(q);
     });
   }, [candidateUsers, search]);
+
+  const collaborators = useMemo(() => {
+    return (post?.collaborators || []).filter(
+      (c) =>
+        c &&
+        (c._id || c).toString() !== (post?.author?._id || post?.author)?.toString()
+    );
+  }, [post?.collaborators, post?.author]);
 
   const postUrl =
     typeof window !== "undefined"
@@ -204,15 +213,23 @@ const ShareDialog = ({ open, onOpenChange, post }) => {
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[440px] p-0 overflow-hidden rounded-3xl border border-[var(--border)]/70 bg-[var(--surface)]/95 backdrop-blur-2xl shadow-2xl !z-[60]">
+      <DialogContent showCloseButton={false} className="max-w-[440px] p-0 !gap-0 overflow-hidden rounded-3xl border border-[var(--border)]/70 bg-[var(--surface)]/95 backdrop-blur-2xl shadow-2xl !z-[60]">
         {!isCustomizingStory ? (
           /* ══════════════ STANDARD SHARE VIEW ══════════════ */
           <>
-            <DialogHeader className="px-5 pt-4 pb-3 border-b border-[var(--border)]/50">
-              <DialogTitle className="text-center font-display text-[17px] font-semibold tracking-tight text-[var(--foreground)]">
-                Share post
+            <div className="relative flex items-center justify-center px-4 py-3.5 border-b border-[var(--border)]/60 bg-[var(--surface-2)]/20">
+              <DialogTitle className="text-[15px] font-semibold tracking-tight text-[var(--foreground)]">
+                Share
               </DialogTitle>
-            </DialogHeader>
+              <button
+                type="button"
+                onClick={() => onOpenChange(false)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 size-8 rounded-full flex items-center justify-center text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors active:scale-95 cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="size-4" strokeWidth={2.2} />
+              </button>
+            </div>
 
             {/* ═══ ADD POST TO STORY BUTTON (OPENS CUSTOMIZER) ═══ */}
             <div className="px-4 pt-3.5 pb-1">
@@ -407,24 +424,79 @@ const ShareDialog = ({ open, onOpenChange, post }) => {
               <h3 className="text-sm font-semibold text-[var(--foreground)]">
                 Share to Story
               </h3>
-              <div className="size-6" /> {/* spacer */}
+              <button
+                type="button"
+                onClick={() => onOpenChange(false)}
+                className="size-7 rounded-full flex items-center justify-center text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="size-4" />
+              </button>
             </div>
 
             <div className="p-4 space-y-4 max-h-[75vh] overflow-y-auto scroll-hide">
               {/* Instagram-style Post Reshare Card Preview */}
               <div className="p-3 rounded-2xl bg-[var(--surface-2)]/80 border border-[var(--border)]/70 shadow-sm flex items-center gap-3">
-                <Avatar className="size-10 border border-[var(--border)] shrink-0">
-                  <AvatarImage src={post?.author?.profilePicture} />
-                  <AvatarFallback>
-                    {post?.author?.fullName?.[0] || post?.author?.username?.[0] || "U"}
-                  </AvatarFallback>
-                </Avatar>
+                {collaborators.length > 0 ? (
+                  <div className="relative size-10 shrink-0 select-none">
+                    {/* Author Avatar (top-left) */}
+                    <div className="absolute top-0 left-0 size-7 rounded-full border-2 border-[var(--surface)] ring-1 ring-[var(--border)] overflow-hidden z-10 block bg-[var(--surface)] shadow-sm">
+                      <Avatar className="size-full">
+                        <AvatarImage
+                          src={post?.author?.profilePicture}
+                          alt={post?.author?.fullName || post?.author?.username}
+                          className="object-cover size-full"
+                        />
+                        <AvatarFallback className="text-[10px] font-bold">
+                          {(post?.author?.fullName || post?.author?.username || "U").charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
+                    {/* Collaborator Avatar (bottom-right) */}
+                    <div className="absolute bottom-0 right-0 size-7 rounded-full border-2 border-[var(--surface)] ring-1 ring-[var(--border)] overflow-hidden z-20 block bg-[var(--surface)] shadow-sm">
+                      <Avatar className="size-full">
+                        <AvatarImage
+                          src={collaborators[0]?.profilePicture}
+                          alt={collaborators[0]?.fullName || collaborators[0]?.username}
+                          className="object-cover size-full"
+                        />
+                        <AvatarFallback className="text-[10px] font-bold">
+                          {(collaborators[0]?.fullName || collaborators[0]?.username || "U").charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
+                  </div>
+                ) : (
+                  <Avatar className="size-10 border border-[var(--border)] shrink-0">
+                    <AvatarImage src={post?.author?.profilePicture} />
+                    <AvatarFallback>
+                      {post?.author?.fullName?.[0] || post?.author?.username?.[0] || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                )}
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-[var(--foreground)] truncate">
-                    {post?.author?.fullName || post?.author?.username}
-                  </p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-xs font-semibold text-[var(--foreground)] truncate">
+                      {post?.author?.fullName || post?.author?.username}
+                    </p>
+                    {collaborators.length > 0 && (
+                      <>
+                        <span className="text-[11px] text-[var(--muted-foreground)] font-normal">and</span>
+                        <p className="text-xs font-semibold text-[var(--foreground)] truncate">
+                          {collaborators[0]?.fullName || collaborators[0]?.username}
+                        </p>
+                        {collaborators.length > 1 && (
+                          <span className="text-[10px] text-[var(--muted-foreground)]">
+                            +{collaborators.length - 1}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
                   <p className="text-[11px] text-[var(--muted-foreground)] truncate">
-                    @{post?.author?.username || "user"} • Post
+                    {collaborators.length > 0
+                      ? "Collaborative Post"
+                      : `@${post?.author?.username || "user"} • Post`}
                   </p>
                   {post?.caption && (
                     <p className="text-[11px] text-[var(--foreground)]/70 line-clamp-1 mt-0.5">
@@ -434,7 +506,11 @@ const ShareDialog = ({ open, onOpenChange, post }) => {
                 </div>
                 {post?.image && (
                   <div className="size-12 rounded-xl overflow-hidden shrink-0 border border-[var(--border)] bg-black/30">
-                    <img src={post.image} alt="Post preview" className="size-full object-cover" />
+                    {post.mediaType === "video" || post.image?.includes("/video/") || post.image?.endsWith(".mp4") ? (
+                      <video src={post.image} className="size-full object-cover" muted playsInline />
+                    ) : (
+                      <img src={post.image} alt="Post preview" className="size-full object-cover" />
+                    )}
                   </div>
                 )}
               </div>
