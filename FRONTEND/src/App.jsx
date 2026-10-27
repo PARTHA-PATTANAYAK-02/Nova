@@ -1,8 +1,6 @@
 import React, { Suspense, lazy, useEffect, useRef, useState } from "react";
 import Home from "@/components/feed/Home";
-import Login from "@/components/auth/Login";
 import MainLayout from "@/components/layout/MainLayout";
-import Signup from "@/components/auth/Signup";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { io } from "socket.io-client";
 import { useDispatch, useSelector } from "react-redux";
@@ -28,6 +26,8 @@ const Profile = lazy(() => import("@/components/profile/Profile"));
 const EditProfile = lazy(() => import("@/components/profile/EditProfile"));
 const AccountSecurity = lazy(() => import("@/components/profile/AccountSecurity"));
 const SearchPage = lazy(() => import("@/components/search/SearchPage"));
+const Login = lazy(() => import("@/components/auth/Login"));
+const Signup = lazy(() => import("@/components/auth/Signup"));
 const ForgotPassword = lazy(() => import("@/components/auth/ForgotPassword"));
 const NotFound = lazy(() => import("@/components/common/NotFound"));
 const ProfileSetup = lazy(() => import("@/components/onboarding/ProfileSetup"));
@@ -181,11 +181,19 @@ const browserRouter = createBrowserRouter([
   },
   {
     path: "/login",
-    element: <Login />,
+    element: (
+      <RouteSuspense>
+        <Login />
+      </RouteSuspense>
+    ),
   },
   {
     path: "/signup",
-    element: <Signup />,
+    element: (
+      <RouteSuspense>
+        <Signup />
+      </RouteSuspense>
+    ),
   },
   {
     path: "/forgot-password",
