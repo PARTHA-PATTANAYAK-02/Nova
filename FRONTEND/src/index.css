@@ -7390,16 +7390,19 @@ body:has(.nv-split),
   transform: translateY(-50%);
   color: var(--muted-foreground);
   pointer-events: none;
-  transition: color 0.2s ease;
+  transition: color 0.2s ease, transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
   z-index: 2;
 }
 .nv-field-icon svg {
   width: 17px;
   height: 17px;
   display: block;
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+.nv-field:hover .nv-field-icon,
 .nv-field:has(.nv-field-input:focus) .nv-field-icon {
   color: var(--primary);
+  transform: translateY(-50%) scale(1.08);
 }
 .nv-field.has-eye .nv-field-input {
   padding-right: 3.1rem;
@@ -7419,12 +7422,16 @@ body:has(.nv-split),
   background: transparent;
   border: 0;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
   z-index: 3;
 }
 .nv-field-eye:hover {
   color: var(--foreground);
   background: var(--surface-2);
+  transform: translateY(-50%) scale(1.08);
+}
+.nv-field-eye:active {
+  transform: translateY(-50%) scale(0.95);
 }
 
 .nv-form-forgot {

@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
 import {
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  Loader2,
-  ArrowRight,
-  ArrowLeft,
-  CheckCircle2,
-  ShieldCheck,
-  RefreshCw,
-  X,
-} from "lucide-react";
+  MailIcon,
+  LockIcon,
+  EyeIcon,
+  EyeOffIcon,
+  ArrowRightIcon,
+  ArrowLeftIcon,
+  CircleCheckIcon,
+  ShieldCheckIcon,
+  RefreshCwIcon,
+  XIcon,
+} from "@animateicons/react/lucide";
 import axios from "axios";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -216,7 +217,7 @@ const PasswordResetForm = ({
         {/* ============ STEP 1 — EMAIL ============ */}
         {step === STEP_EMAIL && (
           <form onSubmit={handleSendOtp}>
-            <div className="nv-field has-icon">
+            <div className="nv-field has-icon group">
               <input
                 id="reset-email"
                 ref={emailRef}
@@ -234,7 +235,7 @@ const PasswordResetForm = ({
                 {emailLocked ? "We'll send the code to" : "Email address"}
               </label>
               <span className="nv-field-icon">
-                <Mail strokeWidth={1.8} />
+                <AnimatedIcon icon={MailIcon} size={18} strokeWidth={1.8} />
               </span>
             </div>
 
@@ -260,7 +261,7 @@ const PasswordResetForm = ({
             <button
               type="submit"
               disabled={loading || !email.trim()}
-              className="nv-form-btn"
+              className="nv-form-btn group"
             >
               {loading ? (
                 <>
@@ -270,9 +271,11 @@ const PasswordResetForm = ({
               ) : (
                 <>
                   Send verification code
-                  <ArrowRight
-                    className="nv-form-arrow h-4 w-4"
+                  <AnimatedIcon
+                    icon={ArrowRightIcon}
+                    size={16}
                     strokeWidth={2.2}
+                    className="nv-form-arrow"
                   />
                 </>
               )}
@@ -339,14 +342,14 @@ const PasswordResetForm = ({
               )}
               {otpSuccess && !loading && (
                 <span
-                  className="is-ok"
+                  className="is-ok group"
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 6,
                   }}
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2.4} />
+                  <AnimatedIcon icon={CircleCheckIcon} size={14} strokeWidth={2.4} />
                   Verified
                 </span>
               )}
@@ -364,11 +367,13 @@ const PasswordResetForm = ({
                 type="button"
                 onClick={handleResend}
                 disabled={resendTimer > 0 || loading}
-                className={`nv-resend ${resendTimer > 0 ? "is-counting" : ""}`}
+                className={`nv-resend group ${resendTimer > 0 ? "is-counting" : ""}`}
               >
-                <RefreshCw
-                  className="nv-resend-icon h-3.5 w-3.5"
+                <AnimatedIcon
+                  icon={RefreshCwIcon}
+                  size={14}
                   strokeWidth={2.2}
+                  className="nv-resend-icon"
                 />
                 {resendTimer > 0 ? (
                   <>
@@ -384,9 +389,9 @@ const PasswordResetForm = ({
                 <button
                   type="button"
                   onClick={() => goTo(STEP_EMAIL, "back")}
-                  className="nv-reset-linkback"
+                  className="nv-reset-linkback group"
                 >
-                  <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  <AnimatedIcon icon={ArrowLeftIcon} size={14} strokeWidth={2.2} />
                   Use a different email
                 </button>
               )}
@@ -397,9 +402,9 @@ const PasswordResetForm = ({
         {/* ============ STEP 3 — NEW PASSWORD ============ */}
         {step === STEP_PASSWORD && (
           <form onSubmit={handleResetPassword}>
-            <div className="nv-reset-verified">
+            <div className="nv-reset-verified group">
               <span className="nv-reset-verified-icon">
-                <ShieldCheck className="h-4 w-4" strokeWidth={2.2} />
+                <AnimatedIcon icon={ShieldCheckIcon} size={16} strokeWidth={2.2} />
               </span>
               <div className="nv-reset-verified-text">
                 <strong>Code verified</strong>
@@ -408,7 +413,7 @@ const PasswordResetForm = ({
             </div>
 
             {/* ---- New password ---- */}
-            <div className="nv-field has-icon has-eye">
+            <div className="nv-field has-icon has-eye group">
               <input
                 id="reset-password"
                 type={showPassword ? "text" : "password"}
@@ -426,26 +431,26 @@ const PasswordResetForm = ({
                 New password
               </label>
               <span className="nv-field-icon">
-                <Lock strokeWidth={1.8} />
+                <AnimatedIcon icon={LockIcon} size={18} strokeWidth={1.8} />
               </span>
               <button
                 type="button"
-                className="nv-field-eye"
+                className="nv-field-eye group"
                 onClick={() => setShowPassword((s) => !s)}
                 aria-label={showPassword ? "Hide password" : "Show password"}
                 tabIndex={-1}
               >
                 {showPassword ? (
-                  <EyeOff className="w-4 h-4" strokeWidth={1.8} />
+                  <AnimatedIcon icon={EyeOffIcon} size={16} strokeWidth={1.8} />
                 ) : (
-                  <Eye className="w-4 h-4" strokeWidth={1.8} />
+                  <AnimatedIcon icon={EyeIcon} size={16} strokeWidth={1.8} />
                 )}
               </button>
             </div>
 
             {/* ---- Confirm password ---- */}
             <div
-              className={`nv-field has-icon has-eye ${
+              className={`nv-field has-icon has-eye group ${
                 pwMatchState === "ok" ? "is-match" : ""
               } ${pwMatchState === "bad" ? "is-mismatch" : ""}`}
             >
@@ -465,19 +470,19 @@ const PasswordResetForm = ({
                 Confirm password
               </label>
               <span className="nv-field-icon">
-                <Lock strokeWidth={1.8} />
+                <AnimatedIcon icon={LockIcon} size={18} strokeWidth={1.8} />
               </span>
               <button
                 type="button"
-                className="nv-field-eye"
+                className="nv-field-eye group"
                 onClick={() => setShowConfirm((s) => !s)}
                 aria-label={showConfirm ? "Hide password" : "Show password"}
                 tabIndex={-1}
               >
                 {showConfirm ? (
-                  <EyeOff className="w-4 h-4" strokeWidth={1.8} />
+                  <AnimatedIcon icon={EyeOffIcon} size={16} strokeWidth={1.8} />
                 ) : (
-                  <Eye className="w-4 h-4" strokeWidth={1.8} />
+                  <AnimatedIcon icon={EyeIcon} size={16} strokeWidth={1.8} />
                 )}
               </button>
             </div>
@@ -494,13 +499,13 @@ const PasswordResetForm = ({
             >
               {pwMatchState === "ok" && (
                 <>
-                  <CheckCircle2 strokeWidth={2.4} />
+                  <AnimatedIcon icon={CircleCheckIcon} size={14} strokeWidth={2.4} />
                   <span>Passwords match</span>
                 </>
               )}
               {pwMatchState === "bad" && (
                 <>
-                  <X strokeWidth={2.4} />
+                  <AnimatedIcon icon={XIcon} size={14} strokeWidth={2.4} />
                   <span>Passwords don't match</span>
                 </>
               )}
@@ -518,7 +523,7 @@ const PasswordResetForm = ({
             <button
               type="submit"
               disabled={loading || pwMatchState === "bad"}
-              className="nv-form-btn"
+              className="nv-form-btn group"
               style={{ marginTop: "0.25rem" }}
             >
               {loading ? (
@@ -529,9 +534,11 @@ const PasswordResetForm = ({
               ) : (
                 <>
                   Reset password
-                  <ArrowRight
-                    className="nv-form-arrow h-4 w-4"
+                  <AnimatedIcon
+                    icon={ArrowRightIcon}
+                    size={16}
                     strokeWidth={2.2}
+                    className="nv-form-arrow"
                   />
                 </>
               )}
@@ -541,10 +548,10 @@ const PasswordResetForm = ({
               <button
                 type="button"
                 onClick={() => goTo(STEP_OTP, "back")}
-                className="nv-reset-linkback"
+                className="nv-reset-linkback group"
                 style={{ marginTop: "0.85rem" }}
               >
-                <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2.2} />
+                <AnimatedIcon icon={ArrowLeftIcon} size={14} strokeWidth={2.2} />
                 Back to code
               </button>
             )}
@@ -585,9 +592,9 @@ const StepProgress = ({ step }) => {
 
 const SuccessScreen = ({ email }) => (
   <div className="nv-reset-success">
-    <div className="nv-reset-success-orb">
+    <div className="nv-reset-success-orb group">
       <span>
-        <CheckCircle2 className="h-7 w-7" strokeWidth={2.4} />
+        <AnimatedIcon icon={CircleCheckIcon} size={28} strokeWidth={2.4} />
       </span>
     </div>
     <h2 className="nv-reset-success-title">Password reset</h2>
@@ -604,8 +611,8 @@ const CodeSentBurst = () => (
     <span className="nv-code-burst-ring" style={{ animationDelay: "150ms" }} />
     <span className="nv-code-burst-ring" style={{ animationDelay: "300ms" }} />
 
-    <span className="nv-code-burst-core">
-      <Mail className="h-5 w-5" strokeWidth={2.2} />
+    <span className="nv-code-burst-core group">
+      <AnimatedIcon icon={MailIcon} size={20} strokeWidth={2.2} />
     </span>
 
     {[0, 1, 2, 3, 4, 5].map((i) => (

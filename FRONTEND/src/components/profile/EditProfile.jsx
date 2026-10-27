@@ -72,9 +72,14 @@ const EditProfile = () => {
 
   const fileChangeHandler = (event) => {
     const file = event.target.files?.[0];
+    if (event.target) event.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please choose an image file.");
+    const mime = (file.type || "").toLowerCase();
+    const name = (file.name || "").toLowerCase();
+    const ext = name.includes(".") ? name.substring(name.lastIndexOf(".")).toLowerCase() : "";
+    const allowedExts = [".jpg", ".jpeg", ".png", ".webp"];
+    const allowedMimes = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+    if (mime === "image/gif" || ext === ".gif" || !allowedExts.includes(ext) || !allowedMimes.includes(mime)) {
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -87,9 +92,14 @@ const EditProfile = () => {
 
   const coverChangeHandler = (event) => {
     const file = event.target.files?.[0];
+    if (event.target) event.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please choose an image file.");
+    const mime = (file.type || "").toLowerCase();
+    const name = (file.name || "").toLowerCase();
+    const ext = name.includes(".") ? name.substring(name.lastIndexOf(".")).toLowerCase() : "";
+    const allowedExts = [".jpg", ".jpeg", ".png", ".webp"];
+    const allowedMimes = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+    if (mime === "image/gif" || ext === ".gif" || !allowedExts.includes(ext) || !allowedMimes.includes(mime)) {
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -170,7 +180,7 @@ const EditProfile = () => {
           <input
             ref={coverImageRef}
             type="file"
-            accept="image/png,image/jpeg,image/webp"
+            accept=".jpg,.jpeg,.png,.webp"
             onChange={coverChangeHandler}
             className="hidden"
           />
@@ -195,7 +205,7 @@ const EditProfile = () => {
             <input
               ref={imageRef}
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              accept=".jpg,.jpeg,.png,.webp"
               onChange={fileChangeHandler}
               className="hidden"
             />

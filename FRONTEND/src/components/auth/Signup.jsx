@@ -2,19 +2,20 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "sonner";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Loader2 } from "lucide-react";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
 import {
-  Loader2,
-  ArrowRight,
-  Mail,
-  Lock,
-  User,
-  Eye,
-  EyeOff,
-  CheckCircle2,
-  RotateCcw,
-  X,
-  Sparkles,
-} from "lucide-react";
+  MailIcon,
+  LockIcon,
+  UserIcon,
+  EyeIcon,
+  EyeOffIcon,
+  CircleCheckIcon,
+  RotateCcwIcon,
+  XIcon,
+  SparklesIcon,
+  ArrowRightIcon,
+} from "@animateicons/react/lucide";
 import { useDispatch, useSelector } from "react-redux";
 import { setAuthUser } from "@/redux/authSlice";
 import { getErrorMessage } from "@/lib/utils";
@@ -165,9 +166,9 @@ const Signup = () => {
               type="button"
               onClick={backToDetails}
               aria-label="Back"
-              className="nv-otp-back"
+              className="nv-otp-back group"
             >
-              <X className="h-4 w-4" strokeWidth={2.2} />
+              <AnimatedIcon icon={XIcon} size={16} strokeWidth={2.2} />
             </button>
           )}
 
@@ -193,7 +194,7 @@ const Signup = () => {
               {isFromPost && (
                 <div className="mb-4 p-3.5 rounded-2xl bg-gradient-to-r from-purple-500/15 via-pink-500/15 to-amber-500/15 border border-purple-500/30 text-left animate-in fade-in slide-in-from-top-2 duration-300">
                   <div className="flex items-center gap-2 mb-1 text-pink-400 font-semibold text-xs">
-                    <Sparkles className="size-3.5" />
+                    <AnimatedIcon icon={SparklesIcon} size={14} />
                     <span>Create account to view shared post</span>
                   </div>
                   <p className="text-xs text-[var(--foreground)] font-medium leading-relaxed">
@@ -210,7 +211,7 @@ const Signup = () => {
                   marginBottom: "0.75rem",
                 }}
               >
-                <div className="nv-field has-icon" style={{ marginBottom: 0 }}>
+                <div className="nv-field has-icon group" style={{ marginBottom: 0 }}>
                   <input
                     id="firstName"
                     name="firstName"
@@ -227,7 +228,7 @@ const Signup = () => {
                     First name
                   </label>
                   <span className="nv-field-icon">
-                    <User strokeWidth={1.8} />
+                    <AnimatedIcon icon={UserIcon} size={18} strokeWidth={1.8} />
                   </span>
                 </div>
                 <div className="nv-field" style={{ marginBottom: 0 }}>
@@ -249,7 +250,7 @@ const Signup = () => {
                 </div>
               </div>
 
-              <div className="nv-field has-icon">
+              <div className="nv-field has-icon group">
                 <input
                   id="email"
                   name="email"
@@ -265,11 +266,11 @@ const Signup = () => {
                   Email address
                 </label>
                 <span className="nv-field-icon">
-                  <Mail strokeWidth={1.8} />
+                  <AnimatedIcon icon={MailIcon} size={18} strokeWidth={1.8} />
                 </span>
               </div>
 
-              <div className="nv-field has-icon has-eye">
+              <div className="nv-field has-icon has-eye group">
                 <input
                   id="password"
                   name="password"
@@ -286,24 +287,24 @@ const Signup = () => {
                   Password
                 </label>
                 <span className="nv-field-icon">
-                  <Lock strokeWidth={1.8} />
+                  <AnimatedIcon icon={LockIcon} size={18} strokeWidth={1.8} />
                 </span>
                 <button
                   type="button"
-                  className="nv-field-eye"
+                  className="nv-field-eye group"
                   onClick={() => setShowPassword((s) => !s)}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   tabIndex={-1}
                 >
                   {showPassword ? (
-                    <EyeOff className="w-4 h-4" strokeWidth={1.8} />
+                    <AnimatedIcon icon={EyeOffIcon} size={16} strokeWidth={1.8} />
                   ) : (
-                    <Eye className="w-4 h-4" strokeWidth={1.8} />
+                    <AnimatedIcon icon={EyeIcon} size={16} strokeWidth={1.8} />
                   )}
                 </button>
               </div>
 
-              <div className="nv-field has-icon">
+              <div className="nv-field has-icon group">
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
@@ -320,14 +321,14 @@ const Signup = () => {
                   Retype password
                 </label>
                 <span className="nv-field-icon">
-                  <Lock strokeWidth={1.8} />
+                  <AnimatedIcon icon={LockIcon} size={18} strokeWidth={1.8} />
                 </span>
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="nv-form-btn"
+                className="nv-form-btn group"
                 style={{ marginTop: "0.5rem" }}
               >
                 {loading ? (
@@ -338,9 +339,11 @@ const Signup = () => {
                 ) : (
                   <>
                     Continue
-                    <ArrowRight
-                      className="nv-form-arrow h-4 w-4"
+                    <AnimatedIcon
+                      icon={ArrowRightIcon}
+                      size={16}
                       strokeWidth={2.2}
+                      className="nv-form-arrow"
                     />
                   </>
                 )}
@@ -365,12 +368,12 @@ const Signup = () => {
             <div className="nv-step-in">
               <div className="nv-form-head" style={{ textAlign: "center" }}>
                 <span
-                  className={`nv-otp-badge ${otpSuccess ? "is-success" : ""}`}
+                  className={`nv-otp-badge ${otpSuccess ? "is-success" : ""} group`}
                 >
                   {otpSuccess ? (
-                    <CheckCircle2 className="h-7 w-7" strokeWidth={2} />
+                    <AnimatedIcon icon={CircleCheckIcon} size={28} strokeWidth={2} />
                   ) : (
-                    <Mail className="h-7 w-7" strokeWidth={1.8} />
+                    <AnimatedIcon icon={MailIcon} size={28} strokeWidth={1.8} />
                   )}
                 </span>
                 <h1 className="nv-form-title">
@@ -432,11 +435,12 @@ const Signup = () => {
               {!otpSuccess && (
                 <p className="nv-otp-resend">
                   Didn't get the code?{" "}
-                  <button type="button" disabled={loading} onClick={requestOtp}>
-                    <RotateCcw
-                      className="inline-block h-3 w-3"
-                      style={{ verticalAlign: "-2px", marginRight: 4 }}
+                  <button type="button" disabled={loading} onClick={requestOtp} className="group">
+                    <AnimatedIcon
+                      icon={RotateCcwIcon}
+                      size={12}
                       strokeWidth={2.2}
+                      className="inline-block mr-1 align-[-2px]"
                     />
                     Resend
                   </button>

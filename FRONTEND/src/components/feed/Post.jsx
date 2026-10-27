@@ -956,33 +956,6 @@ const Post = ({ post }) => {
                 </button>
               )}
 
-              {isCollaborator && !isOwnPost && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpenDialog(false);
-                    setDeleteConfirmModal({
-                      open: true,
-                      mode: "for_me",
-                      title: "Leave collaboration?",
-                      message:
-                        "This post will be removed from your profile and feed. The post will remain for the original author and any other collaborators.",
-                      confirmText: "Leave collaboration",
-                    });
-                  }}
-                  disabled={!!actionLoading}
-                  className="
-                    flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
-                    text-[var(--danger)] hover:bg-[var(--danger)]/8
-                    active:scale-[.98] transition-all duration-200
-                    outline-none disabled:opacity-50 cursor-pointer group
-                  "
-                >
-                  <AnimatedIcon icon={UserMinusIcon} size={16} />
-                  Leave collaboration (Remove from my profile)
-                </button>
-              )}
-
               {isTaggedInPost && (
                 <button
                   type="button"

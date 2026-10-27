@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, KeyRound } from "lucide-react";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
+import { ArrowLeftIcon, KeyRoundIcon } from "@animateicons/react/lucide";
 import PasswordResetForm from "@/components/auth/PasswordResetForm";
 import AuthStage from "@/components/auth/AuthStage";
 
@@ -23,15 +24,15 @@ const ForgotPassword = () => {
           </div>
 
           {/* Back link */}
-          <Link to="/login" className="nv-back-link">
-            <ArrowLeft className="h-3.5 w-3.5" />
+          <Link to="/login" className="nv-back-link group">
+            <AnimatedIcon icon={ArrowLeftIcon} size={14} />
             Back to sign in
           </Link>
 
           {/* Heading */}
           <div className="nv-form-head">
-            <span className="nv-form-badge">
-              <KeyRound className="h-4 w-4" strokeWidth={2} />
+            <span className="nv-form-badge group">
+              <AnimatedIcon icon={KeyRoundIcon} size={16} strokeWidth={2} />
             </span>
             <h1 className="nv-form-title">Reset password</h1>
             <p className="nv-form-sub">

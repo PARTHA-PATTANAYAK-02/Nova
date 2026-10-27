@@ -111,19 +111,6 @@ const PostLightboxModal = ({
         (post?.author?._id || post?.author)?.toString()
   );
 
-  const uniqueTaggedUsers = Array.from(
-    new Map([
-      ...collaborators.map((c) => [c._id?.toString() || c.username, c]),
-      ...(post?.taggedUsers || [])
-        .filter(
-          (t) =>
-            t.user &&
-            (t.user._id || t.user).toString() !==
-              (post?.author?._id || post?.author)?.toString()
-        )
-        .map((t) => [t.user._id?.toString() || t.user.username, t.user]),
-    ]).values()
-  );
 
   // Sync initial slide and reset zoom when opened or slide changes
   useEffect(() => {
@@ -139,7 +126,7 @@ const PostLightboxModal = ({
     return () => {
       document.body.style.overflow = "";
     };
-  }, [open, post?._id, initialSlide]);
+  }, [open, post?._id, initialSlide, items.length]);
 
   useEffect(() => {
     setScale(1);

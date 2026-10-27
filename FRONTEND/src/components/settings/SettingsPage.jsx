@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   User,
   Shield,
@@ -155,13 +155,9 @@ const SettingsPage = () => {
     }
   }, [profileComp.isComplete]);
   const {
-    theme,
     dark,
     setTheme,
-    toggleTheme,
-    darkShade,
     setDarkShade,
-    lightShade,
     setLightShade,
     activeShade,
     accent,
@@ -347,9 +343,14 @@ const SettingsPage = () => {
 
   const handleProfilePhotoChange = (e) => {
     const file = e.target.files?.[0];
+    if (e.target) e.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please choose a valid image file.");
+    const mime = (file.type || "").toLowerCase();
+    const name = (file.name || "").toLowerCase();
+    const ext = name.includes(".") ? name.substring(name.lastIndexOf(".")).toLowerCase() : "";
+    const allowedExts = [".jpg", ".jpeg", ".png", ".webp"];
+    const allowedMimes = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+    if (mime === "image/gif" || ext === ".gif" || !allowedExts.includes(ext) || !allowedMimes.includes(mime)) {
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -362,9 +363,14 @@ const SettingsPage = () => {
 
   const handleCoverPhotoChange = (e) => {
     const file = e.target.files?.[0];
+    if (e.target) e.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please choose a valid image file.");
+    const mime = (file.type || "").toLowerCase();
+    const name = (file.name || "").toLowerCase();
+    const ext = name.includes(".") ? name.substring(name.lastIndexOf(".")).toLowerCase() : "";
+    const allowedExts = [".jpg", ".jpeg", ".png", ".webp"];
+    const allowedMimes = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+    if (mime === "image/gif" || ext === ".gif" || !allowedExts.includes(ext) || !allowedMimes.includes(mime)) {
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -1141,7 +1147,7 @@ const SettingsPage = () => {
                           <input
                             ref={imageRef}
                             type="file"
-                            accept="image/*"
+                            accept=".jpg,.jpeg,.png,.webp"
                             className="hidden"
                             onChange={handleProfilePhotoChange}
                           />
@@ -1174,7 +1180,7 @@ const SettingsPage = () => {
                           <input
                             ref={coverRef}
                             type="file"
-                            accept="image/*"
+                            accept=".jpg,.jpeg,.png,.webp"
                             className="hidden"
                             onChange={handleCoverPhotoChange}
                           />

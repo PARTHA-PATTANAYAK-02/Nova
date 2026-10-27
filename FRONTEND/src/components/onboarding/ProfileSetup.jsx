@@ -79,8 +79,12 @@ const ProfileSetup = () => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please choose an image file.");
+    const mime = (file.type || "").toLowerCase();
+    const name = (file.name || "").toLowerCase();
+    const ext = name.includes(".") ? name.substring(name.lastIndexOf(".")).toLowerCase() : "";
+    const allowedExts = [".jpg", ".jpeg", ".png", ".webp"];
+    const allowedMimes = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+    if (mime === "image/gif" || ext === ".gif" || !allowedExts.includes(ext) || !allowedMimes.includes(mime)) {
       return;
     }
     if (file.size > MAX_IMAGE_SIZE) {
@@ -403,14 +407,14 @@ const ProfileSetup = () => {
         <input
           ref={coverInputRef}
           type="file"
-          accept="image/*"
+          accept=".jpg,.jpeg,.png,.webp"
           onChange={(e) => selectImage(e, setCoverPhoto)}
           className="hidden"
         />
         <input
           ref={profileInputRef}
           type="file"
-          accept="image/*"
+          accept=".jpg,.jpeg,.png,.webp"
           onChange={(e) => selectImage(e, setProfilePhoto)}
           className="hidden"
         />

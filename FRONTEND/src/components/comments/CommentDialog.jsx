@@ -157,7 +157,18 @@ const CommentDialog = ({ open, setOpen }) => {
 
   useEffect(() => {
     setActiveSlide(0);
+    setVideoPlaying(false);
+    setVideoTime(0);
+    setVideoEnded(false);
+    if (dialogVideoRef.current) dialogVideoRef.current.pause();
   }, [post?._id, open]);
+
+  useEffect(() => {
+    setVideoPlaying(false);
+    setVideoTime(0);
+    setVideoEnded(false);
+    if (dialogVideoRef.current) dialogVideoRef.current.pause();
+  }, [activeSlide]);
 
   const currentMedia = mediaItems[activeSlide] || mediaItems[0] || {};
   const currentUrl = currentMedia.url || post?.image;

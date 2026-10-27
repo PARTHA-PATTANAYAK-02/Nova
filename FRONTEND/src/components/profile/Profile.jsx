@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import useGetUserProfile from "@/hooks/useGetUserProfile";
-import { updateFollowing, setAuthUser, updatePinnedPosts, setUserProfile } from "@/redux/authSlice";
+import { updateFollowing, updatePinnedPosts, setUserProfile } from "@/redux/authSlice";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import {
@@ -90,7 +90,7 @@ import {
 } from "@/components/ui/popover";
 import CommentDialog from "@/components/comments/CommentDialog";
 import { setPosts, setSelectedPost } from "@/redux/postSlice";
-import { useTheme } from "@/hooks/useTheme";
+
 import axios from "axios";
 import { toast } from "sonner";
 import { ErrorState } from "@/components/common/RequestState";
@@ -104,8 +104,7 @@ import {
   markStoryItemAsViewed,
 } from "@/lib/story";
 
-const isValidObjectId = (id) =>
-  typeof id === "string" && /^[0-9a-fA-F]{24}$/.test(id);
+
 
 const fmtCount = (n) => {
   if (!n && n !== 0) return "0";
@@ -178,7 +177,7 @@ const Profile = () => {
 
   /* ═══ Highlights State ═══ */
   const [highlights, setHighlights] = useState([]);
-  const [loadingHighlights, setLoadingHighlights] = useState(false);
+  const [, setLoadingHighlights] = useState(false);
   const [activeHighlightViewer, setActiveHighlightViewer] = useState(null);
   const [newHighlightOpen, setNewHighlightOpen] = useState(false);
   const [newHighlightTitle, setNewHighlightTitle] = useState("");
@@ -186,8 +185,7 @@ const Profile = () => {
   const [deleteHighlightTarget, setDeleteHighlightTarget] = useState(null);
   const [selectedHighlightStories, setSelectedHighlightStories] = useState([]);
   const [selectedHighlightCover, setSelectedHighlightCover] = useState("");
-  const [userStoriesArchive, setUserStoriesArchive] = useState([]);
-  const [loadingStoriesArchive, setLoadingStoriesArchive] = useState(false);
+
 
   useEffect(() => {
     const targetUserId = userProfile?._id;
@@ -334,7 +332,7 @@ const Profile = () => {
     });
   }, [userProfile?._id, userProfile?.username, userProfile?.previousUsernames, userId, navigate, location.state]);
 
-  const { dark, toggleTheme } = useTheme();
+
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -467,24 +465,7 @@ const Profile = () => {
     navigate("/chat", { state: { user: userProfile } });
   };
 
-  const handleLogout = async () => {
-    try {
-      const res = await axios.get(apiUrl("/api/v1/user/logout"), {
-        withCredentials: true,
-      });
-      if (res.data.success) {
-        dispatch(setAuthUser(null));
-        dispatch(setSelectedPost(null));
-        dispatch(setPosts([]));
-        navigate("/login");
-        toast.success(res.data.message);
-      }
-    } catch (error) {
-      toast.error(
-        getErrorMessage(error, "Unable to log out. Please try again."),
-      );
-    }
-  };
+
 
   if (profileRequest.notFound || !userId) return <ProfileNotFound />;
 

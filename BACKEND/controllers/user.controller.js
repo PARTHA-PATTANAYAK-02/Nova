@@ -928,14 +928,25 @@ export const editProfile = async (req, res) => {
     if (req.body.taggingPrivacy !== undefined && ["everyone", "following", "no_one"].includes(req.body.taggingPrivacy)) {
       user.taggingPrivacy = req.body.taggingPrivacy;
     }
-    if (profilePicture) {
+    const isAllowedStaticImage = (file) => {
+      if (!file) return false;
+      const mime = (file.mimetype || "").toLowerCase();
+      const name = (file.originalname || "").toLowerCase();
+      const ext = name.includes(".") ? name.substring(name.lastIndexOf(".")).toLowerCase() : "";
+      if (mime === "image/gif" || ext === ".gif") return false;
+      const allowedExts = [".jpg", ".jpeg", ".png", ".webp"];
+      const allowedMimes = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+      return allowedExts.includes(ext) && allowedMimes.includes(mime);
+    };
+
+    if (profilePicture && isAllowedStaticImage(profilePicture)) {
       const cloudResponse = await cloudinary.uploader.upload(
         getDataUri(profilePicture),
         { folder: "nova/profile-photos" },
       );
       user.profilePicture = cloudResponse.secure_url;
     }
-    if (coverPicture) {
+    if (coverPicture && isAllowedStaticImage(coverPicture)) {
       const cloudResponse = await cloudinary.uploader.upload(
         getDataUri(coverPicture),
         { folder: "nova/cover-photos" },

@@ -2,7 +2,15 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "sonner";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Loader2, ArrowRight, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import AnimatedIcon from "@/components/common/AnimatedIcon";
+import {
+  MailIcon,
+  LockIcon,
+  EyeIcon,
+  EyeOffIcon,
+  ArrowRightIcon,
+} from "@animateicons/react/lucide";
 import { useDispatch, useSelector } from "react-redux";
 import { setAuthUser } from "@/redux/authSlice";
 import { getErrorMessage } from "@/lib/utils";
@@ -99,7 +107,7 @@ const Login = () => {
           {isFromPost && (
             <div className="mb-4 p-3.5 rounded-2xl bg-gradient-to-r from-purple-500/15 via-pink-500/15 to-amber-500/15 border border-purple-500/30 text-left animate-in fade-in slide-in-from-top-2 duration-300">
               <div className="flex items-center gap-2 mb-1 text-purple-400 font-semibold text-xs">
-                <Lock className="size-3.5" />
+                <AnimatedIcon icon={LockIcon} size={14} />
                 <span>Post requires Nova account</span>
               </div>
               <p className="text-xs text-[var(--foreground)] font-medium leading-relaxed">
@@ -109,7 +117,7 @@ const Login = () => {
           )}
 
           {/* Email */}
-          <div className="nv-field has-icon">
+          <div className="nv-field has-icon group">
             <input
               id="email"
               name="email"
@@ -125,12 +133,12 @@ const Login = () => {
               Email address
             </label>
             <span className="nv-field-icon">
-              <Mail strokeWidth={1.8} />
+              <AnimatedIcon icon={MailIcon} size={18} strokeWidth={1.8} />
             </span>
           </div>
 
           {/* Password */}
-          <div className="nv-field has-icon has-eye">
+          <div className="nv-field has-icon has-eye group">
             <input
               id="password"
               name="password"
@@ -146,19 +154,19 @@ const Login = () => {
               Password
             </label>
             <span className="nv-field-icon">
-              <Lock strokeWidth={1.8} />
+              <AnimatedIcon icon={LockIcon} size={18} strokeWidth={1.8} />
             </span>
             <button
               type="button"
-              className="nv-field-eye"
+              className="nv-field-eye group"
               onClick={() => setShowPassword((s) => !s)}
               aria-label={showPassword ? "Hide password" : "Show password"}
               tabIndex={-1}
             >
               {showPassword ? (
-                <EyeOff className="w-4 h-4" strokeWidth={1.8} />
+                <AnimatedIcon icon={EyeOffIcon} size={16} strokeWidth={1.8} />
               ) : (
-                <Eye className="w-4 h-4" strokeWidth={1.8} />
+                <AnimatedIcon icon={EyeIcon} size={16} strokeWidth={1.8} />
               )}
             </button>
           </div>
@@ -167,7 +175,7 @@ const Login = () => {
             <Link to="/forgot-password">Forgot password?</Link>
           </div>
 
-          <button type="submit" disabled={loading} className="nv-form-btn">
+          <button type="submit" disabled={loading} className="nv-form-btn group">
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -176,9 +184,11 @@ const Login = () => {
             ) : (
               <>
                 Sign in
-                <ArrowRight
-                  className="nv-form-arrow h-4 w-4"
+                <AnimatedIcon
+                  icon={ArrowRightIcon}
+                  size={16}
                   strokeWidth={2.2}
+                  className="nv-form-arrow"
                 />
               </>
             )}

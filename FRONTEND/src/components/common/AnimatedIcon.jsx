@@ -26,16 +26,8 @@ export const AnimatedIcon = forwardRef(
     }));
 
     useEffect(() => {
-      if (!triggerOnParent || !spanRef.current) return;
-
-      const interactiveSelector =
-        'button, a, [role="button"], label, .group, .is-clickable, .nova-tab, .nova-profile__handle, .nova-profile__link, .nova-profile__handle-row, .nova-settings-item, .nvs2-nav-item, .nova-profile__hero-btn, .cursor-pointer, li';
-
-      const target = parentSelector
-        ? spanRef.current.closest(parentSelector)
-        : spanRef.current.closest(interactiveSelector) || spanRef.current.parentElement;
-
-      if (!target) return;
+      const spanEl = spanRef.current;
+      if (!spanEl) return;
 
       const handleEnter = () => {
         iconRef.current?.startAnimation?.();
@@ -45,11 +37,43 @@ export const AnimatedIcon = forwardRef(
         iconRef.current?.stopAnimation?.();
       };
 
+      // Always allow hovering directly on the icon
+      spanEl.addEventListener("mouseenter", handleEnter);
+      spanEl.addEventListener("mouseleave", handleLeave);
+
+      if (!triggerOnParent) {
+        return () => {
+          spanEl.removeEventListener("mouseenter", handleEnter);
+          spanEl.removeEventListener("mouseleave", handleLeave);
+        };
+      }
+
+      const interactiveSelector =
+        'button, a, [role="button"], label, .group, .is-clickable, .nova-tab, .nova-profile__handle, .nova-profile__link, .nova-profile__handle-row, .nova-settings-item, .nvs2-nav-item, .nova-profile__hero-btn, .cursor-pointer, .nv-field, .nv-stage-feat, .nv-back-link, .nv-otp-badge, .nv-card-float-foot, .nv-form-btn, li';
+
+      const target = parentSelector
+        ? spanEl.closest(parentSelector)
+        : spanEl.closest(interactiveSelector) || spanEl.parentElement;
+
+      if (!target) {
+        return () => {
+          spanEl.removeEventListener("mouseenter", handleEnter);
+          spanEl.removeEventListener("mouseleave", handleLeave);
+        };
+      }
+
       target.addEventListener("mouseenter", handleEnter);
       target.addEventListener("mouseleave", handleLeave);
+      target.addEventListener("focusin", handleEnter);
+      target.addEventListener("focusout", handleLeave);
+
       return () => {
+        spanEl.removeEventListener("mouseenter", handleEnter);
+        spanEl.removeEventListener("mouseleave", handleLeave);
         target.removeEventListener("mouseenter", handleEnter);
         target.removeEventListener("mouseleave", handleLeave);
+        target.removeEventListener("focusin", handleEnter);
+        target.removeEventListener("focusout", handleLeave);
       };
     }, [triggerOnParent, parentSelector]);
 

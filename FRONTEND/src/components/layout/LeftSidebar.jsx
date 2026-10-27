@@ -276,7 +276,7 @@ const LeftSidebar = () => {
               <img src="/logo.gif" alt="Nova" className="nvs2-logo-img" />
             </span>
             <span className="text-grad font-display text-[23px] font-bold tracking-[-.02em] leading-none">
-              Nova
+              ᑎOᐯᗩ
             </span>
           </div>
         </Link>

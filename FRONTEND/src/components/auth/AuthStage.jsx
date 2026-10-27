@@ -1,12 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Shield, Zap, Users } from "lucide-react";
-
-const HeartIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-    <path d="M12 21s-7-4.35-9.5-8.5C.5 8.5 3 5 6.5 5 8.5 5 10 6 12 8c2-2 3.5-3 5.5-3C21 5 23.5 8.5 21.5 12.5 19 16.65 12 21 12 21z" />
-  </svg>
-);
+import AnimatedIcon from "@/components/common/AnimatedIcon";
+import { ZapIcon, UsersIcon, HeartIcon } from "@animateicons/react/lucide";
 
 const FloatingCards = () => (
   <div className="nv-stage-cards" aria-hidden>
@@ -31,8 +26,8 @@ const FloatingCards = () => (
             "linear-gradient(135deg,rgba(92,130,255,0.55),rgba(255,122,156,0.45))",
         }}
       />
-      <div className="nv-card-float-foot">
-        <HeartIcon />
+      <div className="nv-card-float-foot group">
+        <AnimatedIcon icon={HeartIcon} size={15} fill="currentColor" />
         <span>2.4k</span>
       </div>
     </div>
@@ -58,8 +53,8 @@ const FloatingCards = () => (
             "linear-gradient(135deg,rgba(229,166,99,0.55),rgba(107,165,123,0.45))",
         }}
       />
-      <div className="nv-card-float-foot">
-        <HeartIcon />
+      <div className="nv-card-float-foot group">
+        <AnimatedIcon icon={HeartIcon} size={15} fill="currentColor" />
         <span>890</span>
       </div>
     </div>
@@ -103,7 +98,7 @@ const AuthStage = ({ variant = "login" }) => {
           <span className="nv-brand-logo">
             <img src="/logo.gif" alt="Nova" draggable={false} />
           </span>
-          <span className="nv-brand-name">Nova</span>
+          <span className="nv-brand-name">ᑎOᐯᗩ</span>
         </Link>
       </div>
 
@@ -137,11 +132,11 @@ const AuthStage = ({ variant = "login" }) => {
 
       {/* Features */}
       <div className="nv-stage-feats">
-        <span className="nv-stage-feat">
-          <Zap /> Lightning fast
+        <span className="nv-stage-feat group cursor-pointer">
+          <AnimatedIcon icon={ZapIcon} size={15} /> Lightning fast
         </span>
-        <span className="nv-stage-feat">
-          <Users /> Built for close circles
+        <span className="nv-stage-feat group cursor-pointer">
+          <AnimatedIcon icon={UsersIcon} size={15} /> Built for close circles
         </span>
       </div>
     </aside>
