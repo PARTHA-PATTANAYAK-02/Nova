@@ -416,9 +416,20 @@ const NotificationsPage = () => {
 
       {/* ═══════════ DATE-GROUPED NOTIFICATION LIST ═══════════ */}
       {initialLoading ? (
-        <div className="py-20 flex flex-col items-center justify-center text-[var(--muted-foreground)] gap-3">
-          <Loader2 className="size-6 animate-spin text-indigo-400" />
-          <p className="text-xs">Loading notifications archive…</p>
+        <div className="space-y-3 animate-pulse py-2">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div
+              key={i}
+              className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-[var(--surface)]/60 border border-[var(--border)]/50"
+            >
+              <div className="size-11 rounded-full bg-[var(--surface-2)] shrink-0" />
+              <div className="flex-1 space-y-2 min-w-0">
+                <div className="h-3.5 w-3/4 rounded-md bg-[var(--surface-2)]" />
+                <div className="h-2.5 w-1/3 rounded-md bg-[var(--surface-2)]/70" />
+              </div>
+              <div className="size-8 rounded-xl bg-[var(--surface-2)]/60 shrink-0" />
+            </div>
+          ))}
         </div>
       ) : centerNotifications.length === 0 ? (
         <div className="py-20 text-center rounded-3xl bg-[var(--surface-2)]/30 border border-[var(--border)] p-6">

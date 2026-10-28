@@ -514,7 +514,20 @@ const SearchPage = () => {
         </section>
       ) : isQueryActive ? (
         searchState.loading ? (
-          <LoadingState />
+          <div className="space-y-3 py-2 animate-pulse">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3.5 p-3 rounded-2xl bg-[var(--surface)]/60 border border-[var(--border)]/50"
+              >
+                <div className="size-11 rounded-full bg-[var(--surface-2)] shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3.5 w-32 rounded bg-[var(--surface-2)]" />
+                  <div className="h-2.5 w-24 rounded bg-[var(--surface-2)]/70" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : searchState.error ? (
           <ErrorState message={searchState.error} />
         ) : users.length === 0 ? (

@@ -21,6 +21,7 @@ import { playMessageSound, playReactionSound } from "./lib/sound";
 import NetworkStatusBanner from "@/components/common/NetworkStatusBanner";
 
 // Code-split route components for optimized bundle size & fast initial paint
+import ProfileSkeleton from "@/components/profile/ProfileSkeleton";
 const ChatPage = lazy(() => import("@/components/chat/ChatPage"));
 const Profile = lazy(() => import("@/components/profile/Profile"));
 const EditProfile = lazy(() => import("@/components/profile/EditProfile"));
@@ -37,15 +38,21 @@ const HashtagExplorePage = lazy(() => import("@/components/feed/HashtagExplorePa
 const NotificationsPage = lazy(() => import("@/components/notifications/NotificationsPage"));
 const SettingsPage = lazy(() => import("@/components/settings/SettingsPage"));
 
-const RouteSuspense = ({ children }) => (
+const RouteSuspense = ({ children, fallback }) => (
   <Suspense
     fallback={
-      <div className="min-h-[50vh] flex items-center justify-center p-6">
-        <div className="flex flex-col items-center gap-3">
-          <div className="size-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-          <span className="text-xs text-muted-foreground animate-pulse">Loading...</span>
+      fallback || (
+        <div className="w-full max-w-xl mx-auto p-4 space-y-4 animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="size-11 rounded-full bg-[var(--surface-2)]" />
+            <div className="space-y-2 flex-1">
+              <div className="h-4 w-32 rounded-md bg-[var(--surface-2)]" />
+              <div className="h-3 w-20 rounded-md bg-[var(--surface-2)]/70" />
+            </div>
+          </div>
+          <div className="h-48 w-full rounded-2xl bg-[var(--surface-2)]" />
         </div>
-      </div>
+      )
     }
   >
     {children}
@@ -73,7 +80,7 @@ const browserRouter = createBrowserRouter([
         path: "/profile/:id",
         element: (
           <ProtectedRoutes>
-            <RouteSuspense>
+            <RouteSuspense fallback={<ProfileSkeleton />}>
               <Profile />
             </RouteSuspense>
           </ProtectedRoutes>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import ProfileSkeleton from "@/components/profile/ProfileSkeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import useGetUserProfile from "@/hooks/useGetUserProfile";
 import { updateFollowing, updatePinnedPosts, setUserProfile } from "@/redux/authSlice";
@@ -115,20 +116,6 @@ const fmtCount = (n) => {
   return n.toLocaleString();
 };
 
-const ProfileSkeleton = () => (
-  <div className="nova-profile">
-    <div className="nova-profile__hero">
-      <div className="nova-profile__cover nova-profile__cover--empty nova-skel-pulse" />
-      <div className="nova-profile__body">
-        <div className="nova-profile__avatar nova-profile__avatar--skeleton nova-skel-pulse" />
-        <div className="nova-profile__info">
-          <div className="nova-profile__skel-bar nova-profile__skel-bar--lg nova-skel-pulse" />
-          <div className="nova-profile__skel-bar nova-profile__skel-bar--sm nova-skel-pulse" />
-        </div>
-      </div>
-    </div>
-  </div>
-);
 
 const ProfileNotFound = () => (
   <div className="nova-profile">

@@ -403,12 +403,25 @@ const PostDetailPage = () => {
   if (loading) {
     return (
       <MainLayout>
-        <div className="h-[80vh] flex flex-col items-center justify-center p-6">
-          <div className="flex flex-col items-center gap-3">
-            <div className="size-9 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-            <p className="text-xs text-[var(--muted-foreground)] tracking-wide animate-pulse">
-              Loading post…
-            </p>
+        <div className="max-w-2xl mx-auto p-4 animate-pulse space-y-4">
+          <div className="rounded-3xl bg-[var(--surface)]/70 backdrop-blur-xl border border-[var(--border)]/60 overflow-hidden">
+            <div className="flex items-center gap-3 p-4">
+              <div className="size-10 rounded-full bg-[var(--surface-2)]" />
+              <div className="space-y-2 flex-1">
+                <div className="h-3.5 w-32 rounded-md bg-[var(--surface-2)]" />
+                <div className="h-2.5 w-20 rounded-md bg-[var(--surface-2)]/70" />
+              </div>
+            </div>
+            <div className="aspect-[4/5] sm:aspect-square w-full bg-[var(--surface-2)]" />
+            <div className="p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="size-8 rounded-full bg-[var(--surface-2)]" />
+                <div className="size-8 rounded-full bg-[var(--surface-2)]" />
+                <div className="size-8 rounded-full bg-[var(--surface-2)]" />
+              </div>
+              <div className="h-3.5 w-3/4 rounded-md bg-[var(--surface-2)]" />
+              <div className="h-3 w-1/2 rounded-md bg-[var(--surface-2)]/70" />
+            </div>
           </div>
         </div>
       </MainLayout>
