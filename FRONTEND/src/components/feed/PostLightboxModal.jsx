@@ -22,7 +22,7 @@ import {
 } from "@animateicons/react/lucide";
 import AnimatedIcon from "@/components/common/AnimatedIcon";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getDisplayName } from "@/lib/utils";
+import { getDisplayName, fmtCount } from "@/lib/utils";
 import RichText from "@/components/common/RichText";
 
 const PostLightboxModal = ({
@@ -651,7 +651,11 @@ const PostLightboxModal = ({
                   className="text-white"
                 />
               )}
-              <span>{postLike || 0}</span>
+              {Boolean(postLike) && (
+                <span className="text-inherit tabular-nums font-semibold">
+                  {fmtCount(postLike)}
+                </span>
+              )}
             </button>
 
             {/* Comment */}
@@ -662,10 +666,14 @@ const PostLightboxModal = ({
                 onClose();
                 onCommentClick?.();
               }}
-              className="h-9 px-3.5 rounded-full flex items-center gap-1.5 text-xs font-semibold bg-white/10 hover:bg-white/20 border border-white/15 text-white backdrop-blur-md transition-all cursor-pointer shrink-0 active:scale-95"
+              className="h-9 px-3 rounded-full flex items-center gap-1.5 text-xs font-semibold bg-white/10 hover:bg-white/20 border border-white/15 text-white backdrop-blur-md transition-all cursor-pointer shrink-0 active:scale-95"
             >
               <AnimatedIcon icon={MessageCircleIcon} size={16} />
-              <span>{post.comments?.length || 0}</span>
+              {Boolean(post.comments?.length) && (
+                <span className="text-inherit tabular-nums font-semibold">
+                  {fmtCount(post.comments.length)}
+                </span>
+              )}
             </button>
 
             {/* Share */}

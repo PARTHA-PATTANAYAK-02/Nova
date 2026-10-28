@@ -28,7 +28,7 @@ import { toast } from "sonner";
 import { setPosts } from "@/redux/postSlice";
 import { updateBookmarks } from "@/redux/authSlice";
 import { Textarea } from "@/components/ui/textarea";
-import { getErrorMessage, getDisplayName } from "@/lib/utils";
+import { getErrorMessage, getDisplayName, fmtCount } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
 import { playLikeSound, playCommentSound } from "@/lib/sound";
 
@@ -1054,101 +1054,110 @@ const CommentDialog = ({ open, setOpen }) => {
               </div>
             ) : (
               <>
-                <div className="nova-comment-dialog__stats">
-                  <button
-                    type="button"
-                    onClick={handleLikeToggle}
-                    disabled={liking}
-                    aria-label={isLikedByMe ? "Unlike" : "Like"}
-                    className={`nova-comment-dialog__stat relative cursor-pointer ${
-                      isLikedByMe ? "is-liked" : ""
-                    } ${heartPulse ? "is-pulsing nova-like-pop" : ""}`}
-                  >
-                    {isLikedByMe ? (
-                      <LucideHeart
-                        size={18}
-                        strokeWidth={2}
-                        fill="#ff315d"
-                        color="#ff315d"
-                        className={`transition-transform duration-200 ${
-                          heartPulse ? "scale-125" : "scale-105"
-                        }`}
-                      />
-                    ) : (
-                      <AnimatedIcon
-                        icon={HeartIcon}
-                        size={18}
-                        className={`transition-transform duration-200 ${
-                          heartPulse ? "scale-125" : ""
-                        }`}
-                        strokeWidth={2}
-                      />
-                    )}
-                    {heartPulse && (
-                      <span
-                        className="absolute inset-0 rounded-full border-2 border-[#ff315d] animate-ping opacity-75 pointer-events-none"
-                        aria-hidden
-                      />
-                    )}
-                    <span className="nova-comment-dialog__stat-count">
-                      {likeCount}
-                    </span>
-                  </button>
+                <div className="nova-comment-dialog__stats flex items-center justify-between select-none px-3.5 py-2 border-t border-[var(--border)]/40">
+                  {/* Left group */}
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    {/* Like */}
+                    <button
+                      type="button"
+                      onClick={handleLikeToggle}
+                      disabled={liking}
+                      aria-label={isLikedByMe ? "Unlike" : "Like"}
+                      className={`px-2.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all duration-200 outline-none active:scale-90 cursor-pointer select-none ${
+                        isLikedByMe
+                          ? "text-[#ff315d] hover:bg-[#ff315d]/10"
+                          : "text-[var(--foreground)] hover:text-[#ff315d] hover:bg-[#ff315d]/10"
+                      }`}
+                    >
+                      <div className="relative flex items-center justify-center">
+                        {isLikedByMe ? (
+                          <LucideHeart
+                            size={20}
+                            strokeWidth={2.1}
+                            fill="#ff315d"
+                            color="#ff315d"
+                            className={`transition-transform duration-200 ${
+                              heartPulse ? "scale-125" : "scale-105"
+                            }`}
+                          />
+                        ) : (
+                          <AnimatedIcon
+                            icon={HeartIcon}
+                            size={20}
+                            className={`transition-transform duration-200 ${
+                              heartPulse ? "scale-125" : ""
+                            }`}
+                            strokeWidth={2.1}
+                          />
+                        )}
+                        {heartPulse && (
+                          <span
+                            className="absolute -inset-1 rounded-full border-2 border-[#ff315d] animate-ping opacity-75 pointer-events-none"
+                            aria-hidden
+                          />
+                        )}
+                      </div>
+                      {likeCount > 0 && (
+                        <span className="text-[13px] sm:text-[13.5px] font-semibold tabular-nums tracking-tight">
+                          {fmtCount(likeCount)}
+                        </span>
+                      )}
+                    </button>
 
-                  <div className="nova-comment-dialog__stat is-static">
-                    <AnimatedIcon icon={MessageCircleIcon} size={18} strokeWidth={2} />
-                    <span className="nova-comment-dialog__stat-count">
-                      {comments.length}
-                    </span>
+                    {/* Comment */}
+                    <div className="px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-[var(--foreground)] hover:bg-[var(--primary)]/10 transition-colors select-none">
+                      <AnimatedIcon icon={MessageCircleIcon} size={20} strokeWidth={2.1} />
+                      {comments.length > 0 && (
+                        <span className="text-[13px] sm:text-[13.5px] font-semibold tabular-nums tracking-tight">
+                          {fmtCount(comments.length)}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Share button */}
+                    <button
+                      type="button"
+                      onClick={() => setShareOpen(true)}
+                      aria-label="Share post"
+                      title="Share post"
+                      className="p-2 rounded-full flex items-center justify-center text-[var(--foreground)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 active:scale-90 transition-all duration-200 outline-none cursor-pointer"
+                    >
+                      <AnimatedIcon
+                        icon={SendIcon}
+                        size={20}
+                        strokeWidth={2.1}
+                      />
+                    </button>
                   </div>
 
-                  {/* Share button (matches feed post, opens ShareDialog) */}
-                  <button
-                    type="button"
-                    onClick={() => setShareOpen(true)}
-                    aria-label="Share post"
-                    title="Share post"
-                    className="nova-comment-dialog__stat hover:text-[var(--primary)] transition-colors cursor-pointer group/share"
-                  >
-                    <AnimatedIcon
-                      icon={SendIcon}
-                      size={18}
-                      className="group-hover/share:scale-110 transition-transform"
-                      strokeWidth={2}
-                    />
-                    <span className="nova-comment-dialog__stat-count text-xs">
-                      Share
-                    </span>
-                  </button>
-
-
+                  {/* Bookmark / Save (Right side) */}
                   <button
                     type="button"
                     onClick={handleSaveToggle}
                     disabled={saving || !user?._id}
                     aria-label={isSaved ? "Unsave" : "Save"}
                     aria-pressed={isSaved}
-                    className={`nova-comment-dialog__save cursor-pointer ${
-                      isSaved ? "is-saved" : ""
+                    className={`p-2 rounded-full flex items-center justify-center transition-all duration-200 outline-none active:scale-90 cursor-pointer ${
+                      isSaved ? "text-[var(--primary)] hover:bg-[var(--primary)]/10" : "text-[var(--foreground)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10"
                     }`}
                   >
                     {saving ? (
                       <Loader2 className="size-4 animate-spin" />
                     ) : isSaved ? (
                       <LucideBookmark
-                        size={16}
-                        strokeWidth={2}
+                        size={20}
+                        strokeWidth={2.1}
                         fill="currentColor"
                         color="currentColor"
+                        className="scale-105"
                       />
                     ) : (
                       <AnimatedIcon
                         icon={BookmarkIcon}
-                        size={16}
-                        strokeWidth={2}
+                        size={20}
+                        strokeWidth={2.1}
                       />
                     )}
-                    <span>{isSaved ? "Saved" : "Save"}</span>
                   </button>
                 </div>
 

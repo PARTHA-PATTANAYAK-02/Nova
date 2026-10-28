@@ -59,7 +59,7 @@ import { toast } from "sonner";
 import { setPosts, setSelectedPost } from "@/redux/postSlice";
 import { Link, useNavigate } from "react-router-dom";
 import { updateBookmarks, updateFollowing, updatePinnedPosts } from "@/redux/authSlice";
-import { getDisplayName, getErrorMessage } from "@/lib/utils";
+import { getDisplayName, getErrorMessage, fmtCount } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
 import { playLikeSound, playCommentSound } from "@/lib/sound";
 import RichText from "@/components/common/RichText";
@@ -1531,113 +1531,114 @@ const Post = ({ post }) => {
 
       {/* ── BODY ───────────────────────────────────── */}
       <section className="px-4 pt-3 pb-3">
-        {/* actions */}
-        <div className="flex items-center gap-1.5">
-          <div className="relative flex items-center gap-1">
+        {/* actions (Instagram dock layout) */}
+        <div className="flex items-center justify-between select-none py-1.5 -mx-1.5">
+          {/* Left action cluster */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Like */}
             <button
               ref={likeRef}
               type="button"
               onClick={likeOrDislikeHandler}
               disabled={actionLoading === "like"}
               aria-label={liked ? "Unlike post" : "Like post"}
-              className={`
-                relative size-10 rounded-full flex items-center justify-center
-                transition-all duration-200 outline-none
-                active:scale-90 cursor-pointer
-                ${liked ? "text-[#ff315d]" : "text-[var(--foreground)] hover:text-[#ff315d]"}
-                hover:bg-[var(--danger)]/8
-                ${isLikeAnimating ? "nova-like-pop" : ""}
-              `}
+              className={`px-2.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all duration-200 outline-none active:scale-90 cursor-pointer select-none ${
+                liked
+                  ? "text-[#ff315d] hover:bg-[#ff315d]/10"
+                  : "text-[var(--foreground)] hover:text-[#ff315d] hover:bg-[#ff315d]/10"
+              }`}
             >
-              {liked ? (
-                <LucideHeart
-                  size={22}
-                  strokeWidth={2.1}
-                  fill="#ff315d"
-                  color="#ff315d"
-                  className={`transition-transform duration-200 ${
-                    isLikeAnimating ? "scale-125" : "scale-105"
-                  }`}
-                />
-              ) : (
-                <AnimatedIcon
-                  icon={HeartIcon}
-                  size={22}
-                  strokeWidth={2.1}
-                  className={`transition-transform duration-200 ${
-                    isLikeAnimating ? "scale-125" : ""
-                  }`}
-                />
-              )}
-              {isLikeAnimating && (
-                <span
-                  className="absolute inset-0 rounded-full border-2 border-[#ff315d] animate-ping opacity-75 pointer-events-none"
-                  aria-hidden
-                />
+              <div className="relative flex items-center justify-center">
+                {liked ? (
+                  <LucideHeart
+                    size={22}
+                    strokeWidth={2.1}
+                    fill="#ff315d"
+                    color="#ff315d"
+                    className={`transition-transform duration-200 ${
+                      isLikeAnimating ? "scale-125" : "scale-105"
+                    }`}
+                  />
+                ) : (
+                  <AnimatedIcon
+                    icon={HeartIcon}
+                    size={22}
+                    strokeWidth={2.1}
+                    className={`transition-transform duration-200 ${
+                      isLikeAnimating ? "scale-125" : ""
+                    }`}
+                  />
+                )}
+                {isLikeAnimating && (
+                  <span
+                    className="absolute -inset-1 rounded-full border-2 border-[#ff315d] animate-ping opacity-75 pointer-events-none"
+                    aria-hidden
+                  />
+                )}
+
+                {/* Floating mini hearts particle burst */}
+                {isLikeAnimating && liked && (
+                  <div className="pointer-events-none absolute -top-1 left-1/2 -translate-x-1/2 z-20">
+                    {MINI_HEARTS.map((h) => (
+                      <span
+                        key={h.id}
+                        className="absolute -translate-x-1/2 -translate-y-1/2 animate-floating-heart text-[#ff315d]"
+                        style={{
+                          "--tx": h.tx,
+                          "--ty": h.ty,
+                          "--scale": h.scale,
+                          "--rot": h.rot,
+                          animationDelay: h.delay,
+                        }}
+                      >
+                        <LucideHeart size={14} fill="currentColor" stroke="none" />
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {postLike > 0 && (
+                <span className="text-[13px] sm:text-[13.5px] font-semibold tabular-nums tracking-tight">
+                  {fmtCount(postLike)}
+                </span>
               )}
             </button>
 
-            {/* Floating mini hearts particle burst */}
-            {isLikeAnimating && liked && (
-              <div className="pointer-events-none absolute -top-1 left-1/2 -translate-x-1/2 z-20">
-                {MINI_HEARTS.map((h) => (
-                  <span
-                    key={h.id}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 animate-floating-heart text-[#ff315d]"
-                    style={{
-                      "--tx": h.tx,
-                      "--ty": h.ty,
-                      "--scale": h.scale,
-                      "--rot": h.rot,
-                      animationDelay: h.delay,
-                    }}
-                  >
-                    <LucideHeart size={14} fill="currentColor" stroke="none" />
-                  </span>
-                ))}
-              </div>
-            )}
-
-            <span className="text-[13px] font-semibold tabular-nums text-[var(--foreground)]">
-              {postLike > 0 ? postLike.toLocaleString() : ""}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1">
+            {/* Comment */}
             <button
               ref={commentRef}
               type="button"
               onClick={openComments}
               aria-label="Comments"
-              className="
-                size-10 rounded-full flex items-center justify-center
-                text-[var(--foreground)] hover:text-[var(--primary)]
-                hover:bg-[var(--primary)]/8
-                active:scale-90 transition-all duration-200 outline-none cursor-pointer
-              "
+              className="px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-[var(--foreground)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 active:scale-90 transition-all duration-200 outline-none cursor-pointer select-none"
             >
               <AnimatedIcon icon={MessageCircleIcon} size={22} strokeWidth={2.1} />
+              {comment.length > 0 && (
+                <span className="text-[13px] sm:text-[13.5px] font-semibold tabular-nums tracking-tight">
+                  {fmtCount(comment.length)}
+                </span>
+              )}
             </button>
-            <span className="text-[13px] font-semibold tabular-nums text-[var(--foreground)]">
-              {comment.length > 0 ? comment.length.toLocaleString() : ""}
-            </span>
-          </div>
 
-          {/* Repost button */}
-          <div className="flex items-center gap-1">
+            {/* Repost button */}
             <Popover open={repostMenuOpen} onOpenChange={setRepostMenuOpen}>
               <PopoverTrigger asChild>
                 <button
                   type="button"
                   aria-label="Repost"
-                  className={`
-                    size-10 rounded-full flex items-center justify-center
-                    transition-all duration-200 outline-none active:scale-90 cursor-pointer
-                    ${repostedByMe ? "text-emerald-400" : "text-[var(--foreground)] hover:text-emerald-400"}
-                    hover:bg-emerald-500/10
-                  `}
+                  className={`px-2.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all duration-200 outline-none active:scale-90 cursor-pointer select-none ${
+                    repostedByMe
+                      ? "text-emerald-400 hover:bg-emerald-500/10"
+                      : "text-[var(--foreground)] hover:text-emerald-400 hover:bg-emerald-500/10"
+                  }`}
                 >
                   <AnimatedIcon icon={Repeat2Icon} size={21} strokeWidth={2.1} />
+                  {reposts?.length > 0 && (
+                    <span className="text-[13px] sm:text-[13.5px] font-semibold tabular-nums tracking-tight">
+                      {fmtCount(reposts.length)}
+                    </span>
+                  )}
                 </button>
               </PopoverTrigger>
               <PopoverContent
@@ -1669,29 +1670,19 @@ const Post = ({ post }) => {
                 </button>
               </PopoverContent>
             </Popover>
-            <span className="text-[13px] font-semibold tabular-nums text-[var(--foreground)]">
-              {reposts?.length > 0 ? reposts.length.toLocaleString() : ""}
-            </span>
+
+            {/* Share post */}
+            <button
+              type="button"
+              onClick={() => setShareOpen(true)}
+              aria-label="Share post"
+              className="p-2 rounded-full flex items-center justify-center text-[var(--foreground)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 active:scale-90 transition-all duration-200 outline-none cursor-pointer"
+            >
+              <AnimatedIcon icon={SendIcon} size={21} strokeWidth={2.1} />
+            </button>
           </div>
 
-          <span className="flex-1" />
-
-          {/* Share post */}
-          <button
-            type="button"
-            onClick={() => setShareOpen(true)}
-            aria-label="Share post"
-            className="
-              size-10 rounded-full flex items-center justify-center
-              text-[var(--foreground)] hover:text-[var(--primary)]
-              hover:bg-[var(--primary)]/8
-              active:scale-90 transition-all duration-200 outline-none cursor-pointer
-            "
-          >
-            <AnimatedIcon icon={SendIcon} size={21} strokeWidth={2.1} />
-          </button>
-
-          {/* Bookmark */}
+          {/* Bookmark (Right side) */}
           <button
             ref={bookmarkRef}
             type="button"
@@ -1704,10 +1695,9 @@ const Post = ({ post }) => {
             disabled={!!actionLoading}
             aria-label={bookmarked ? "Remove saved" : "Save"}
             className={`
-              relative size-10 rounded-full flex items-center justify-center
+              relative p-2 rounded-full flex items-center justify-center
               transition-all duration-200 outline-none active:scale-90 cursor-pointer
-              ${bookmarked ? "text-[var(--primary)]" : "text-[var(--foreground)] hover:text-[var(--primary)]"}
-              hover:bg-[var(--primary)]/8
+              ${bookmarked ? "text-[var(--primary)] hover:bg-[var(--primary)]/10" : "text-[var(--foreground)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10"}
               ${isBookmarkAnimating ? "nova-bookmark-spring" : ""}
             `}
           >
@@ -1733,7 +1723,7 @@ const Post = ({ post }) => {
             )}
             {isBookmarkAnimating && (
               <span
-                className="absolute inset-0 rounded-full border-2 border-[var(--primary)] animate-ping opacity-75 pointer-events-none"
+                className="absolute -inset-1 rounded-full border-2 border-[var(--primary)] animate-ping opacity-75 pointer-events-none"
                 aria-hidden
               />
             )}

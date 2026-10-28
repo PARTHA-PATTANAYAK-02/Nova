@@ -2718,8 +2718,9 @@ body[data-theme-accent="solid-red"] {
 .nova-comment-dialog__stats {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
-  padding: 10px 14px 6px;
+  padding: 8px 14px 6px;
 }
 
 .nova-comment-dialog__stat {

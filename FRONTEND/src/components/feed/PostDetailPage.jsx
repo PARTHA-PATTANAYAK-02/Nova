@@ -32,7 +32,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import axios from "axios";
 import { toast } from "sonner";
 import { apiUrl } from "@/lib/api";
-import { getDisplayName, getErrorMessage } from "@/lib/utils";
+import { getDisplayName, getErrorMessage, fmtCount } from "@/lib/utils";
 import { playLikeSound, playCommentSound } from "@/lib/sound";
 import RichText from "@/components/common/RichText";
 import { updateBookmarks } from "@/redux/authSlice";
@@ -907,51 +907,69 @@ const PostDetailPage = () => {
 
           {/* ═══ BOTTOM FIXED ACTIONS & INPUT ═══ */}
           <div className="shrink-0 border-t border-[var(--border)]/70 bg-[var(--surface)] p-2.5 sm:p-3">
-            {/* Quick Action Icons */}
-            <div className="flex items-center justify-between mb-1.5 px-0.5">
+            {/* Quick Action Icons (Instagram Dock) */}
+            <div className="flex items-center justify-between mb-2 -mx-1 select-none">
               <div className="flex items-center gap-2 sm:gap-3">
+                {/* Like */}
                 <button
                   type="button"
                   onClick={handleLikeToggle}
-                  className={`size-8 rounded-full flex items-center justify-center active:scale-75 transition-all cursor-pointer ${
-                    liked ? "text-red-500" : "text-[var(--foreground)] hover:text-red-400"
+                  className={`px-2.5 py-1.5 rounded-full flex items-center gap-1.5 active:scale-90 transition-all duration-200 cursor-pointer outline-none select-none ${
+                    liked
+                      ? "text-[#ff315d] hover:bg-[#ff315d]/10"
+                      : "text-[var(--foreground)] hover:text-[#ff315d] hover:bg-[#ff315d]/10"
                   }`}
                   aria-label="Like post"
                 >
                   {liked ? (
                     <LucideHeart
                       size={20}
-                      fill="#ef4444"
-                      color="#ef4444"
+                      strokeWidth={2.1}
+                      fill="#ff315d"
+                      color="#ff315d"
                       className="scale-105 transition-transform"
                     />
                   ) : (
                     <AnimatedIcon
                       icon={HeartIcon}
                       size={20}
+                      strokeWidth={2.1}
                     />
+                  )}
+                  {likeCount > 0 && (
+                    <span className="text-[13px] sm:text-[13.5px] font-semibold tabular-nums tracking-tight">
+                      {fmtCount(likeCount)}
+                    </span>
                   )}
                 </button>
 
+                {/* Comment */}
                 <button
                   type="button"
                   onClick={() => commentInputRef.current?.focus()}
-                  className="size-8 rounded-full flex items-center justify-center text-[var(--foreground)] hover:text-primary active:scale-90 transition-transform cursor-pointer"
+                  className="px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-[var(--foreground)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 active:scale-90 transition-all duration-200 cursor-pointer outline-none select-none"
                   aria-label="Comment"
                 >
-                  <AnimatedIcon icon={MessageCircleIcon} size={20} />
+                  <AnimatedIcon icon={MessageCircleIcon} size={20} strokeWidth={2.1} />
+                  {comments.length > 0 && (
+                    <span className="text-[13px] sm:text-[13.5px] font-semibold tabular-nums tracking-tight">
+                      {fmtCount(comments.length)}
+                    </span>
+                  )}
                 </button>
 
+                {/* Share */}
                 <button
                   type="button"
                   onClick={() => setShareOpen(true)}
-                  className="size-8 rounded-full flex items-center justify-center text-[var(--foreground)] hover:text-primary active:scale-90 transition-transform cursor-pointer"
+                  className="p-2 rounded-full flex items-center justify-center text-[var(--foreground)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 active:scale-90 transition-all duration-200 cursor-pointer outline-none"
                   aria-label="Share"
                 >
-                  <AnimatedIcon icon={ShareIcon} size={18} />
+                  <AnimatedIcon icon={SendIcon} size={20} strokeWidth={2.1} />
                 </button>
               </div>
 
+              {/* Bookmark (Right) */}
               <button
                 type="button"
                 onClick={handleBookmarkToggle}
@@ -960,14 +978,15 @@ const PostDetailPage = () => {
                   setCollectionModalOpen(true);
                 }}
                 title="Click to save, right-click to organize in collections"
-                className={`size-8 rounded-full flex items-center justify-center active:scale-90 transition-all cursor-pointer ${
-                  bookmarked ? "text-amber-400" : "text-[var(--foreground)] hover:text-amber-400"
+                className={`p-2 rounded-full flex items-center justify-center active:scale-90 transition-all duration-200 cursor-pointer outline-none ${
+                  bookmarked ? "text-amber-400 hover:bg-amber-400/10" : "text-[var(--foreground)] hover:text-amber-400 hover:bg-amber-400/10"
                 }`}
                 aria-label="Bookmark post"
               >
                 {bookmarked ? (
                   <LucideBookmark
-                    size={18}
+                    size={20}
+                    strokeWidth={2.1}
                     fill="currentColor"
                     color="currentColor"
                     className="scale-105 transition-transform"
@@ -975,21 +994,21 @@ const PostDetailPage = () => {
                 ) : (
                   <AnimatedIcon
                     icon={BookmarkIcon}
-                    size={18}
+                    size={20}
+                    strokeWidth={2.1}
                   />
                 )}
               </button>
             </div>
 
-            {/* Like Counter & Date */}
-            <div className="px-1 mb-1.5 text-left flex items-center justify-between">
-              <p className="text-xs font-semibold text-[var(--foreground)]">
-                {likeCount === 1 ? "1 like" : `${likeCount} likes`}
-              </p>
-              <p className="text-[10px] text-[var(--muted-foreground)]">
-                {formatTimeAgo(post.createdAt)}
-              </p>
-            </div>
+            {/* Date / Time */}
+            {post.createdAt && (
+              <div className="px-1 mb-1.5 text-left">
+                <p className="text-[10px] text-[var(--muted-foreground)] uppercase tracking-wider">
+                  {formatTimeAgo(post.createdAt)}
+                </p>
+              </div>
+            )}
 
             {/* Comment Input Box */}
             <form
