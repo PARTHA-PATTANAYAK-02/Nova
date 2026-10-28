@@ -55,6 +55,35 @@ body[data-scroll-locked] {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVENESS & TOUCH OPTIMIZATIONS
+   ═══════════════════════════════════════════════════════════════ */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent unwanted automatic viewport zoom on iOS Safari when focusing inputs/textareas */
+@media screen and (max-width: 767px) {
+  input[type="text"],
+  input[type="password"],
+  input[type="email"],
+  input[type="number"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+.pb-safe {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+}
+.pt-safe {
+  padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+}
+
+/* ═══════════════════════════════════════════════════════════════
    PREMIUM MODAL & POPUP ANIMATIONS + PERFECT CENTERING
    ═══════════════════════════════════════════════════════════════ */
 [data-slot="dialog-content"] {
@@ -2440,7 +2469,9 @@ body[data-theme-accent="solid-red"] {
   justify-content: center;
   background: #000;
   width: 100%;
-  height: 34vh;
+  height: 28vh;
+  max-height: 220px;
+  min-height: 150px;
   flex-shrink: 0;
   cursor: pointer;
   user-select: none;
@@ -2449,6 +2480,8 @@ body[data-theme-accent="solid-red"] {
   .nova-comment-dialog__media {
     width: 55%;
     height: 100%;
+    max-height: none;
+    min-height: 0;
   }
 }
 
@@ -3587,7 +3620,7 @@ body[data-theme-accent="solid-red"] {
   position: relative;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   flex-wrap: nowrap;
   gap: 4px;
   padding: 4px;
@@ -3598,10 +3631,18 @@ body[data-theme-accent="solid-red"] {
   border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
   width: auto;
   max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.nova-profile__tabs::-webkit-scrollbar {
+  display: none;
 }
 @media (min-width: 640px) {
   .nova-profile__tabs {
+    justify-content: center;
     width: auto;
+    overflow-x: visible;
   }
 }
 .nova-profile__tabs--skeleton {
@@ -3627,9 +3668,9 @@ body[data-theme-accent="solid-red"] {
   white-space: nowrap;
   flex-shrink: 0;
   gap: 6px;
-  padding: 8px 16px;
+  padding: 7px 13px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--muted-foreground);
   background: transparent;
@@ -3637,6 +3678,12 @@ body[data-theme-accent="solid-red"] {
   cursor: pointer;
   outline: none;
   transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (min-width: 480px) {
+  .nova-tab {
+    padding: 8px 16px;
+    font-size: 12px;
+  }
 }
 @media (min-width: 640px) {
   .nova-tab {

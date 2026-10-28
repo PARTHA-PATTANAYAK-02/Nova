@@ -49,7 +49,7 @@ import { getSocketInstance } from "@/redux/socketSlice";
 import useGetConversations from "@/hooks/useGetConversations";
 import useGetSuggestedUsers from "@/hooks/useGetSuggestedUsers";
 import { ErrorState, LoadingState } from "@/components/common/RequestState";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { apiUrl } from "@/lib/api";
 import { playMessageSound } from "@/lib/sound";
 import ChatUserMenu from "@/components/chat/ChatUserMenu";
@@ -1164,10 +1164,20 @@ const ChatPage = () => {
 
         <div className="nova-chat__contacts-head">
           <div className="nova-chat__contacts-title-row">
-            <h1 className="nova-chat__contacts-title">
-              <Sparkles className="size-4" strokeWidth={2.2} />
-              <span className="nova-chat__contacts-title-text">Messages</span>
-            </h1>
+            <div className="flex items-center gap-1.5">
+              <Link
+                to="/"
+                className="md:hidden p-1.5 -ml-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)] active:scale-90 transition-all rounded-full flex items-center justify-center cursor-pointer"
+                aria-label="Back to home feed"
+                title="Back to home"
+              >
+                <ChevronLeft className="size-5" strokeWidth={2.4} />
+              </Link>
+              <h1 className="nova-chat__contacts-title">
+                <Sparkles className="size-4" strokeWidth={2.2} />
+                <span className="nova-chat__contacts-title-text">Messages</span>
+              </h1>
+            </div>
 
             <div className="nova-chat__contacts-actions">
               {othersOnlineCount > 0 ? (
@@ -1396,10 +1406,10 @@ const ChatPage = () => {
                       setShowContacts(true);
                     }
                   }}
-                  aria-label="Open chats menu"
-                  title="Menu"
+                  aria-label="Back to conversations"
+                  title="Back to messages"
                 >
-                  <Menu className="size-5" strokeWidth={2.2} />
+                  <ChevronLeft className="size-5.5" strokeWidth={2.4} />
                 </button>
 
                 <ChatUserMenu user={selectedUser}>

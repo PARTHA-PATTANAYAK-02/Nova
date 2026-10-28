@@ -5,7 +5,7 @@ import StoriesBar from "@/components/feed/StoriesBar";
 import Posts from "@/components/feed/Posts";
 import MobileSuggested from "@/components/users/MobileSuggested";
 import { getDisplayName } from "@/lib/utils";
-import { ArrowDown, Loader2, MessageCircle, RefreshCw } from "lucide-react";
+import { ArrowDown, Loader2, RefreshCw, Settings } from "lucide-react";
 import { playCommentSound } from "@/lib/sound";
 
 /* time-based greeting */
@@ -168,11 +168,11 @@ const Feed = ({ requestState }) => {
         </Link>
 
         <Link
-          to="/chat"
-          className="size-9 rounded-full bg-[var(--surface)]/80 backdrop-blur-xl border border-[var(--border)]/70 flex items-center justify-center text-[var(--foreground)]/80 hover:text-[var(--primary)] active:scale-95 transition-all shadow-sm outline-none"
-          aria-label="Direct messages"
+          to="/settings"
+          className="relative size-9 rounded-full bg-[var(--surface)]/80 backdrop-blur-xl border border-[var(--border)]/70 flex items-center justify-center text-[var(--foreground)]/80 hover:text-[var(--primary)] active:scale-95 transition-all shadow-sm outline-none"
+          aria-label="Settings"
         >
-          <MessageCircle className="size-4.5" strokeWidth={1.9} />
+          <Settings className="size-4.5" strokeWidth={1.9} />
         </Link>
       </div>
 

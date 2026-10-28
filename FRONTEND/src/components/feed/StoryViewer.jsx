@@ -841,7 +841,10 @@ const StoryViewer = ({
         </div>
 
         {/* TOP PROGRESS BARS */}
-        <div className="absolute top-2.5 sm:top-3 left-3 right-3 z-30 flex gap-1.5">
+        <div
+          className="absolute left-3 right-3 z-30 flex gap-1.5"
+          style={{ top: "calc(0.65rem + env(safe-area-inset-top, 0px))" }}
+        >
           {currentStory.items.map((item, i) => (
             <div
               key={item._id}
@@ -864,7 +867,10 @@ const StoryViewer = ({
         </div>
 
         {/* TOP HEADER */}
-        <div className="absolute top-6 left-3 right-3 z-30 flex items-center justify-between gap-3 pt-1">
+        <div
+          className="absolute left-3 right-3 z-30 flex items-center justify-between gap-3 pt-1"
+          style={{ top: "calc(1.35rem + env(safe-area-inset-top, 0px))" }}
+        >
           <button
             type="button"
             onClick={() => onOpenProfile?.(currentStory.user)}
@@ -930,7 +936,10 @@ const StoryViewer = ({
         )}
 
         {/* BOTTOM ACTION BAR */}
-        <div className="absolute bottom-4 left-3 right-3 z-30 flex flex-col gap-2.5 pb-safe">
+        <div
+          className="absolute left-3 right-3 z-30 flex flex-col gap-2.5"
+          style={{ bottom: "calc(0.85rem + env(safe-area-inset-bottom, 0px))" }}
+        >
           {!isOwnStory && (
             <div className="flex items-center justify-center gap-1.5 py-1 px-2 rounded-full bg-black/40 border border-white/15 backdrop-blur-xl shadow-lg w-fit mx-auto animate-in fade-in slide-in-from-bottom-2 duration-300">
               {STORY_REACTIONS.map((emoji) => (

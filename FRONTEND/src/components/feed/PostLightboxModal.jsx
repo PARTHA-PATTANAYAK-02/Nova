@@ -256,11 +256,12 @@ const PostLightboxModal = ({
       {/* ── TOP HEADER BAR ── */}
       <header
         className="relative z-30 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/85 via-black/45 to-transparent shrink-0"
+        style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top, 0px))" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Author details */}
         {collaborators.length > 0 ? (
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
             <div className="relative size-10 shrink-0 select-none">
               <div
                 className="absolute top-0 left-0 size-7 rounded-full border-2 border-black/80 ring-1 ring-white/30 overflow-hidden z-10 block bg-zinc-800 shadow-md cursor-pointer hover:scale-110 transition-transform"
@@ -299,10 +300,10 @@ const PostLightboxModal = ({
                 </Avatar>
               </div>
             </div>
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-white truncate drop-shadow-sm flex items-center gap-1.5 flex-wrap">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold text-white drop-shadow-sm flex items-center gap-1.5 flex-wrap">
                 <span
-                  className="hover:underline cursor-pointer"
+                  className="hover:underline cursor-pointer truncate max-w-[120px] sm:max-w-[200px]"
                   onClick={(e) => {
                     e.stopPropagation();
                     onClose();
@@ -311,9 +312,9 @@ const PostLightboxModal = ({
                 >
                   {author.fullName || author.username}
                 </span>
-                <span className="text-xs font-normal text-white/70">and</span>
+                <span className="text-xs font-normal text-white/70 shrink-0">and</span>
                 <span
-                  className="hover:underline cursor-pointer"
+                  className="hover:underline cursor-pointer truncate max-w-[120px] sm:max-w-[200px]"
                   onClick={(e) => {
                     e.stopPropagation();
                     onClose();
@@ -323,7 +324,7 @@ const PostLightboxModal = ({
                   {collaborators[0].fullName || collaborators[0].username}
                 </span>
                 {collaborators.length > 1 && (
-                  <span className="text-[11px] text-white/70 font-normal">
+                  <span className="text-[11px] text-white/70 font-normal shrink-0">
                     +{collaborators.length - 1} more
                   </span>
                 )}
@@ -331,7 +332,7 @@ const PostLightboxModal = ({
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
             <Avatar className="size-10 border border-white/20 shadow-md shrink-0">
               <AvatarImage src={authorAvatar} alt={authorName} />
               <AvatarFallback className="bg-white/10 text-white font-bold text-sm">
@@ -361,9 +362,9 @@ const PostLightboxModal = ({
         )}
 
         {/* Slide counter & Close button */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {items.length > 1 && (
-            <div className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-white text-xs font-semibold tracking-wider">
+            <div className="px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-white text-xs font-semibold tracking-wide whitespace-nowrap shrink-0 select-none">
               {currentSlide + 1} / {items.length}
             </div>
           )}
@@ -372,7 +373,7 @@ const PostLightboxModal = ({
             title="Close (Esc)"
             aria-label="Close"
             onClick={onClose}
-            className="size-9 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 active:scale-90 text-white border border-white/15 backdrop-blur-md transition-all cursor-pointer"
+            className="size-9 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 active:scale-90 text-white border border-white/15 backdrop-blur-md transition-all cursor-pointer shrink-0"
           >
             <AnimatedIcon icon={XIcon} size={18} />
           </button>
@@ -594,6 +595,7 @@ const PostLightboxModal = ({
       {/* ── BOTTOM INFO & ACTION BAR ── */}
       <footer
         className="relative z-30 px-4 py-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent flex flex-col gap-2 shrink-0 max-w-4xl mx-auto w-full"
+        style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Pagination Dots */}

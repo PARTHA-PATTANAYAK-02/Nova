@@ -188,31 +188,30 @@ const MobileBottomNav = () => {
 
   return (
     <>
-      {/* ── FLOATING PILL NAV ─────────────────── */}
+      {/* ── NATIVE EDGE-TO-EDGE BOTTOM NAV ─────────────────── */}
       <nav
         className={`
-          md:hidden fixed bottom-3 left-1/2 -translate-x-1/2
-          w-[calc(100%-24px)] max-w-[460px] z-50
-          rounded-[26px]
-          bg-[var(--surface)]/85 backdrop-blur-2xl
-          border border-[var(--border)]/65
-          shadow-[0_20px_60px_-20px_rgba(0,0,0,.35),0_4px_12px_-4px_rgba(0,0,0,.1)]
-          px-2 py-2
-          transition-all duration-200
+          md:hidden fixed bottom-0 inset-x-0 z-50
+          bg-[var(--surface)]/95 backdrop-blur-2xl
+          rounded-t-[22px] border-t border-[var(--border)]/80
+          shadow-[0_-4px_20px_rgba(0,0,0,0.12)]
+          transition-transform duration-300 ease-out
           ${
             keyboardOpen
-              ? "opacity-0 pointer-events-none translate-y-10"
-              : "opacity-100 translate-y-0"
+              ? "translate-y-full opacity-0 pointer-events-none"
+              : "translate-y-0 opacity-100"
           }
         `}
-        style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
+        style={{
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        }}
       >
-        <div className="flex items-center justify-between gap-0.5">
+        <div className="h-14 max-w-md mx-auto grid grid-cols-6 items-center px-1">
           {/* HOME */}
           <NavBtn
             to="/"
             active={isActive("/")}
-            icon={<HouseIcon size={20} />}
+            icon={<HouseIcon size={21} />}
             label="Home"
             onClick={() => dispatch(setSelectedPost(null))}
           />
@@ -221,81 +220,97 @@ const MobileBottomNav = () => {
           <NavBtn
             to="/explore"
             active={isActive("/explore") || isActive("/search")}
-            icon={<CompassIcon size={20} />}
+            icon={<CompassIcon size={21} />}
             label="Explore"
           />
 
-          {/* CREATE — balanced button */}
-          <button
-            onClick={() => setOpen(true)}
-            aria-label="Create post"
-            className="
-              relative shrink-0
-              w-[42px] h-[42px] mx-1
-              rounded-[14px]
-              bg-grad-btn text-white
-              flex items-center justify-center
-              shadow-[0_8px_18px_-6px_var(--glow-strong)]
-              active:scale-[.92]
-              hover:brightness-[1.08]
-              transition-all duration-200 ease-[cubic-bezier(.2,.8,.2,1)]
-              outline-none
-            "
-          >
-            <SquarePlusIcon size={20} />
-          </button>
+          {/* CREATE — centered action button */}
+          <div className="flex items-center justify-center">
+            <button
+              onClick={() => setOpen(true)}
+              aria-label="Create post"
+              title="Create post"
+              className="
+                group relative
+                w-10 h-10 rounded-2xl
+                bg-grad-btn text-white
+                flex items-center justify-center
+                shadow-[0_4px_14px_-2px_rgba(var(--primary-rgb),0.4)]
+                hover:brightness-110 active:scale-90
+                transition-all duration-200
+                outline-none cursor-pointer
+              "
+            >
+              <SquarePlusIcon size={21} className="transition-transform group-hover:scale-110 duration-200" />
+            </button>
+          </div>
 
           {/* CHAT */}
           <NavBtn
             to="/chat"
             active={isActive("/chat")}
-            icon={<MessageCircleIcon size={20} />}
+            icon={<MessageCircleIcon size={21} />}
             label="Chat"
           />
 
           {/* NOTIFICATIONS */}
-          <Popover onOpenChange={handleNotificationsOpen}>
-            <PopoverTrigger asChild>
-              <button
-                aria-label="Notifications"
-                className="
-                  relative flex-1 flex items-center justify-center
-                  py-2 rounded-xl
-                  text-[var(--muted-foreground)]
-                  hover:text-[var(--foreground)]
-                  active:scale-90
-                  transition-all duration-250
-                  outline-none
-                "
-              >
-                <div className="relative flex items-center justify-center">
-                  <BellRingIcon
-                    size={20}
-                    className={`transition-transform duration-250 ${
-                      unreadCount > 0 ? "scale-105" : ""
-                    }`}
-                  />
-                  {unreadCount > 0 && (
-                    <>
-                      <span className="absolute -top-1 -right-1 size-3.5 rounded-full bg-[var(--accent)] opacity-40 animate-ping" />
+          <div className="flex items-center justify-center">
+            <Popover onOpenChange={handleNotificationsOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  aria-label="Notifications"
+                  title="Notifications"
+                  className={`
+                    relative w-full h-14 flex flex-col items-center justify-center
+                    transition-all duration-200 active:scale-90
+                    outline-none cursor-pointer
+                    ${
+                      isActive("/notifications")
+                        ? "text-[var(--primary)]"
+                        : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                    }
+                  `}
+                >
+                  {isActive("/notifications") && (
+                    <span className="absolute top-0 h-[2.5px] w-6 rounded-full bg-grad-btn shadow-[0_0_8px_var(--primary)]" />
+                  )}
+                  <div
+                    className={`
+                      relative px-3 py-1.5 rounded-full flex items-center justify-center
+                      transition-all duration-200
+                      ${
+                        isActive("/notifications")
+                          ? "bg-[var(--primary)]/15 scale-105 shadow-[0_0_12px_rgba(var(--primary-rgb),0.2)]"
+                          : "hover:bg-[var(--surface-2)]/60"
+                      }
+                    `}
+                  >
+                    <BellRingIcon
+                      size={21}
+                      className={`transition-transform duration-200 ${
+                        unreadCount > 0 ? "scale-105" : ""
+                      }`}
+                    />
+                    {unreadCount > 0 && (
                       <span className="
-                        absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center
-                        rounded-full px-1 text-[8px] font-bold
-                        bg-[var(--accent)] text-[var(--accent-foreground)]
+                        absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center
+                        rounded-full px-1 text-[9px] font-bold
+                        bg-[var(--accent)] text-white
                         border-2 border-[var(--surface)]
+                        shadow-sm
                       ">
                         {unreadCount > 9 ? "9+" : unreadCount}
                       </span>
-                    </>
-                  )}
-                </div>
-              </button>
-            </PopoverTrigger>
+                    )}
+                  </div>
+                </button>
+              </PopoverTrigger>
 
             <PopoverContent
               side="top"
               align="center"
               sideOffset={14}
+              collisionPadding={12}
               className="
                 w-[calc(100vw-24px)] max-w-[380px] p-0 mb-1 overflow-hidden
                 rounded-2xl border-[var(--border)]
@@ -404,34 +419,52 @@ const MobileBottomNav = () => {
               </div>
             </PopoverContent>
           </Popover>
+        </div>
 
           {/* PROFILE */}
-          <button
-            onClick={() => setShowProfileMenu((v) => !v)}
-            aria-label="Profile menu"
-            className={`
-              relative flex-1 flex items-center justify-center
-              py-1.5 rounded-xl transition-all duration-250
-              active:scale-90 outline-none
-              ${showProfileMenu ? "bg-[var(--surface-2)]" : ""}
-            `}
-          >
-            <span className="relative size-7 flex items-center justify-center">
-              <Avatar
-                className={`size-7 transition-all ${
-                  showProfileMenu
-                    ? "border-2 border-[var(--primary)]"
-                    : "border border-[var(--border)]"
-                }`}
-              >
-                <AvatarImage src={user?.profilePicture} />
-                <AvatarFallback>{initial}</AvatarFallback>
-              </Avatar>
-              {user?.showLastSeen !== false && (
-                <span className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full bg-emerald-500 ring-2 ring-[var(--surface)]" />
+          <div className="flex items-center justify-center">
+            <button
+              onClick={() => setShowProfileMenu((v) => !v)}
+              aria-label="Profile menu"
+              title="Profile"
+              className="
+                relative w-full h-14 flex flex-col items-center justify-center
+                transition-all duration-200
+                active:scale-90 outline-none cursor-pointer
+              "
+            >
+              {(isActive(`/profile/${user?.username}`) || isActive(`/profile/${user?._id}`) || showProfileMenu) && (
+                <span className="absolute top-0 h-[2.5px] w-6 rounded-full bg-grad-btn shadow-[0_0_8px_var(--primary)]" />
               )}
-            </span>
-          </button>
+              <div
+                className={`
+                  relative p-1 rounded-full flex items-center justify-center
+                  transition-all duration-200
+                  ${
+                    isActive(`/profile/${user?.username}`) || isActive(`/profile/${user?._id}`) || showProfileMenu
+                      ? "bg-[var(--primary)]/15 scale-105 shadow-[0_0_12px_rgba(var(--primary-rgb),0.2)]"
+                      : "hover:bg-[var(--surface-2)]/60"
+                  }
+                `}
+              >
+                <span className="relative size-7 flex items-center justify-center">
+                  <Avatar
+                    className={`size-7 transition-all ${
+                      showProfileMenu || isActive(`/profile/${user?.username}`) || isActive(`/profile/${user?._id}`)
+                        ? "ring-2 ring-[var(--primary)] ring-offset-2 ring-offset-[var(--surface)] shadow-[0_0_8px_rgba(var(--primary-rgb),0.5)]"
+                        : "ring-1 ring-[var(--border)]"
+                    }`}
+                  >
+                    <AvatarImage src={user?.profilePicture} />
+                    <AvatarFallback className="text-[11px] font-bold">{initial}</AvatarFallback>
+                  </Avatar>
+                  {user?.showLastSeen !== false && (
+                    <span className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full bg-emerald-500 ring-2 ring-[var(--surface)]" />
+                  )}
+                </span>
+              </div>
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -445,7 +478,7 @@ const MobileBottomNav = () => {
 
           <div
             className={`
-              md:hidden fixed bottom-[88px] right-3 sm:right-auto sm:left-1/2 sm:translate-x-[6px] z-50
+              md:hidden fixed bottom-[calc(4.2rem+env(safe-area-inset-bottom,0px))] right-2 sm:right-auto sm:left-1/2 sm:translate-x-[6px] z-50
               w-[220px] overflow-hidden rounded-[22px]
               border border-[var(--border)]/60
               bg-[var(--surface)]/90 backdrop-blur-2xl
@@ -541,30 +574,43 @@ const MobileBottomNav = () => {
   );
 };
 
-/* ── Small nav button helper ───────────────────── */
+/* ── Unified Nav button helper ───────────────────── */
 const NavBtn = ({ to, active, icon, label, onClick }) => {
   return (
-    <Link
-      to={to}
-      onClick={onClick}
-      aria-label={label}
-      className={`
-        relative flex-1 flex flex-col items-center justify-center gap-0.5
-        py-1.5 rounded-xl transition-all duration-250 active:scale-90
-        outline-none
-        ${active ? "text-[var(--primary)]" : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"}
-      `}
-    >
-      <span className={`relative transition-transform duration-250 ${active ? "scale-110 -translate-y-0.5" : ""}`}>
-        {icon}
-      </span>
-      <span className={`text-[9px] font-medium transition-opacity duration-250 ${active ? "opacity-100" : "opacity-70"}`}>
-        {label}
-      </span>
-      {active && (
-        <span className="absolute -bottom-0.5 h-[3px] w-4 rounded-full bg-grad-btn" />
-      )}
-    </Link>
+    <div className="flex items-center justify-center">
+      <Link
+        to={to}
+        onClick={onClick}
+        aria-label={label}
+        title={label}
+        className={`
+          relative w-full h-14 flex flex-col items-center justify-center
+          transition-all duration-200 active:scale-90
+          outline-none cursor-pointer
+          ${active ? "text-[var(--primary)]" : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"}
+        `}
+      >
+        {/* Top accent bar indicator when active */}
+        {active && (
+          <span className="absolute top-0 h-[2.5px] w-6 rounded-full bg-grad-btn shadow-[0_0_8px_var(--primary)]" />
+        )}
+
+        {/* Pill background highlight when active */}
+        <div
+          className={`
+            relative px-3 py-1.5 rounded-full flex items-center justify-center
+            transition-all duration-200
+            ${
+              active
+                ? "bg-[var(--primary)]/15 scale-105 shadow-[0_0_12px_rgba(var(--primary-rgb),0.2)]"
+                : "hover:bg-[var(--surface-2)]/60"
+            }
+          `}
+        >
+          {icon}
+        </div>
+      </Link>
+    </div>
   );
 };
 

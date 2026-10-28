@@ -509,7 +509,7 @@ const CommentDialog = ({ open, setOpen }) => {
     <>
       <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
-        className="nova-comment-dialog !flex flex-col md:flex-row max-w-[96vw] md:max-w-5xl p-0 h-[92vh] md:h-[84vh] overflow-hidden !gap-0 !rounded-3xl"
+        className="nova-comment-dialog !flex flex-col md:flex-row max-w-[96vw] sm:max-w-xl md:max-w-5xl p-0 h-[92dvh] md:h-[84vh] overflow-hidden !gap-0 !rounded-3xl"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <DialogTitle className="sr-only">Comments</DialogTitle>
@@ -650,7 +650,7 @@ const CommentDialog = ({ open, setOpen }) => {
 
             {/* Slide counter */}
             {mediaItems.length > 1 && (
-              <div className="absolute top-3 right-3 z-20 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-white text-[11px] font-semibold tracking-wide pointer-events-none select-none">
+              <div className="absolute top-3 right-3 z-20 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-white text-[11px] font-semibold tracking-wide pointer-events-none select-none whitespace-nowrap">
                 {activeSlide + 1} / {mediaItems.length}
               </div>
             )}

@@ -19,7 +19,7 @@ const MainLayout = ({ children }) => {
           ${
             isNoScrollPage
               ? "h-dvh min-h-0 overflow-hidden pb-0 md:pb-0"
-              : "min-h-dvh pb-28 md:pb-4"
+              : "min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:pb-4"
           }
         `}
       >

@@ -811,7 +811,7 @@ const Profile = () => {
             </div>
 
             {userProfile?.bio && (
-              <p className="nova-profile__bio">{userProfile.bio}</p>
+              <p className="nova-profile__bio break-words">{userProfile.bio}</p>
             )}
 
             {!isLoggedInUserProfile && (

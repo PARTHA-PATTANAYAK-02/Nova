@@ -593,7 +593,7 @@ const PostDetailPage = () => {
 
           {/* Carousel slide counter badge */}
           {mediaItems.length > 1 && (
-            <div className="absolute top-3 right-3 z-20 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-white text-[11px] font-semibold tracking-wide pointer-events-none select-none">
+            <div className="absolute top-3 right-3 z-20 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-white text-[11px] font-semibold tracking-wide pointer-events-none select-none whitespace-nowrap">
               {activeSlide + 1} / {mediaItems.length}
             </div>
           )}

@@ -493,7 +493,7 @@ const CreatePost = ({ open, setOpen }) => {
     <>
       <Dialog open={open} onOpenChange={(val) => (!val ? handleClose() : null)}>
         <DialogContent
-          className="p-0 overflow-hidden w-full max-w-[95vw] md:max-w-4xl lg:max-w-5xl h-[92vh] max-h-[740px] flex flex-col rounded-3xl bg-[var(--surface)] border border-[var(--border)] shadow-[0_32px_80px_-24px_rgba(0,0,0,.5),0_8px_30px_-10px_var(--glow)] select-none"
+          className="p-0 overflow-hidden w-full max-w-[96vw] sm:max-w-[90vw] md:max-w-4xl lg:max-w-5xl h-[92dvh] max-h-[760px] flex flex-col rounded-3xl bg-[var(--surface)] border border-[var(--border)] shadow-[0_32px_80px_-24px_rgba(0,0,0,.5),0_8px_30px_-10px_var(--glow)] select-none"
           showCloseButton={false}
           onInteractOutside={(e) => {
             if (loading || generatingAi) e.preventDefault();
@@ -528,7 +528,7 @@ const CreatePost = ({ open, setOpen }) => {
           {/* Body Container */}
           <div className="flex-1 min-h-0 flex flex-col md:grid md:grid-cols-12 overflow-hidden">
             {/* ═══════════ LEFT COLUMN: MEDIA PREVIEW & CAROUSEL (7 cols on desktop) ═══════════ */}
-            <div className="md:col-span-7 bg-[#0a0a0f] flex flex-col items-center justify-between relative overflow-hidden select-none h-[40vh] md:h-full border-b md:border-b-0 border-[var(--border)]">
+            <div className="md:col-span-7 bg-[#0a0a0f] flex flex-col items-center justify-between relative overflow-hidden select-none h-[34vh] sm:h-[40vh] md:h-full border-b md:border-b-0 border-[var(--border)]">
               {files.length > 0 && currentMedia ? (
                 <>
                   {/* Media Viewport */}

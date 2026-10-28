@@ -1742,7 +1742,7 @@ const Post = ({ post }) => {
 
         {/* caption (only for regular posts) */}
         {!post.repostOf && (
-          <p className="mt-2 text-[13.5px] leading-relaxed text-[var(--foreground)]">
+          <p className="mt-2 text-[13.5px] leading-relaxed text-[var(--foreground)] break-words">
             <Link
               to={`/profile/${post.author?.username || post.author?._id}`}
               className="font-semibold mr-1.5 hover:text-[var(--primary)] transition-colors"
