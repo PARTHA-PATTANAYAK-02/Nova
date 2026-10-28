@@ -646,7 +646,9 @@ const ChatPage = () => {
     if (audioContextRef.current && audioContextRef.current.state !== "closed") {
       try {
         audioContextRef.current.close();
-      } catch (_) {}
+      } catch {
+        // AudioContext already closed or ignored
+      }
       audioContextRef.current = null;
     }
     analyserRef.current = null;
@@ -665,7 +667,9 @@ const ChatPage = () => {
       if (mediaRecorderRef.current.state !== "inactive") {
         try {
           mediaRecorderRef.current.stop();
-        } catch (_) {}
+        } catch {
+          // MediaRecorder already stopped or ignored
+        }
       }
       mediaRecorderRef.current = null;
     }

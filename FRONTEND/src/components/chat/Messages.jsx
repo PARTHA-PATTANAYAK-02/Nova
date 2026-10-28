@@ -88,7 +88,6 @@ const VoiceNoteBubble = ({ mediaUrl, duration = 0, isMine }) => {
   const initialDuration = Number(duration) > 0 && isFinite(Number(duration)) ? Number(duration) : 0;
   const [audioDuration, setAudioDuration] = useState(initialDuration);
   const [speed, setSpeed] = useState(1);
-  const [isScrubbing, setIsScrubbing] = useState(false);
 
   // Realistic human speech amplitude distribution (28 bars)
   const waveformHeights = [
@@ -132,11 +131,9 @@ const VoiceNoteBubble = ({ mediaUrl, duration = 0, isMine }) => {
     };
 
     const onTimeUpdate = () => {
-      if (!isScrubbing) {
-        setCurrentTime(audio.currentTime);
-      }
+      setCurrentTime(audio.currentTime);
       // In WebM without duration header, audio.duration is Infinity until currentTime reaches end
-      if ((!audioDuration || !isFinite(audioDuration) || audioDuration <= 0)) {
+      if (!audioDuration || !isFinite(audioDuration) || audioDuration <= 0) {
         if (isFinite(audio.duration) && audio.duration > 0) {
           setAudioDuration(audio.duration);
         } else if (audio.currentTime > initialDuration) {
@@ -160,7 +157,7 @@ const VoiceNoteBubble = ({ mediaUrl, duration = 0, isMine }) => {
       audio.removeEventListener("ended", onEnded);
       audio.pause();
     };
-  }, [mediaUrl, initialDuration, audioDuration, isScrubbing]);
+  }, [mediaUrl, initialDuration, audioDuration]);
 
   const togglePlay = (e) => {
     e.stopPropagation();
@@ -415,15 +412,14 @@ const WhatsAppMessagePopover = ({
   onToggleSelect,
   onClose,
 }) => {
-  if (!message) return null;
-  const isMine = isSameUser(message.senderId, currentUser?._id);
-  const isDeleted = Boolean(message.isDeletedForEveryone);
-  const hasText = Boolean(message.message && !isDeleted);
+  const isMine = isSameUser(message?.senderId, currentUser?._id);
+  const isDeleted = Boolean(message?.isDeletedForEveryone);
+  const hasText = Boolean(message?.message && !isDeleted);
   const isVisualMedia = Boolean(
-    message.mediaUrl && !isDeleted && message.mediaType !== "audio"
+    message?.mediaUrl && !isDeleted && message?.mediaType !== "audio"
   );
   const isStarred = Boolean(
-    message.starredBy?.some((id) => isSameUser(id, currentUser?._id))
+    message?.starredBy?.some((id) => isSameUser(id, currentUser?._id))
   );
 
   const popoverRef = useRef(null);
@@ -448,7 +444,7 @@ const WhatsAppMessagePopover = ({
 
   const handleCopy = (e) => {
     e?.stopPropagation();
-    if (message.message) {
+    if (message?.message) {
       navigator.clipboard.writeText(message.message);
       toast.success("Message copied to clipboard");
       onClose();
@@ -499,6 +495,8 @@ const WhatsAppMessagePopover = ({
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [onClose]);
+
+  if (!message) return null;
 
   return createPortal(
     <div
@@ -1051,7 +1049,9 @@ const Messages = ({
       if (typeof navigator !== "undefined" && navigator.vibrate) {
         try {
           navigator.vibrate(40);
-        } catch (_) {}
+        } catch {
+          // Ignore vibration API errors on unsupported devices
+        }
       }
       onToggleSelectMessage?.(msg._id);
       setTimeout(() => {
@@ -1297,16 +1297,6 @@ const Messages = ({
         }
       });
     }
-  };
-
-  const openPicker = (msgId, anchor) => {
-    if (openPickerFor === msgId) {
-      setOpenPickerFor(null);
-      setAnchorEl(null);
-      return;
-    }
-    setAnchorEl(anchor);
-    setOpenPickerFor(msgId);
   };
 
   return (

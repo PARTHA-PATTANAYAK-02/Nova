@@ -53,12 +53,10 @@ const NovaQRCodeModal = ({
   title = "Nova",
   subtitle = "Scan to explore",
   avatar = "",
-  type = "profile",
 }) => {
   const canvasRef = useRef(null);
   const [copied, setCopied] = useState(false);
   const [activeTheme, setActiveTheme] = useState(NEON_THEMES[0]);
-  const [qrGenerated, setQrGenerated] = useState(false);
 
   // Animated icon refs
   const downloadIconRef = useRef(null);
@@ -86,8 +84,6 @@ const NovaQRCodeModal = ({
       (error) => {
         if (error) {
           console.error("QR Code generation error:", error);
-        } else {
-          setQrGenerated(true);
         }
       }
     );
@@ -113,7 +109,9 @@ const NovaQRCodeModal = ({
           title: `Check out ${title} on Nova`,
           url: url,
         });
-      } catch {}
+      } catch {
+        // User cancelled share dialog
+      }
     } else {
       handleCopyLink();
     }

@@ -106,7 +106,7 @@ const CommentItem = ({
         { withCredentials: true },
       );
       if (!res.data.success) throw new Error("Like failed");
-    } catch (err) {
+    } catch {
       setLikes(initialLikes);
       toast.error("Unable to like comment");
     } finally {

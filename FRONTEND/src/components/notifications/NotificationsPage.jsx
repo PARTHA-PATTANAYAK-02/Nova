@@ -302,7 +302,7 @@ const NotificationsPage = () => {
       }
     });
 
-    return Object.entries(groups).filter(([_, items]) => items.length > 0);
+    return Object.entries(groups).filter(([, items]) => items.length > 0);
   }, [centerNotifications]);
 
   const FILTER_TABS = [
@@ -448,7 +448,7 @@ const NotificationsPage = () => {
 
               {/* Items in this date category */}
               <div className="space-y-2">
-                {items.map((n, idx) => {
+                {items.map((n) => {
                   const actor = n.userDetails || {};
                   const displayName = getDisplayName(actor, "A user");
                   const avatarUrl = actor.profilePicture || "";

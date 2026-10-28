@@ -3647,6 +3647,9 @@ body[data-theme-accent="solid-red"] {
 .nova-tab:hover {
   color: var(--foreground);
 }
+.nova-tab:active {
+  transform: scale(0.95);
+}
 .nova-tab.is-active {
   color: #fff;
   background: var(--grad-btn);

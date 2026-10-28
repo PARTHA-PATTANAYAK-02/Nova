@@ -73,6 +73,7 @@ import {
   EllipsisIcon,
   Trash2Icon,
   TagIcon,
+  UsersIcon,
 } from "@animateicons/react/lucide";
 import AnimatedIcon from "@/components/common/AnimatedIcon";
 import SavedCollectionsSection from "@/components/profile/SavedCollectionsSection";
@@ -934,7 +935,7 @@ const Profile = () => {
                 onClick={() => setActiveTab("collabs")}
                 className={`nova-tab ${activeTab === "collabs" ? "is-active" : ""}`}
               >
-                <Users size={15} className="stroke-[2.2]" />
+                <AnimatedIcon icon={UsersIcon} size={15} />
                 <span>Collabs</span>
               </button>
             </div>

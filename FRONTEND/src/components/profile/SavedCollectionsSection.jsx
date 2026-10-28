@@ -44,7 +44,6 @@ const SavedCollectionsSection = ({
   const dispatch = useDispatch();
   const { collections: reduxCollections } = useSelector((store) => store.auth);
   const [collections, setCollections] = useState(reduxCollections || []);
-  const [loading, setLoading] = useState(false);
   const [activeCollection, setActiveCollection] = useState(null); // null = overview, "all" = All Posts, or collection object
   const [activeCollectionPosts, setActiveCollectionPosts] = useState([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -79,21 +78,16 @@ const SavedCollectionsSection = ({
       }
     } catch (err) {
       console.error("Failed to load collections:", err);
-    } finally {
-      setLoading(false);
     }
   }, [dispatch]);
 
   useEffect(() => {
-    if (!reduxCollections || reduxCollections.length === 0) {
-      setLoading(true);
-    }
     fetchCollections();
 
     const handleSync = () => fetchCollections();
     window.addEventListener("nova:collections-updated", handleSync);
     return () => window.removeEventListener("nova:collections-updated", handleSync);
-  }, [fetchCollections, reduxCollections]);
+  }, [fetchCollections]);
 
   const handleOpenCollection = (col) => {
     if (col === "all") {

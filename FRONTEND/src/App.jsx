@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useRef, useState } from "react";
+import React, { Suspense, lazy, useEffect, useRef } from "react";
 import Home from "@/components/feed/Home";
 import MainLayout from "@/components/layout/MainLayout";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
@@ -392,7 +392,9 @@ function App() {
           try {
             const list = JSON.parse(localStorage.getItem("nova_muted_chats") || "[]");
             isChatMuted = list.includes(message.senderId);
-          } catch {}
+          } catch {
+            // Ignore parse errors from localStorage
+          }
           if (!isAllMessagesMuted && !isChatMuted) {
             playMessageSound();
           }
@@ -430,7 +432,9 @@ function App() {
         try {
           const list = JSON.parse(localStorage.getItem("nova_muted_chats") || "[]");
           isChatMuted = list.includes(notification.userId);
-        } catch {}
+        } catch {
+          // Ignore parse errors from localStorage
+        }
         if (isChatMuted) return;
 
         const isOpenConversationMessage =

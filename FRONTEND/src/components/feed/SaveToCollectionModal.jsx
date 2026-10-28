@@ -100,7 +100,7 @@ const SaveToCollectionModal = ({ isOpen, onClose, post, onSaved, onUnsaved }) =>
         window.dispatchEvent(new CustomEvent("nova:collections-updated"));
         onSaved?.();
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to update collection.");
     } finally {
       setTogglingId(null);
@@ -135,7 +135,7 @@ const SaveToCollectionModal = ({ isOpen, onClose, post, onSaved, onUnsaved }) =>
         window.dispatchEvent(new CustomEvent("nova:collections-updated"));
         onSaved?.();
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to create collection.");
     } finally {
       setCreating(false);
@@ -156,7 +156,7 @@ const SaveToCollectionModal = ({ isOpen, onClose, post, onSaved, onUnsaved }) =>
         onUnsaved?.();
         onClose();
       }
-    } catch (err) {
+    } catch {
       toast.error("Unable to remove from saved.");
     } finally {
       setUnsaving(false);
