@@ -84,7 +84,7 @@ export const searchUsers = async (req, res) => {
 
     const [users, total] = await Promise.all([
       User.find(filter)
-        .select("username fullName profilePicture bio followers following taggingPrivacy")
+        .select("username fullName profilePicture bio followers following taggingPrivacy whoCanMessage")
         .sort({ username: 1 })
         .skip((page - 1) * limit)
         .limit(limit)
@@ -922,7 +922,7 @@ export const editProfile = async (req, res) => {
     if (req.body.showLastSeen !== undefined) {
       user.showLastSeen = req.body.showLastSeen === "true" || req.body.showLastSeen === true;
     }
-    if (req.body.whoCanMessage !== undefined && ["everyone", "followers"].includes(req.body.whoCanMessage)) {
+    if (req.body.whoCanMessage !== undefined && ["everyone", "followers", "no_one"].includes(req.body.whoCanMessage)) {
       user.whoCanMessage = req.body.whoCanMessage;
     }
     if (req.body.taggingPrivacy !== undefined && ["everyone", "following", "no_one"].includes(req.body.taggingPrivacy)) {
@@ -955,6 +955,13 @@ export const editProfile = async (req, res) => {
     }
 
     await user.save();
+
+    if (req.body.whoCanMessage !== undefined && io) {
+      io.emit("userPrivacyChanged", {
+        userId: user._id.toString(),
+        whoCanMessage: user.whoCanMessage,
+      });
+    }
 
     return res.status(200).json({
       message: "Profile updated.",

@@ -14,7 +14,11 @@ const useGetConversations = () => {
   });
 
   const fetchConversations = useCallback(async () => {
-    setState((current) => ({ ...current, loading: true, error: null }));
+    setState((current) => ({
+      ...current,
+      loading: current.conversations.length === 0,
+      error: null,
+    }));
     try {
       const res = await axios.get(apiUrl("/api/v1/message/conversations"), {
         withCredentials: true,
@@ -42,7 +46,11 @@ const useGetConversations = () => {
     if (!socket) return undefined;
 
     socket.on("conversationUpdated", fetchConversations);
-    return () => socket.off("conversationUpdated", fetchConversations);
+    socket.on("conversationDeleted", fetchConversations);
+    return () => {
+      socket.off("conversationUpdated", fetchConversations);
+      socket.off("conversationDeleted", fetchConversations);
+    };
   }, [fetchConversations, connected]);
 
   return { ...state, retry: fetchConversations };

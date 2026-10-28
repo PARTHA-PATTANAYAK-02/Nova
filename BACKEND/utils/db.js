@@ -22,6 +22,21 @@ const ensureSparseUsernameIndex = async () => {
   );
 };
 
+const cleanupInvalidIndexes = async () => {
+  try {
+    const coll = mongoose.connection.collection("conversations");
+    const indexes = await coll.indexes().catch(() => []);
+    for (const idx of indexes) {
+      if (idx.name && idx.key && idx.key.participants && idx.key.deletedFor) {
+        console.log(`[DB] Dropping legacy invalid compound index: ${idx.name}`);
+        await coll.dropIndex(idx.name).catch(() => {});
+      }
+    }
+  } catch (err) {
+    // Ignore if collection not created yet
+  }
+};
+
 const connectDB = async () => {
   if (!environment.database.mongoUri) {
     console.error("MongoDB connection failed: MONGODB_URI is not configured.");
@@ -34,6 +49,7 @@ const connectDB = async () => {
       connectTimeoutMS: 10_000,
     });
     await ensureSparseUsernameIndex();
+    await cleanupInvalidIndexes();
     console.log("mongodb connected successfully.");
     return true;
   } catch (error) {

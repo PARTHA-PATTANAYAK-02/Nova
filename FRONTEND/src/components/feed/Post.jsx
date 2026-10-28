@@ -94,7 +94,13 @@ const Post = ({ post }) => {
   const [videoEnded, setVideoEnded] = useState(false);
   const [videoTime, setVideoTime] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
-  const [videoVolume, setVideoVolume] = useState(1);
+  const [videoVolume, setVideoVolume] = useState(() => {
+    try {
+      const saved = localStorage.getItem("nova_video_muted");
+      if (saved === "false") return 1;
+    } catch {}
+    return 0; // Default muted like Instagram to guarantee instant browser autoplay on first load
+  });
   const [controlsVisible, setControlsVisible] = useState(true);
   const [heartBurst, setHeartBurst] = useState(false);
   const [isLikeAnimating, setIsLikeAnimating] = useState(false);
@@ -256,9 +262,34 @@ const Post = ({ post }) => {
     }
   }, []);
 
+  /* sync video volume & muted state */
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) {
+      video.volume = videoVolume;
+      video.muted = videoVolume === 0;
+    }
+    try {
+      localStorage.setItem("nova_video_muted", videoVolume === 0 ? "true" : "false");
+    } catch {}
+  }, [videoVolume]);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !isCurrentVideo) return undefined;
+
+    // Check if video metadata or frames are already cached and ready
+    if (video.readyState >= 1) {
+      if (video.videoWidth && video.videoHeight) {
+        setMediaAspect(clampAspect(video.videoWidth / video.videoHeight));
+      }
+      if (video.duration && isFinite(video.duration)) {
+        setVideoDuration(video.duration);
+      }
+      video.volume = videoVolume;
+      video.muted = videoVolume === 0;
+      setMediaReady(true);
+    }
 
     const handleVisibility = () => {
       if (document.visibilityState !== "visible") {
@@ -271,13 +302,23 @@ const Post = ({ post }) => {
 
     const io = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && entry.intersectionRatio >= 0.65) {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
           if (
             document.visibilityState === "visible" &&
             video.dataset.userPaused !== "true" &&
             !video.ended
           ) {
-            video.play().catch(() => {});
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+              playPromise.catch((err) => {
+                // If browser autoplay policy blocked sound on initial load, mute and retry
+                if (err?.name === "NotAllowedError") {
+                  video.muted = true;
+                  setVideoVolume(0);
+                  video.play().catch(() => {});
+                }
+              });
+            }
           }
         } else {
           if (!video.paused) {
@@ -286,7 +327,7 @@ const Post = ({ post }) => {
           }
         }
       },
-      { threshold: [0, 0.65] },
+      { threshold: [0, 0.5] },
     );
 
     io.observe(video);
@@ -320,8 +361,10 @@ const Post = ({ post }) => {
   const handleVideoMetadata = (e) => {
     const { videoWidth: w, videoHeight: h } = e.currentTarget;
     if (w && h) setMediaAspect(clampAspect(w / h));
-    setVideoDuration(e.currentTarget.duration || 0);
+    const d = e.currentTarget.duration;
+    if (d && isFinite(d)) setVideoDuration(d);
     e.currentTarget.volume = videoVolume;
+    e.currentTarget.muted = videoVolume === 0;
     setMediaReady(true);
   };
 
@@ -1107,12 +1150,13 @@ const Post = ({ post }) => {
               key={currentUrl}
               data-feed-video
               src={currentUrl}
-              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
                 mediaReady ? "opacity-100" : "opacity-0"
               }`}
               controls={false}
               playsInline
-              preload="metadata"
+              muted={videoVolume === 0}
+              preload="auto"
               disablePictureInPicture
               controlsList="nodownload noplaybackrate nofullscreen"
               aria-label="Post video"
@@ -1136,6 +1180,20 @@ const Post = ({ post }) => {
                 }
               }}
               onLoadedMetadata={handleVideoMetadata}
+              onLoadedData={(e) => {
+                setMediaReady(true);
+                const d = e.currentTarget.duration;
+                if (d && isFinite(d)) setVideoDuration(d);
+              }}
+              onCanPlay={(e) => {
+                setMediaReady(true);
+                const d = e.currentTarget.duration;
+                if (d && isFinite(d)) setVideoDuration(d);
+              }}
+              onDurationChange={(e) => {
+                const d = e.currentTarget.duration;
+                if (d && isFinite(d)) setVideoDuration(d);
+              }}
               onTimeUpdate={(e) => setVideoTime(e.currentTarget.currentTime)}
               onPlay={(e) => {
                 e.currentTarget.dataset.userPaused = "false";
@@ -1158,6 +1216,31 @@ const Post = ({ post }) => {
               }}
               onDoubleClick={(e) => e.preventDefault()}
             />
+
+            {/* Quick sound toggle pill */}
+            {mediaReady && (
+              <button
+                type="button"
+                aria-label={videoVolume === 0 ? "Unmute video" : "Mute video"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const next = videoVolume === 0 ? 1 : 0;
+                  setVideoVolume(next);
+                  if (videoRef.current) {
+                    videoRef.current.volume = next;
+                    videoRef.current.muted = next === 0;
+                  }
+                  showControls();
+                }}
+                className="absolute top-3 left-3 z-20 size-8 rounded-full bg-black/50 backdrop-blur-md border border-white/15 text-white/90 hover:text-white hover:bg-black/75 flex items-center justify-center transition-all active:scale-90 cursor-pointer shadow-md"
+              >
+                {videoVolume === 0 ? (
+                  <VolumeX size={15} />
+                ) : (
+                  <Volume2 size={15} />
+                )}
+              </button>
+            )}
 
             {!videoPlaying && (
               <button

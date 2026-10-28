@@ -71,6 +71,25 @@ const isSameUser = (a, b) => {
   return Boolean(idA && idB && idA === idB);
 };
 
+const SENDER_COLORS = [
+  "text-emerald-400",
+  "text-sky-400",
+  "text-violet-400",
+  "text-amber-400",
+  "text-rose-400",
+  "text-cyan-400",
+  "text-fuchsia-400",
+  "text-teal-400",
+];
+
+const getSenderColorClass = (id) => {
+  if (!id) return SENDER_COLORS[0];
+  const str = id.toString();
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = (hash << 5) - hash + str.charCodeAt(i);
+  return SENDER_COLORS[Math.abs(hash) % SENDER_COLORS.length];
+};
+
 const isTouchPrimary = () =>
   typeof window !== "undefined" &&
   window.matchMedia &&
@@ -1363,6 +1382,16 @@ const Messages = ({
               </div>
             )}
             {messages?.map((msg, index) => {
+              if (msg.messageType === "system") {
+                return (
+                  <div key={msg._id || index} className="w-full flex justify-center my-2.5 select-none px-4">
+                    <div className="max-w-md px-3.5 py-1 rounded-full bg-white/[0.08] dark:bg-white/[0.06] backdrop-blur-md border border-white/10 text-white/75 text-[11.5px] font-medium text-center shadow-xs">
+                      {msg.message}
+                    </div>
+                  </div>
+                );
+              }
+
               const isMine = isSameUser(msg.senderId, user?._id);
               const prev = messages[index - 1];
               const sameAsPrev = prev && isSameUser(prev.senderId, msg.senderId);
@@ -1531,6 +1560,33 @@ const Messages = ({
                             isActionsOpen || isPickerOpen ? "is-active" : ""
                           } ${sameAsNext ? "is-grouped" : ""} cursor-pointer`}
                         >
+                          {/* Group chat sender identification */}
+                          {selectedUser?.isGroup && !isMine && !sameAsPrev && (() => {
+                            const senderObj = typeof msg.senderId === "object" && msg.senderId !== null
+                              ? msg.senderId
+                              : selectedUser?.participants?.find(p => (p._id || p)?.toString() === msg.senderId?.toString());
+                            const senderName = senderObj?.fullName || senderObj?.username || "Member";
+                            const senderAvatar = senderObj?.profilePicture;
+                            return (
+                              <div className="flex items-center gap-1.5 mb-1.5 px-0.5 select-none">
+                                {senderAvatar ? (
+                                  <img
+                                    src={senderAvatar}
+                                    alt={senderName}
+                                    className="size-4 rounded-full object-cover ring-1 ring-white/20"
+                                  />
+                                ) : (
+                                  <div className="size-4 rounded-full bg-white/15 text-white/90 flex items-center justify-center text-[9px] font-bold">
+                                    {senderName.charAt(0).toUpperCase()}
+                                  </div>
+                                )}
+                                <span className={`text-[11.5px] font-semibold tracking-wide ${getSenderColorClass(senderObj?._id || msg.senderId)}`}>
+                                  {senderName}
+                                </span>
+                              </div>
+                            );
+                          })()}
+
                           {Boolean(msg.isForwarded) && (
                             <div className="flex items-center gap-1.5 text-[10.5px] font-medium text-white/50 italic mb-1.5 select-none">
                               <Forward className="size-3 text-white/50 shrink-0" />
@@ -1552,7 +1608,12 @@ const Messages = ({
                               <span className="nova-msg__reply-label">
                                 {isSameUser(msg.replyTo.senderId, user?._id)
                                   ? "You"
-                                  : getDisplayName(selectedUser, "User")}
+                                  : selectedUser?.isGroup
+                                    ? (() => {
+                                        const repliedMember = selectedUser?.participants?.find(p => (p._id || p)?.toString() === (msg.replyTo.senderId?._id || msg.replyTo.senderId)?.toString());
+                                        return repliedMember?.fullName || repliedMember?.username || "Member";
+                                      })()
+                                    : getDisplayName(selectedUser, "User")}
                               </span>
                               <span className="nova-msg__reply-text">
                                 {msg.replyTo.message}

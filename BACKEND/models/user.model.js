@@ -30,7 +30,7 @@ const userSchema = new mongoose.Schema(
     lastSeen: { type: Date, default: Date.now },
     isPrivate: { type: Boolean, default: false },
     showLastSeen: { type: Boolean, default: true },
-    whoCanMessage: { type: String, enum: ["everyone", "followers"], default: "everyone" },
+    whoCanMessage: { type: String, enum: ["everyone", "followers", "no_one"], default: "everyone" },
     taggingPrivacy: { type: String, enum: ["everyone", "following", "no_one"], default: "everyone" },
     blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },

@@ -1774,6 +1774,20 @@ const SettingsPage = () => {
                     >
                       Followers Only
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setWhoCanMessage("no_one")}
+                      className={`
+                        px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all
+                        ${
+                          whoCanMessage === "no_one"
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-[var(--surface)] text-[var(--muted-foreground)] border-[var(--border)]"
+                        }
+                      `}
+                    >
+                      No One
+                    </button>
                   </div>
                 </div>
 

@@ -42,7 +42,7 @@ io.use((socket, next) => {
   }
 });
 
-const userSocketMap = {}; // userId -> array of socket ids (a user can be connected from multiple devices)
+const userSocketMap = {}; // userId -> array of socket ids
 
 export const getReceiverSocketIds = (receiverId) => userSocketMap[receiverId] || [];
 
@@ -57,6 +57,15 @@ export const emitToUser = (userId, event, data) => {
   }
 };
 
+export const emitToConversation = (participantIds, event, data, excludeUserId = null) => {
+  if (!Array.isArray(participantIds)) return;
+  for (const pid of participantIds) {
+    const idStr = pid?._id?.toString() || pid?.toString();
+    if (excludeUserId && idStr === excludeUserId.toString()) continue;
+    emitToUser(idStr, event, data);
+  }
+};
+
 io.on("connection", (socket) => {
   const userId = socket.userId;
   if (userId) {
@@ -66,15 +75,23 @@ io.on("connection", (socket) => {
 
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
-  socket.on("typing", ({ receiverId } = {}) => {
-    for (const socketId of getReceiverSocketIds(receiverId)) {
-      io.to(socketId).emit("userTyping", { userId });
+  socket.on("typing", ({ receiverId, conversationId, participantIds } = {}) => {
+    if (participantIds && Array.isArray(participantIds)) {
+      emitToConversation(participantIds, "userTyping", { userId, conversationId }, userId);
+    } else if (receiverId) {
+      for (const socketId of getReceiverSocketIds(receiverId)) {
+        io.to(socketId).emit("userTyping", { userId, conversationId });
+      }
     }
   });
 
-  socket.on("stopTyping", ({ receiverId } = {}) => {
-    for (const socketId of getReceiverSocketIds(receiverId)) {
-      io.to(socketId).emit("userStoppedTyping", { userId });
+  socket.on("stopTyping", ({ receiverId, conversationId, participantIds } = {}) => {
+    if (participantIds && Array.isArray(participantIds)) {
+      emitToConversation(participantIds, "userStoppedTyping", { userId, conversationId }, userId);
+    } else if (receiverId) {
+      for (const socketId of getReceiverSocketIds(receiverId)) {
+        io.to(socketId).emit("userStoppedTyping", { userId, conversationId });
+      }
     }
   });
 

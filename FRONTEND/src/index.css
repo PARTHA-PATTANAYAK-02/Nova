@@ -46,12 +46,16 @@ body[data-scroll-locked] {
   margin-right: 0px !important;
 }
 
-.scrollbar-none::-webkit-scrollbar {
-  display: none;
+.scrollbar-none::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
-.scrollbar-none {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+.scrollbar-none,
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -4887,39 +4891,24 @@ body[data-theme-accent="solid-red"] {
   .nova-chat__contacts.is-collapsed {
     width: 84px;
     max-width: 84px;
+    min-width: 84px;
   }
   .nova-chat__contacts.is-collapsed .nova-chat__contacts-title-text,
   .nova-chat__contacts.is-collapsed .nova-chat__contacts-actions,
   .nova-chat__contacts.is-collapsed .nova-chat__search,
   .nova-chat__contacts.is-collapsed .nova-chat__contact-meta,
-  .nova-chat__contacts.is-collapsed .nova-chat__unread,
   .nova-chat__contacts.is-collapsed .nova-chat__contact-chevron {
     display: none;
   }
   .nova-chat__contacts.is-collapsed .nova-chat__collapse {
-    right: 50%;
-    transform: translateX(50%);
-  }
-  .nova-chat__contacts.is-collapsed .nova-chat__collapse:hover {
-    transform: translateX(50%) scale(1.1);
-  }
-  .nova-chat__contacts.is-collapsed .nova-chat__collapse:active {
-    transform: translateX(50%) scale(0.92);
+    display: none;
   }
   .nova-chat__contacts.is-collapsed .nova-chat__contacts-head {
-    padding: 56px 8px 12px;
+    padding: 12px 6px;
     border-bottom: 0;
   }
-  .nova-chat__contacts.is-collapsed .nova-chat__contacts-title-row {
-    justify-content: center;
-    margin: 0;
-  }
-  .nova-chat__contacts.is-collapsed .nova-chat__contacts-title {
-    font-size: 0;
-    gap: 0;
-  }
   .nova-chat__contacts.is-collapsed .nova-chat__contacts-list {
-    padding: 8px 6px;
+    padding: 8px 4px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -4935,13 +4924,13 @@ body[data-theme-accent="solid-red"] {
     display: none;
   }
   .nova-chat__contacts.is-collapsed .nova-chat__contact:hover {
-    transform: scale(1.08);
+    transform: scale(1.06);
     background: transparent;
   }
   .nova-chat__contacts.is-collapsed .nova-chat__contact.is-selected {
     background: color-mix(in srgb, var(--primary) 12%, transparent);
     border-radius: 14px;
-    padding: 6px 8px;
+    padding: 6px;
   }
   .nova-chat__contacts.is-collapsed .nova-chat__contact-avatar {
     margin: 0;
@@ -4953,6 +4942,7 @@ body[data-theme-accent="solid-red"] {
   flex-shrink: 0;
   padding: 16px 16px 12px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  overflow: hidden;
 }
 .nova-chat__contacts-title-row {
   display: flex;
@@ -4980,12 +4970,7 @@ body[data-theme-accent="solid-red"] {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-right: 34px; /* room for collapse button */
-}
-@media (max-width: 767px) {
-  .nova-chat__contacts-actions {
-    margin-right: 0;
-  }
+  flex-shrink: 0;
 }
 
 .nova-chat__online-pill {

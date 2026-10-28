@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { Conversation } from "../models/conversation.model.js";
-import { emitToUser, getReceiverSocketId, getReceiverSocketIds, io } from "../socket/socket.js";
+import { emitToUser, emitToConversation, getReceiverSocketId, getReceiverSocketIds, io } from "../socket/socket.js";
 import { Message } from "../models/message.model.js";
 import { Story } from "../models/story.model.js";
 import { User } from "../models/user.model.js";
@@ -17,6 +17,7 @@ const MESSAGE_REACTIONS = new Set([
 
 const getConversationForUsers = (firstUserId, secondUserId) =>
   Conversation.findOne({
+    isGroup: false,
     participants: { $all: [firstUserId, secondUserId] },
   });
 
@@ -40,13 +41,142 @@ export const sendMessage = async (req, res) => {
     const replyToId = req.body.replyToId;
     const file = req.file;
 
+    // Check if target is a Group Conversation
+    const groupConversation = await Conversation.findOne({
+      _id: receiverId,
+      isGroup: true,
+      participants: senderId,
+    });
+
+    if (groupConversation) {
+      let mediaType = "text";
+      let mediaUrl = "";
+      let audioDuration = Number(req.body.audioDuration) || 0;
+
+      if (file) {
+        let uploadBuffer = file.buffer;
+        const isAudio =
+          file.mimetype.startsWith("audio/") ||
+          file.originalname?.toLowerCase().includes("voice-note") ||
+          (Boolean(req.body.audioDuration) && !file.mimetype.startsWith("video/mp4"));
+
+        if (isAudio) {
+          mediaType = "audio";
+        } else if (file.mimetype.startsWith("video/")) {
+          mediaType = "video";
+        } else {
+          mediaType = "image";
+          try {
+            uploadBuffer = await sharp(file.buffer)
+              .rotate()
+              .resize({ width: 1440, height: 1440, fit: "inside", withoutEnlargement: true })
+              .jpeg({ quality: 80, mozjpeg: true })
+              .toBuffer();
+          } catch (compressionError) {
+            uploadBuffer = file.buffer;
+          }
+        }
+
+        const uploadResult = await new Promise((resolve, reject) => {
+          cloudinary.uploader
+            .upload_stream(
+              { folder: "nova/chat", resource_type: "auto" },
+              (error, result) => (error ? reject(error) : resolve(result)),
+            )
+            .end(uploadBuffer);
+        });
+        mediaUrl = uploadResult.secure_url;
+      }
+
+      if (!textMessage && !mediaUrl) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Message or media is required" });
+      }
+
+      let replyTo;
+      if (replyToId && mongoose.isValidObjectId(replyToId)) {
+        const repliedMessage = await Message.findOne({
+          _id: replyToId,
+          _id: { $in: groupConversation.messages },
+        }).select("senderId message");
+        if (repliedMessage) {
+          replyTo = {
+            messageId: repliedMessage._id,
+            senderId: repliedMessage.senderId,
+            message: repliedMessage.message,
+          };
+        }
+      }
+
+      const newMessage = await Message.create({
+        conversationId: groupConversation._id,
+        senderId,
+        message: textMessage,
+        mediaType,
+        mediaUrl,
+        audioDuration,
+        replyTo,
+        status: "delivered",
+      });
+
+      groupConversation.messages.push(newMessage._id);
+      groupConversation.lastMessage = newMessage._id;
+      groupConversation.lastMessageAt = new Date();
+      if (groupConversation.deletedFor && groupConversation.deletedFor.length > 0) {
+        groupConversation.deletedFor = [];
+      }
+
+      for (const pid of groupConversation.participants) {
+        if (pid.toString() !== senderId.toString()) {
+          incrementUnreadCount(groupConversation, pid);
+        }
+      }
+      await groupConversation.save();
+
+      await newMessage.populate("senderId", "username fullName profilePicture");
+
+      emitToConversation(
+        groupConversation.participants,
+        "newMessage",
+        {
+          newMessage,
+          conversationId: groupConversation._id,
+          isGroup: true,
+        },
+        senderId
+      );
+
+      emitToConversation(
+        groupConversation.participants,
+        "conversationUpdated",
+        {
+          conversationId: groupConversation._id,
+          lastMessage: newMessage,
+          isGroup: true,
+        }
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: "Message sent",
+        newMessage,
+      });
+    }
+
     if (!mongoose.isValidObjectId(receiverId)) {
       return res
         .status(400)
         .json({ success: false, message: "Invalid recipient" });
     }
 
-    const recipient = await User.findById(receiverId).select("whoCanMessage followers");
+    const recipient = await User.findById(receiverId).select("whoCanMessage followers username");
+    if (recipient?.whoCanMessage === "no_one") {
+      return res.status(403).json({
+        success: false,
+        message: "This user has disabled direct messages.",
+      });
+    }
     if (recipient?.whoCanMessage === "followers") {
       const isFollower = (recipient.followers || []).some(
         (f) => (f?._id || f)?.toString() === senderId.toString(),
@@ -54,7 +184,7 @@ export const sendMessage = async (req, res) => {
       if (!isFollower) {
         return res.status(403).json({
           success: false,
-          message: "This user only accepts direct messages from their followers.",
+          message: `You need to follow @${recipient.username || "this user"} first to send them a message.`,
         });
       }
     }
@@ -178,6 +308,11 @@ export const sendMessage = async (req, res) => {
     conversation.messages.push(newMessage._id);
     conversation.lastMessage = newMessage._id;
     conversation.lastMessageAt = newMessage.createdAt;
+    if (conversation.deletedFor && conversation.deletedFor.length > 0) {
+      conversation.deletedFor = conversation.deletedFor.filter(
+        (id) => id.toString() !== senderId.toString() && id.toString() !== receiverId.toString()
+      );
+    }
     incrementUnreadCount(conversation, receiverId);
     await conversation.save();
 
@@ -233,7 +368,13 @@ export const getMessage = async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ success: false, message: "Invalid user" });
     }
-    const conversation = await getConversationForUsers(req.id, req.params.id);
+    let conversation = await Conversation.findOne({
+      _id: req.params.id,
+      participants: req.id,
+    });
+    if (!conversation) {
+      conversation = await getConversationForUsers(req.id, req.params.id);
+    }
     if (!conversation)
       return res.status(200).json({ success: true, messages: [], hasMore: false });
 
@@ -251,6 +392,7 @@ export const getMessage = async (req, res) => {
 
     // Fetch latest messages matching criteria
     const rawMessages = await Message.find(query)
+      .populate("senderId", "username fullName profilePicture")
       .sort({ createdAt: -1 })
       .limit(limit + 1);
 
@@ -334,23 +476,68 @@ export const getMessage = async (req, res) => {
 
 export const getConversations = async (req, res) => {
   try {
-    const conversations = await Conversation.find({ participants: req.id })
-      .populate("participants", "username fullName profilePicture lastSeen")
-      .populate("lastMessage")
+    const conversations = await Conversation.find({
+      participants: req.id,
+      deletedFor: { $ne: req.id },
+    })
+      .populate("participants", "username fullName profilePicture lastSeen whoCanMessage")
+      .populate("admins", "username fullName profilePicture")
+      .populate("creator", "username fullName profilePicture")
+      .populate({
+        path: "lastMessage",
+        populate: { path: "senderId", select: "username fullName" },
+      })
       .sort({ lastMessageAt: -1, updatedAt: -1 });
 
     const results = conversations.map((conversation) => {
-      const otherUser = conversation.participants.find(
-        (participant) => participant._id.toString() !== req.id.toString(),
-      );
       const unreadEntry = conversation.unreadCounts.find(
         (entry) => entry.user.toString() === req.id.toString(),
       );
 
+      // Check if lastMessage is deleted for current user
+      const isLastMessageDeleted = conversation.lastMessage?.deletedFor?.some(
+        (id) => id.toString() === req.id.toString(),
+      );
+      const displayLastMessage = isLastMessageDeleted ? null : conversation.lastMessage;
+
+      if (conversation.isGroup) {
+        return {
+          _id: conversation._id,
+          isGroup: true,
+          groupName: conversation.groupName,
+          groupDescription: conversation.groupDescription || "",
+          groupAvatar: conversation.groupAvatar || "",
+          creator: conversation.creator,
+          admin: conversation.admin || conversation.creator,
+          admins: conversation.admins || [],
+          participants: conversation.participants || [],
+          user: {
+            _id: conversation._id,
+            isGroup: true,
+            username: conversation.groupName,
+            fullName: conversation.groupName,
+            profilePicture: conversation.groupAvatar || "",
+            groupDescription: conversation.groupDescription || "",
+            participants: conversation.participants || [],
+            admins: conversation.admins || [],
+            creator: conversation.creator,
+            admin: conversation.admin || conversation.creator,
+          },
+          lastMessage: displayLastMessage,
+          lastMessageAt: conversation.lastMessageAt,
+          unreadCount: unreadEntry?.count || 0,
+        };
+      }
+
+      const otherUser = conversation.participants.find(
+        (participant) => participant._id.toString() !== req.id.toString(),
+      );
+
       return {
         _id: conversation._id,
+        isGroup: false,
         user: otherUser,
-        lastMessage: conversation.lastMessage,
+        lastMessage: displayLastMessage,
         lastMessageAt: conversation.lastMessageAt,
         unreadCount: unreadEntry?.count || 0,
       };
@@ -372,12 +559,36 @@ export const markMessagesAsRead = async (req, res) => {
     }
     const readerId = req.id;
     const senderId = req.params.id;
-    const conversation = await getConversationForUsers(readerId, senderId);
+    let conversation = await Conversation.findOne({
+      _id: req.params.id,
+      participants: readerId,
+    });
+    if (!conversation) {
+      conversation = await getConversationForUsers(readerId, senderId);
+    }
     if (!conversation)
       return res.status(200).json({ success: true, updated: 0 });
 
+    if (conversation.isGroup) {
+      const unreadEntry = conversation.unreadCounts.find(
+        (entry) => entry.user.toString() === readerId.toString(),
+      );
+      if (unreadEntry) unreadEntry.count = 0;
+      await conversation.save();
+      emitToUser(readerId, "conversationUpdated", {
+        conversationId: conversation._id,
+        unreadCount: 0,
+      });
+      return res.status(200).json({ success: true, updated: 1 });
+    }
+
+    const otherParticipant = conversation.participants.find(
+      (p) => p.toString() !== readerId.toString()
+    );
+    const targetSenderId = otherParticipant ? otherParticipant.toString() : senderId;
+
     const updateResult = await Message.updateMany(
-      { senderId, receiverId: readerId, status: { $ne: "seen" } },
+      { senderId: targetSenderId, receiverId: readerId, status: { $ne: "seen" } },
       { $set: { status: "seen", readAt: new Date() } },
     );
 
@@ -394,7 +605,7 @@ export const markMessagesAsRead = async (req, res) => {
       },
     );
 
-    emitToUser(senderId, "messagesRead", { readerId });
+    emitToUser(targetSenderId, "messagesRead", { readerId });
     emitToUser(readerId, "conversationUpdated", {
       conversationId: conversation._id,
       unreadCount: 0,
@@ -876,3 +1087,839 @@ export const getStarredMessages = async (req, res) => {
   }
 };
 
+
+/* ═══════════════════════════════════════════════════════════════════════
+   GROUP MANAGEMENT CONTROLLERS
+   ═══════════════════════════════════════════════════════════════════════ */
+
+export const createGroup = async (req, res) => {
+  try {
+    const creatorId = req.id;
+    const { groupName, groupDescription } = req.body;
+    let participantIds = req.body.participantIds;
+
+    if (!groupName || groupName.trim().length < 2) {
+      return res.status(400).json({ success: false, message: "Group name must be at least 2 characters long" });
+    }
+
+    if (typeof participantIds === "string") {
+      try {
+        participantIds = JSON.parse(participantIds);
+      } catch (e) {
+        participantIds = participantIds.split(",").map((id) => id.trim());
+      }
+    }
+
+    if (!Array.isArray(participantIds)) {
+      participantIds = [];
+    }
+
+    const allParticipants = Array.from(
+      new Set([creatorId.toString(), ...participantIds.map((id) => id?.toString?.() || id)])
+    ).filter((id) => mongoose.isValidObjectId(id));
+
+    if (allParticipants.length < 2) {
+      return res.status(400).json({ success: false, message: "Please select at least 1 other member for the group" });
+    }
+
+    let groupAvatar = "";
+    if (req.file) {
+      try {
+        const uploadBuffer = await sharp(req.file.buffer)
+          .rotate()
+          .resize({ width: 500, height: 500, fit: "cover" })
+          .jpeg({ quality: 85 })
+          .toBuffer();
+
+        const uploadResult = await new Promise((resolve, reject) => {
+          cloudinary.uploader
+            .upload_stream(
+              { folder: "nova/groups", resource_type: "image" },
+              (error, result) => (error ? reject(error) : resolve(result)),
+            )
+            .end(uploadBuffer);
+        });
+        groupAvatar = uploadResult.secure_url;
+      } catch (err) {
+        console.warn("Group avatar upload failed:", err?.message);
+      }
+    }
+
+    const creatorUser = await User.findById(creatorId).select("username fullName");
+
+    const group = await Conversation.create({
+      isGroup: true,
+      groupName: groupName.trim(),
+      groupDescription: groupDescription?.trim() || "",
+      groupAvatar,
+      creator: creatorId,
+      admins: [creatorId],
+      admin: creatorId,
+      participants: allParticipants,
+      lastMessageAt: new Date(),
+      unreadCounts: allParticipants.map((id) => ({ user: id, count: 0 })),
+    });
+
+    const systemMessage = await Message.create({
+      conversationId: group._id,
+      senderId: creatorId,
+      message: `${creatorUser?.fullName || creatorUser?.username || "Someone"} created the group "${group.groupName}"`,
+      messageType: "system",
+      mediaType: "text",
+      status: "delivered",
+    });
+
+    group.messages.push(systemMessage._id);
+    group.lastMessage = systemMessage._id;
+    await group.save();
+
+    const populatedGroup = await Conversation.findById(group._id)
+      .populate("participants", "username fullName profilePicture lastSeen whoCanMessage")
+      .populate("admins", "username fullName profilePicture")
+      .populate("creator", "username fullName profilePicture")
+      .populate("lastMessage");
+
+    const groupPayload = {
+      _id: populatedGroup._id,
+      isGroup: true,
+      groupName: populatedGroup.groupName,
+      groupDescription: populatedGroup.groupDescription,
+      groupAvatar: populatedGroup.groupAvatar,
+      creator: populatedGroup.creator,
+      admins: populatedGroup.admins,
+      admin: populatedGroup.admin,
+      participants: populatedGroup.participants,
+      user: {
+        _id: populatedGroup._id,
+        isGroup: true,
+        username: populatedGroup.groupName,
+        fullName: populatedGroup.groupName,
+        profilePicture: populatedGroup.groupAvatar || "",
+        groupDescription: populatedGroup.groupDescription,
+        participants: populatedGroup.participants,
+        admins: populatedGroup.admins,
+        creator: populatedGroup.creator,
+        admin: populatedGroup.admin,
+      },
+      lastMessage: populatedGroup.lastMessage,
+      lastMessageAt: populatedGroup.lastMessageAt,
+      unreadCount: 0,
+    };
+
+    emitToConversation(allParticipants, "newGroupCreated", groupPayload);
+
+    return res.status(201).json({
+      success: true,
+      message: "Group created successfully",
+      group: groupPayload,
+    });
+  } catch (error) {
+    console.error("createGroup error:", error);
+    return res.status(500).json({ success: false, message: "Unable to create group" });
+  }
+};
+
+export const getGroupDetails = async (req, res) => {
+  try {
+    const groupId = req.params.id;
+    if (!mongoose.isValidObjectId(groupId)) {
+      return res.status(400).json({ success: false, message: "Invalid group ID" });
+    }
+
+    const group = await Conversation.findOne({
+      _id: groupId,
+      isGroup: true,
+      participants: req.id,
+    })
+      .populate("participants", "username fullName profilePicture lastSeen bio")
+      .populate("admins", "username fullName profilePicture")
+      .populate("creator", "username fullName profilePicture");
+
+    if (!group) {
+      return res.status(404).json({ success: false, message: "Group not found or you are not a member" });
+    }
+
+    return res.status(200).json({ success: true, group });
+  } catch (error) {
+    console.error("getGroupDetails error:", error);
+    return res.status(500).json({ success: false, message: "Unable to get group details" });
+  }
+};
+
+export const updateGroup = async (req, res) => {
+  try {
+    const groupId = req.params.id;
+    const userId = req.id;
+    const { groupName, groupDescription, removeAvatar } = req.body;
+
+    if (!mongoose.isValidObjectId(groupId)) {
+      return res.status(400).json({ success: false, message: "Invalid group ID" });
+    }
+
+    const group = await Conversation.findOne({
+      _id: groupId,
+      isGroup: true,
+      participants: userId,
+    });
+
+    if (!group) {
+      return res.status(404).json({ success: false, message: "Group not found" });
+    }
+
+    const isAdmin = (group.admins || []).some((a) => a.toString() === userId.toString());
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: "Only group admins can edit group info" });
+    }
+
+    if (groupName && groupName.trim()) {
+      group.groupName = groupName.trim();
+    }
+    if (groupDescription !== undefined) {
+      group.groupDescription = groupDescription.trim();
+    }
+
+    if (req.file) {
+      const uploadBuffer = await sharp(req.file.buffer)
+        .rotate()
+        .resize({ width: 500, height: 500, fit: "cover" })
+        .jpeg({ quality: 85 })
+        .toBuffer();
+
+      const uploadResult = await new Promise((resolve, reject) => {
+        cloudinary.uploader
+          .upload_stream(
+            { folder: "nova/groups", resource_type: "image" },
+            (error, result) => (error ? reject(error) : resolve(result)),
+          )
+          .end(uploadBuffer);
+      });
+      group.groupAvatar = uploadResult.secure_url;
+    } else if (removeAvatar === "true") {
+      group.groupAvatar = "";
+    }
+
+    const adminUser = await User.findById(userId).select("username fullName");
+    const sysMsg = await Message.create({
+      conversationId: group._id,
+      senderId: userId,
+      message: `${adminUser?.fullName || adminUser?.username || "Admin"} updated group information`,
+      messageType: "system",
+      mediaType: "text",
+      status: "delivered",
+    });
+
+    group.messages.push(sysMsg._id);
+    group.lastMessage = sysMsg._id;
+    group.lastMessageAt = new Date();
+    await group.save();
+
+    const populatedGroup = await Conversation.findById(group._id)
+      .populate("participants", "username fullName profilePicture lastSeen whoCanMessage")
+      .populate("admins", "username fullName profilePicture")
+      .populate("creator", "username fullName profilePicture")
+      .populate("lastMessage");
+
+    const groupPayload = {
+      _id: populatedGroup._id,
+      isGroup: true,
+      groupName: populatedGroup.groupName,
+      groupDescription: populatedGroup.groupDescription,
+      groupAvatar: populatedGroup.groupAvatar,
+      creator: populatedGroup.creator,
+      admins: populatedGroup.admins,
+      admin: populatedGroup.admin,
+      participants: populatedGroup.participants,
+      user: {
+        _id: populatedGroup._id,
+        isGroup: true,
+        username: populatedGroup.groupName,
+        fullName: populatedGroup.groupName,
+        profilePicture: populatedGroup.groupAvatar || "",
+        groupDescription: populatedGroup.groupDescription,
+        participants: populatedGroup.participants,
+        admins: populatedGroup.admins,
+        creator: populatedGroup.creator,
+        admin: populatedGroup.admin,
+      },
+      lastMessage: populatedGroup.lastMessage,
+      lastMessageAt: populatedGroup.lastMessageAt,
+    };
+
+    emitToConversation(group.participants, "groupUpdated", groupPayload);
+    emitToConversation(group.participants, "newMessage", { newMessage: sysMsg, conversationId: group._id, isGroup: true });
+
+    return res.status(200).json({ success: true, message: "Group updated successfully", group: groupPayload });
+  } catch (error) {
+    console.error("updateGroup error:", error);
+    return res.status(500).json({ success: false, message: "Unable to update group" });
+  }
+};
+
+export const addGroupMembers = async (req, res) => {
+  try {
+    const groupId = req.params.id;
+    const userId = req.id;
+    let { memberIds } = req.body;
+
+    if (!mongoose.isValidObjectId(groupId)) {
+      return res.status(400).json({ success: false, message: "Invalid group ID" });
+    }
+
+    const group = await Conversation.findOne({
+      _id: groupId,
+      isGroup: true,
+      participants: userId,
+    });
+
+    if (!group) {
+      return res.status(404).json({ success: false, message: "Group not found" });
+    }
+
+    const isAdmin = (group.admins || []).some((a) => a.toString() === userId.toString());
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: "Only group admins can add members" });
+    }
+
+    if (typeof memberIds === "string") {
+      try { memberIds = JSON.parse(memberIds); } catch (e) { memberIds = memberIds.split(","); }
+    }
+    if (!Array.isArray(memberIds)) memberIds = [];
+
+    const existingSet = new Set(group.participants.map((p) => p.toString()));
+    const newMembers = memberIds
+      .map((id) => id?.toString?.() || id)
+      .filter((id) => mongoose.isValidObjectId(id) && !existingSet.has(id));
+
+    if (newMembers.length === 0) {
+      return res.status(400).json({ success: false, message: "Selected users are already members of this group" });
+    }
+
+    for (const id of newMembers) {
+      group.participants.push(id);
+      group.unreadCounts.push({ user: id, count: 0 });
+    }
+
+    const adminUser = await User.findById(userId).select("username fullName");
+    const addedUsers = await User.find({ _id: { $in: newMembers } }).select("username fullName");
+    const names = addedUsers.map((u) => u.fullName || u.username).join(", ");
+
+    const sysMsg = await Message.create({
+      conversationId: group._id,
+      senderId: userId,
+      message: `${adminUser?.fullName || adminUser?.username || "Admin"} added ${names}`,
+      messageType: "system",
+      mediaType: "text",
+      status: "delivered",
+    });
+
+    group.messages.push(sysMsg._id);
+    group.lastMessage = sysMsg._id;
+    group.lastMessageAt = new Date();
+    await group.save();
+
+    const populatedGroup = await Conversation.findById(group._id)
+      .populate("participants", "username fullName profilePicture lastSeen whoCanMessage")
+      .populate("admins", "username fullName profilePicture")
+      .populate("creator", "username fullName profilePicture")
+      .populate("lastMessage");
+
+    const groupPayload = {
+      _id: populatedGroup._id,
+      isGroup: true,
+      groupName: populatedGroup.groupName,
+      groupDescription: populatedGroup.groupDescription,
+      groupAvatar: populatedGroup.groupAvatar,
+      creator: populatedGroup.creator,
+      admins: populatedGroup.admins,
+      admin: populatedGroup.admin,
+      participants: populatedGroup.participants,
+      user: {
+        _id: populatedGroup._id,
+        isGroup: true,
+        username: populatedGroup.groupName,
+        fullName: populatedGroup.groupName,
+        profilePicture: populatedGroup.groupAvatar || "",
+        groupDescription: populatedGroup.groupDescription,
+        participants: populatedGroup.participants,
+        admins: populatedGroup.admins,
+        creator: populatedGroup.creator,
+        admin: populatedGroup.admin,
+      },
+      lastMessage: populatedGroup.lastMessage,
+      lastMessageAt: populatedGroup.lastMessageAt,
+    };
+
+    emitToConversation(group.participants, "groupUpdated", groupPayload);
+    emitToConversation(group.participants, "newMessage", { newMessage: sysMsg, conversationId: group._id, isGroup: true });
+    emitToConversation(newMembers, "newGroupCreated", groupPayload);
+
+    return res.status(200).json({ success: true, message: "Members added successfully", group: groupPayload });
+  } catch (error) {
+    console.error("addGroupMembers error:", error);
+    return res.status(500).json({ success: false, message: "Unable to add members" });
+  }
+};
+
+export const removeGroupMember = async (req, res) => {
+  try {
+    const groupId = req.params.id;
+    const memberId = req.params.memberId;
+    const userId = req.id;
+
+    if (!mongoose.isValidObjectId(groupId) || !mongoose.isValidObjectId(memberId)) {
+      return res.status(400).json({ success: false, message: "Invalid ID" });
+    }
+
+    const group = await Conversation.findOne({
+      _id: groupId,
+      isGroup: true,
+      participants: userId,
+    });
+
+    if (!group) {
+      return res.status(404).json({ success: false, message: "Group not found" });
+    }
+
+    const isAdmin = (group.admins || []).some((a) => a.toString() === userId.toString());
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: "Only group admins can remove members" });
+    }
+
+    if (group.creator && group.creator.toString() === memberId.toString()) {
+      return res.status(400).json({ success: false, message: "Group creator cannot be removed" });
+    }
+
+    group.participants = group.participants.filter((p) => p.toString() !== memberId.toString());
+    group.admins = group.admins.filter((a) => a.toString() !== memberId.toString());
+    group.unreadCounts = group.unreadCounts.filter((u) => u.user.toString() !== memberId.toString());
+
+    const adminUser = await User.findById(userId).select("username fullName");
+    const targetUser = await User.findById(memberId).select("username fullName");
+
+    const sysMsg = await Message.create({
+      conversationId: group._id,
+      senderId: userId,
+      message: `${adminUser?.fullName || adminUser?.username || "Admin"} removed ${targetUser?.fullName || targetUser?.username || "a member"}`,
+      messageType: "system",
+      mediaType: "text",
+      status: "delivered",
+    });
+
+    group.messages.push(sysMsg._id);
+    group.lastMessage = sysMsg._id;
+    group.lastMessageAt = new Date();
+    await group.save();
+
+    const populatedGroup = await Conversation.findById(group._id)
+      .populate("participants", "username fullName profilePicture lastSeen whoCanMessage")
+      .populate("admins", "username fullName profilePicture")
+      .populate("creator", "username fullName profilePicture")
+      .populate("lastMessage");
+
+    const groupPayload = {
+      _id: populatedGroup._id,
+      isGroup: true,
+      groupName: populatedGroup.groupName,
+      groupDescription: populatedGroup.groupDescription,
+      groupAvatar: populatedGroup.groupAvatar,
+      creator: populatedGroup.creator,
+      admins: populatedGroup.admins,
+      admin: populatedGroup.admin,
+      participants: populatedGroup.participants,
+      user: {
+        _id: populatedGroup._id,
+        isGroup: true,
+        username: populatedGroup.groupName,
+        fullName: populatedGroup.groupName,
+        profilePicture: populatedGroup.groupAvatar || "",
+        groupDescription: populatedGroup.groupDescription,
+        participants: populatedGroup.participants,
+        admins: populatedGroup.admins,
+        creator: populatedGroup.creator,
+        admin: populatedGroup.admin,
+      },
+      lastMessage: populatedGroup.lastMessage,
+      lastMessageAt: populatedGroup.lastMessageAt,
+    };
+
+    emitToConversation(group.participants, "groupUpdated", groupPayload);
+    emitToConversation(group.participants, "newMessage", { newMessage: sysMsg, conversationId: group._id, isGroup: true });
+    emitToUser(memberId, "removedFromGroup", { groupId });
+
+    return res.status(200).json({ success: true, message: "Member removed", group: groupPayload });
+  } catch (error) {
+    console.error("removeGroupMember error:", error);
+    return res.status(500).json({ success: false, message: "Unable to remove member" });
+  }
+};
+
+export const leaveGroup = async (req, res) => {
+  try {
+    const groupId = req.params.id;
+    const userId = req.id;
+
+    if (!mongoose.isValidObjectId(groupId)) {
+      return res.status(400).json({ success: false, message: "Invalid group ID" });
+    }
+
+    const group = await Conversation.findOne({
+      _id: groupId,
+      isGroup: true,
+      participants: userId,
+    });
+
+    if (!group) {
+      return res.status(404).json({ success: false, message: "Group not found or you are not a member" });
+    }
+
+    group.participants = group.participants.filter((p) => p.toString() !== userId.toString());
+    group.admins = group.admins.filter((a) => a.toString() !== userId.toString());
+    group.unreadCounts = group.unreadCounts.filter((u) => u.user.toString() !== userId.toString());
+
+    if (group.admins.length === 0 && group.participants.length > 0) {
+      group.admins.push(group.participants[0]);
+      group.admin = group.participants[0];
+    }
+
+    const leavingUser = await User.findById(userId).select("username fullName");
+    const sysMsg = await Message.create({
+      conversationId: group._id,
+      senderId: userId,
+      message: `${leavingUser?.fullName || leavingUser?.username || "A member"} left the group`,
+      messageType: "system",
+      mediaType: "text",
+      status: "delivered",
+    });
+
+    group.messages.push(sysMsg._id);
+    group.lastMessage = sysMsg._id;
+    group.lastMessageAt = new Date();
+    await group.save();
+
+    const populatedGroup = await Conversation.findById(group._id)
+      .populate("participants", "username fullName profilePicture lastSeen whoCanMessage")
+      .populate("admins", "username fullName profilePicture")
+      .populate("creator", "username fullName profilePicture")
+      .populate("lastMessage");
+
+    const groupPayload = {
+      _id: populatedGroup._id,
+      isGroup: true,
+      groupName: populatedGroup.groupName,
+      groupDescription: populatedGroup.groupDescription,
+      groupAvatar: populatedGroup.groupAvatar,
+      creator: populatedGroup.creator,
+      admins: populatedGroup.admins,
+      admin: populatedGroup.admin,
+      participants: populatedGroup.participants,
+      user: {
+        _id: populatedGroup._id,
+        isGroup: true,
+        username: populatedGroup.groupName,
+        fullName: populatedGroup.groupName,
+        profilePicture: populatedGroup.groupAvatar || "",
+        groupDescription: populatedGroup.groupDescription,
+        participants: populatedGroup.participants,
+        admins: populatedGroup.admins,
+        creator: populatedGroup.creator,
+        admin: populatedGroup.admin,
+      },
+      lastMessage: populatedGroup.lastMessage,
+      lastMessageAt: populatedGroup.lastMessageAt,
+    };
+
+    emitToConversation(group.participants, "groupUpdated", groupPayload);
+    emitToConversation(group.participants, "newMessage", { newMessage: sysMsg, conversationId: group._id, isGroup: true });
+    emitToUser(userId, "removedFromGroup", { groupId });
+
+    return res.status(200).json({ success: true, message: "You left the group" });
+  } catch (error) {
+    console.error("leaveGroup error:", error);
+    return res.status(500).json({ success: false, message: "Unable to leave group" });
+  }
+};
+
+export const promoteToAdmin = async (req, res) => {
+  try {
+    const groupId = req.params.id;
+    const memberId = req.params.memberId;
+    const userId = req.id;
+
+    if (!mongoose.isValidObjectId(groupId) || !mongoose.isValidObjectId(memberId)) {
+      return res.status(400).json({ success: false, message: "Invalid ID" });
+    }
+
+    const group = await Conversation.findOne({
+      _id: groupId,
+      isGroup: true,
+      participants: userId,
+    });
+
+    if (!group) {
+      return res.status(404).json({ success: false, message: "Group not found" });
+    }
+
+    const isAdmin = (group.admins || []).some((a) => a.toString() === userId.toString());
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: "Only group admins can promote members" });
+    }
+
+    if (!group.participants.some((p) => p.toString() === memberId.toString())) {
+      return res.status(400).json({ success: false, message: "User is not a member of this group" });
+    }
+
+    if (group.admins.some((a) => a.toString() === memberId.toString())) {
+      return res.status(400).json({ success: false, message: "User is already an admin" });
+    }
+
+    group.admins.push(memberId);
+
+    const adminUser = await User.findById(userId).select("username fullName");
+    const targetUser = await User.findById(memberId).select("username fullName");
+
+    const sysMsg = await Message.create({
+      conversationId: group._id,
+      senderId: userId,
+      message: `${adminUser?.fullName || adminUser?.username || "Admin"} promoted ${targetUser?.fullName || targetUser?.username} to Admin`,
+      messageType: "system",
+      mediaType: "text",
+      status: "delivered",
+    });
+
+    group.messages.push(sysMsg._id);
+    group.lastMessage = sysMsg._id;
+    group.lastMessageAt = new Date();
+    await group.save();
+
+    const populatedGroup = await Conversation.findById(group._id)
+      .populate("participants", "username fullName profilePicture lastSeen whoCanMessage")
+      .populate("admins", "username fullName profilePicture")
+      .populate("creator", "username fullName profilePicture")
+      .populate("lastMessage");
+
+    const groupPayload = {
+      _id: populatedGroup._id,
+      isGroup: true,
+      groupName: populatedGroup.groupName,
+      groupDescription: populatedGroup.groupDescription,
+      groupAvatar: populatedGroup.groupAvatar,
+      creator: populatedGroup.creator,
+      admins: populatedGroup.admins,
+      admin: populatedGroup.admin,
+      participants: populatedGroup.participants,
+      user: {
+        _id: populatedGroup._id,
+        isGroup: true,
+        username: populatedGroup.groupName,
+        fullName: populatedGroup.groupName,
+        profilePicture: populatedGroup.groupAvatar || "",
+        groupDescription: populatedGroup.groupDescription,
+        participants: populatedGroup.participants,
+        admins: populatedGroup.admins,
+        creator: populatedGroup.creator,
+        admin: populatedGroup.admin,
+      },
+      lastMessage: populatedGroup.lastMessage,
+      lastMessageAt: populatedGroup.lastMessageAt,
+    };
+
+    emitToConversation(group.participants, "groupUpdated", groupPayload);
+    emitToConversation(group.participants, "newMessage", { newMessage: sysMsg, conversationId: group._id, isGroup: true });
+
+    return res.status(200).json({ success: true, message: "Promoted to admin", group: groupPayload });
+  } catch (error) {
+    console.error("promoteToAdmin error:", error);
+    return res.status(500).json({ success: false, message: "Unable to promote to admin" });
+  }
+};
+
+export const demoteAdmin = async (req, res) => {
+  try {
+    const groupId = req.params.id;
+    const memberId = req.params.memberId;
+    const userId = req.id;
+
+    if (!mongoose.isValidObjectId(groupId) || !mongoose.isValidObjectId(memberId)) {
+      return res.status(400).json({ success: false, message: "Invalid ID" });
+    }
+
+    const group = await Conversation.findOne({
+      _id: groupId,
+      isGroup: true,
+      participants: userId,
+    });
+
+    if (!group) {
+      return res.status(404).json({ success: false, message: "Group not found" });
+    }
+
+    const isAdmin = (group.admins || []).some((a) => a.toString() === userId.toString());
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: "Only group admins can dismiss admins" });
+    }
+
+    if (group.creator && group.creator.toString() === memberId.toString()) {
+      return res.status(400).json({ success: false, message: "Group creator cannot be dismissed as admin" });
+    }
+
+    group.admins = group.admins.filter((a) => a.toString() !== memberId.toString());
+
+    const adminUser = await User.findById(userId).select("username fullName");
+    const targetUser = await User.findById(memberId).select("username fullName");
+
+    const sysMsg = await Message.create({
+      conversationId: group._id,
+      senderId: userId,
+      message: `${adminUser?.fullName || adminUser?.username || "Admin"} removed ${targetUser?.fullName || targetUser?.username} as Admin`,
+      messageType: "system",
+      mediaType: "text",
+      status: "delivered",
+    });
+
+    group.messages.push(sysMsg._id);
+    group.lastMessage = sysMsg._id;
+    group.lastMessageAt = new Date();
+    await group.save();
+
+    const populatedGroup = await Conversation.findById(group._id)
+      .populate("participants", "username fullName profilePicture lastSeen whoCanMessage")
+      .populate("admins", "username fullName profilePicture")
+      .populate("creator", "username fullName profilePicture")
+      .populate("lastMessage");
+
+    const groupPayload = {
+      _id: populatedGroup._id,
+      isGroup: true,
+      groupName: populatedGroup.groupName,
+      groupDescription: populatedGroup.groupDescription,
+      groupAvatar: populatedGroup.groupAvatar,
+      creator: populatedGroup.creator,
+      admins: populatedGroup.admins,
+      admin: populatedGroup.admin,
+      participants: populatedGroup.participants,
+      user: {
+        _id: populatedGroup._id,
+        isGroup: true,
+        username: populatedGroup.groupName,
+        fullName: populatedGroup.groupName,
+        profilePicture: populatedGroup.groupAvatar || "",
+        groupDescription: populatedGroup.groupDescription,
+        participants: populatedGroup.participants,
+        admins: populatedGroup.admins,
+        creator: populatedGroup.creator,
+        admin: populatedGroup.admin,
+      },
+      lastMessage: populatedGroup.lastMessage,
+      lastMessageAt: populatedGroup.lastMessageAt,
+    };
+
+    emitToConversation(group.participants, "groupUpdated", groupPayload);
+    emitToConversation(group.participants, "newMessage", { newMessage: sysMsg, conversationId: group._id, isGroup: true });
+
+    return res.status(200).json({ success: true, message: "Admin dismissed", group: groupPayload });
+  } catch (error) {
+    console.error("demoteAdmin error:", error);
+    return res.status(500).json({ success: false, message: "Unable to dismiss admin" });
+  }
+};
+
+export const deleteConversation = async (req, res) => {
+  try {
+    const currentUserId = req.id;
+    const { id: targetId } = req.params;
+
+    if (!mongoose.isValidObjectId(targetId)) {
+      return res.status(400).json({ success: false, message: "Invalid ID" });
+    }
+
+    // Try finding by conversation _id or by participants (1-on-1)
+    let conversation = await Conversation.findOne({
+      _id: targetId,
+      participants: currentUserId,
+    });
+
+    if (!conversation) {
+      conversation = await Conversation.findOne({
+        isGroup: false,
+        participants: { $all: [currentUserId, targetId] },
+      });
+    }
+
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: "Conversation not found" });
+    }
+
+    if (conversation.isGroup) {
+      conversation.participants = conversation.participants.filter(
+        (p) => p.toString() !== currentUserId.toString()
+      );
+      conversation.admins = conversation.admins.filter(
+        (a) => a.toString() !== currentUserId.toString()
+      );
+
+      if (conversation.participants.length === 0) {
+        await Message.deleteMany({ _id: { $in: conversation.messages } });
+        await Conversation.findByIdAndDelete(conversation._id);
+      } else {
+        // If creator left and no admins, make first participant admin
+        if (conversation.admins.length === 0 && conversation.participants.length > 0) {
+          conversation.admins.push(conversation.participants[0]);
+          conversation.admin = conversation.participants[0];
+        }
+        await conversation.save();
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "You have left the group",
+        conversationId: conversation._id,
+      });
+    }
+
+    // For 1-on-1: "DELETE FOR ME ONLY"
+    // 1. Mark existing messages in this conversation as deletedFor currentUserId
+    if (conversation.messages && conversation.messages.length > 0) {
+      await Message.updateMany(
+        { _id: { $in: conversation.messages } },
+        { $addToSet: { deletedFor: currentUserId } }
+      );
+    }
+
+    // 2. Add currentUserId to conversation.deletedFor so it hides from their left inbox
+    await Conversation.updateOne(
+      { _id: conversation._id },
+      {
+        $addToSet: { deletedFor: currentUserId },
+        $set: {
+          "unreadCounts.$[elem].count": 0,
+        },
+      },
+      {
+        arrayFilters: [{ "elem.user": currentUserId }],
+      }
+    );
+
+    // 3. Clear message notifications for currentUserId
+    await Notification.deleteMany({
+      recipient: currentUserId,
+      type: "message",
+      conversationId: conversation._id,
+    });
+
+    // NOTE: Opponent's messages & history are NOT deleted. Opponent is untouched!
+    // Emit only to current user so any active window/tab of current user updates
+    emitToUser(currentUserId, "conversationDeleted", {
+      conversationId: conversation._id,
+      targetUserId: targetId,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Chat deleted for you",
+      conversationId: conversation._id,
+    });
+  } catch (error) {
+    console.error("deleteConversation error:", error);
+    return res.status(500).json({ success: false, message: "Unable to delete chat" });
+  }
+};

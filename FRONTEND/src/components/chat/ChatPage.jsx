@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { setSelectedUser, updateUserLastSeen } from "@/redux/authSlice";
+import { setSelectedUser, updateUserLastSeen, updateFollowing } from "@/redux/authSlice";
 import {
   MessageCircle,
   Search,
@@ -33,8 +33,24 @@ import {
   Forward,
   Pin,
   PinOff,
+  UserPlus,
+  Info,
+  MoreVertical,
+  CheckCheck,
+  UserMinus,
+  Lock,
 } from "lucide-react";
+import {
+  UserGroupIcon,
+  PanelRightOpenIcon,
+  PanelLeftOpenIcon,
+  SparklesIcon,
+  MessageCircleIcon,
+} from "@animateicons/react/lucide";
+import { motion, AnimatePresence } from "framer-motion";
 import Messages from "@/components/chat/Messages";
+import CreateGroupModal from "@/components/chat/CreateGroupModal";
+import GroupInfoDrawer from "@/components/chat/GroupInfoDrawer";
 import axios from "axios";
 import {
   setMessages,
@@ -143,6 +159,23 @@ const formatDuration = (seconds) => {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+};
+
+const formatLastMessageTime = (dateStr) => {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "";
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  if (isToday) {
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) {
+    return "Yesterday";
+  }
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
 };
 
 const ChatPage = () => {
@@ -366,6 +399,97 @@ const ChatPage = () => {
     typeof window !== "undefined" && window.innerWidth < 768
   );
   const isConversationPushedRef = useRef(false);
+  const selectedUserRef = useRef(selectedUser);
+
+  const newGroupIconRef = useRef(null);
+  const railGroupIconRef = useRef(null);
+  const welcomeGroupIconRef = useRef(null);
+  const expandIconRef = useRef(null);
+  const collapseIconRef = useRef(null);
+
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  const [groupInfoOpen, setGroupInfoOpen] = useState(false);
+  const [chatFilter, setChatFilter] = useState("all");
+  const [deleteChatModal, setDeleteChatModal] = useState({
+    open: false,
+    contact: null,
+    isFollowing: false,
+  });
+  const [deletingChat, setDeletingChat] = useState(false);
+
+  useEffect(() => {
+    selectedUserRef.current = selectedUser;
+  }, [selectedUser]);
+
+  const { isMessageDisabled, messageDisabledReason } = useMemo(() => {
+    if (!selectedUser || selectedUser.isGroup) {
+      return { isMessageDisabled: false, messageDisabledReason: "" };
+    }
+    if (selectedUser.whoCanMessage === "no_one") {
+      return {
+        isMessageDisabled: true,
+        messageDisabledReason: "This user has disabled direct messages.",
+      };
+    }
+    if (selectedUser.whoCanMessage === "followers") {
+      const isFollowedByMe = (user?.following || []).some(
+        (f) => (f?._id || f)?.toString() === selectedUser._id?.toString()
+      );
+      if (!isFollowedByMe) {
+        return {
+          isMessageDisabled: true,
+          messageDisabledReason: `You need to follow @${selectedUser.username || "this user"} to send messages.`,
+        };
+      }
+    }
+    return { isMessageDisabled: false, messageDisabledReason: "" };
+  }, [selectedUser, user?.following]);
+
+  const [isFollowingUser, setIsFollowingUser] = useState(false);
+  const handleFollowFromChat = async () => {
+    if (!selectedUser?._id || isFollowingUser) return;
+    setIsFollowingUser(true);
+    try {
+      const res = await axios.post(
+        apiUrl(`/api/v1/user/followorunfollow/${selectedUser._id}`),
+        {},
+        { withCredentials: true }
+      );
+      if (res.data?.success) {
+        dispatch(updateFollowing(selectedUser._id));
+        toast.success(`You are now following @${selectedUser.username || "user"}`);
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to follow user"));
+    } finally {
+      setIsFollowingUser(false);
+    }
+  };
+
+  const handleDeleteChatConfirm = async () => {
+    if (!deleteChatModal.contact || deletingChat) return;
+    const target = deleteChatModal.contact;
+    setDeletingChat(true);
+    try {
+      const res = await axios.delete(
+        apiUrl(`/api/v1/message/conversation/${target.conversationId || target._id}`),
+        { withCredentials: true }
+      );
+      if (res.data?.success) {
+        toast.success(res.data.message || "Chat deleted");
+        conversationRequest.retry();
+        if (selectedUserRef.current?._id?.toString() === target._id?.toString()) {
+          dispatch(setSelectedUser(null));
+          dispatch(setMessages([]));
+        }
+        setDeleteChatModal({ open: false, contact: null, isFollowing: false });
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to delete chat"));
+    } finally {
+      setDeletingChat(false);
+    }
+  };
 
   const conversationRequest = useGetConversations();
   const suggestedUserRequest = useGetSuggestedUsers();
@@ -520,11 +644,51 @@ const ChatPage = () => {
     const handleConversationPinnedUpdated = (data) => {
       dispatch(setPinnedMessage(data?.pinnedMessage || null));
     };
+    const handleNewGroupCreated = () => {
+      conversationRequest.retry();
+    };
+    const handleGroupUpdated = (updatedGroup) => {
+      conversationRequest.retry();
+      const currentSelectedId = selectedUserRef.current?._id?.toString();
+      const updatedGroupId = (updatedGroup?._id || updatedGroup?.user?._id)?.toString();
+      if (currentSelectedId && currentSelectedId === updatedGroupId) {
+        dispatch(setSelectedUser(updatedGroup.user || updatedGroup));
+      }
+    };
+    const handleRemovedFromGroup = ({ groupId }) => {
+      conversationRequest.retry();
+      const currentSelectedId = selectedUserRef.current?._id?.toString();
+      if (currentSelectedId && currentSelectedId === groupId?.toString()) {
+        dispatch(setSelectedUser(null));
+        toast.info("You were removed from this group");
+      }
+    };
+    const handleUserPrivacyChanged = ({ userId, whoCanMessage }) => {
+      const currentSelectedId = selectedUserRef.current?._id?.toString();
+      if (currentSelectedId && currentSelectedId === userId?.toString()) {
+        dispatch(
+          setSelectedUser({
+            ...selectedUserRef.current,
+            whoCanMessage,
+          })
+        );
+      }
+    };
+
     socket.on("userLastSeen", handleUserLastSeen);
     socket.on("conversationPinnedUpdated", handleConversationPinnedUpdated);
+    socket.on("newGroupCreated", handleNewGroupCreated);
+    socket.on("groupUpdated", handleGroupUpdated);
+    socket.on("removedFromGroup", handleRemovedFromGroup);
+    socket.on("userPrivacyChanged", handleUserPrivacyChanged);
+
     return () => {
       socket.off("userLastSeen", handleUserLastSeen);
       socket.off("conversationPinnedUpdated", handleConversationPinnedUpdated);
+      socket.off("newGroupCreated", handleNewGroupCreated);
+      socket.off("groupUpdated", handleGroupUpdated);
+      socket.off("removedFromGroup", handleRemovedFromGroup);
+      socket.off("userPrivacyChanged", handleUserPrivacyChanged);
     };
   }, [dispatch]);
 
@@ -563,6 +727,23 @@ const ChatPage = () => {
   /* ---------- OPEN CONVERSATION (mobile-history-aware) ---------- */
   const openConversation = useCallback(
     (targetUser) => {
+      if (!targetUser) return;
+
+      if (!targetUser.isGroup) {
+        if (targetUser.whoCanMessage === "no_one") {
+          toast.info(`@${targetUser.username || "This user"} has disabled direct messages.`);
+        } else if (targetUser.whoCanMessage === "followers") {
+          const isFollowedByMe = (user?.following || []).some(
+            (f) => (f?._id || f)?.toString() === targetUser._id?.toString()
+          );
+          if (!isFollowedByMe) {
+            toast.info(
+              `Follow @${targetUser.username || "this user"} to reply to this conversation.`
+            );
+          }
+        }
+      }
+
       dispatch(setSelectedUser(targetUser));
       const isMobile = window.innerWidth < 768;
       if (isMobile) {
@@ -573,7 +754,7 @@ const ChatPage = () => {
         setShowContacts(false);
       }
     },
-    [dispatch]
+    [dispatch, user?.following]
   );
 
   /* ---------- ROUTE CHANGE: ON MOBILE SHOW CONTACTS FIRST ---------- */
@@ -603,7 +784,22 @@ const ChatPage = () => {
   /* ---------- LOCATION USER ---------- */
   useEffect(() => {
     if (location.state?.user?._id) {
-      dispatch(setSelectedUser(location.state.user));
+      const targetUser = location.state.user;
+      if (!targetUser.isGroup) {
+        if (targetUser.whoCanMessage === "no_one") {
+          toast.info(`@${targetUser.username || "This user"} has disabled direct messages.`);
+        } else if (targetUser.whoCanMessage === "followers") {
+          const isFollowedByMe = (user?.following || []).some(
+            (f) => (f?._id || f)?.toString() === targetUser._id?.toString()
+          );
+          if (!isFollowedByMe) {
+            toast.info(
+              `Follow @${targetUser.username || "this user"} to reply to this conversation.`
+            );
+          }
+        }
+      }
+      dispatch(setSelectedUser(targetUser));
       const isMobile = window.innerWidth < 768;
       if (isMobile) {
         if (!isConversationPushedRef.current) {
@@ -614,28 +810,14 @@ const ChatPage = () => {
       }
       window.history.replaceState({}, "", window.location.pathname);
     }
-  }, [dispatch, location.state]);
+  }, [dispatch, location.state, user?.following]);
 
-  /* ---------- AUTO SELECT LATEST (desktop only) ---------- */
+  /* Reset selectedUser on initial entry so welcome screen shows */
   useEffect(() => {
-    const isMobile = window.innerWidth < 768;
-    if (
-      !isMobile &&
-      !selectedUser &&
-      !location.state?.user?._id &&
-      !conversationRequest.loading &&
-      conversationRequest.conversations.length > 0
-    ) {
-      const latest = conversationRequest.conversations[0].user;
-      if (latest?._id) dispatch(setSelectedUser(latest));
+    if (!location.state?.user?._id) {
+      dispatch(setSelectedUser(null));
     }
-  }, [
-    conversationRequest.conversations,
-    conversationRequest.loading,
-    dispatch,
-    location.state,
-    selectedUser,
-  ]);
+  }, []);
 
   /* ═══ VOICE NOTE RECORDING HANDLERS ═══ */
   const stopAudioVisualizer = useCallback(() => {
@@ -1090,14 +1272,18 @@ const ChatPage = () => {
     const socket = getSocketInstance();
     if (!selectedUser || !socket) return;
 
+    const payload = selectedUser.isGroup
+      ? { conversationId: selectedUser._id }
+      : { receiverId: selectedUser._id };
+
     clearTimeout(typingTimeoutRef.current);
     if (!next.trim()) {
-      socket.emit("stopTyping", { receiverId: selectedUser._id });
+      socket.emit("stopTyping", payload);
       return;
     }
-    socket.emit("typing", { receiverId: selectedUser._id });
+    socket.emit("typing", payload);
     typingTimeoutRef.current = setTimeout(() => {
-      socket.emit("stopTyping", { receiverId: selectedUser._id });
+      socket.emit("stopTyping", payload);
     }, 1200);
   };
 
@@ -1107,38 +1293,116 @@ const ChatPage = () => {
     setReplyingTo(null);
   }, [selectedUser?._id]);
 
-  /* ---------- CONTACTS ---------- */
-  const conversationUsers = conversationRequest.conversations
-    .map((c) => c.user)
-    .filter((u) => u?._id);
-  const conversationUserIds = new Set(
-    conversationUsers.map((u) => u._id.toString())
-  );
-  const contacts = [
-    ...conversationUsers,
-    ...suggestedUsers.filter((u) => !conversationUserIds.has(u._id?.toString())),
-  ];
+  /* ---------- CONTACTS & ORDERING BY LATEST MESSAGE ---------- */
+  const sortedConversations = useMemo(() => {
+    return [...(conversationRequest.conversations || [])].sort((a, b) => {
+      const timeA = new Date(a.lastMessageAt || a.updatedAt || a.createdAt || 0).getTime();
+      const timeB = new Date(b.lastMessageAt || b.updatedAt || b.createdAt || 0).getTime();
+      return timeB - timeA;
+    });
+  }, [conversationRequest.conversations]);
+
+  const contacts = useMemo(() => {
+    // Only existing active conversations (1-on-1 and groups) that are not deleted
+    return sortedConversations
+      .map((c) => {
+        if (!c.user?._id) return null;
+        return {
+          ...c.user,
+          conversationId: c._id,
+          isGroup: Boolean(c.isGroup),
+          groupName: c.groupName || c.user?.groupName,
+          groupAvatar: c.groupAvatar || c.user?.profilePicture,
+          lastMessage: c.lastMessage,
+          lastMessageAt: c.lastMessageAt || c.updatedAt,
+          unreadCount: c.unreadCount || 0,
+          hasConversation: true,
+        };
+      })
+      .filter(Boolean);
+  }, [sortedConversations]);
+
+  // Users the current user follows who do NOT have an active conversation yet (available when searching)
+  const followingUsers = useMemo(() => {
+    const convUserIds = new Set(contacts.map((u) => u._id.toString()));
+    return (user?.following || [])
+      .filter((f) => {
+        const fId = (f?._id || f)?.toString();
+        return fId && fId !== user?._id?.toString() && !convUserIds.has(fId);
+      })
+      .map((f) => {
+        if (typeof f === "object" && f.username) {
+          return { ...f, hasConversation: false, unreadCount: 0 };
+        }
+        const found = (suggestedUsers || []).find((s) => s._id?.toString() === f.toString());
+        return found ? { ...found, hasConversation: false, unreadCount: 0 } : null;
+      })
+      .filter(Boolean);
+  }, [contacts, user?.following, suggestedUsers, user?._id]);
 
   const forwardCandidates = useMemo(() => {
     const q = forwardSearchQuery.trim().toLowerCase();
-    return contacts.filter((c) => {
+    const candidatePool = [...contacts, ...followingUsers];
+    return candidatePool.filter((c) => {
       if (!c?._id || c._id === user?._id) return false;
       if (!q) return true;
       return (
         (c.fullName && c.fullName.toLowerCase().includes(q)) ||
-        (c.username && c.username.toLowerCase().includes(q))
+        (c.username && c.username.toLowerCase().includes(q)) ||
+        (c.groupName && c.groupName.toLowerCase().includes(q))
       );
     });
-  }, [contacts, forwardSearchQuery, user?._id]);
+  }, [contacts, followingUsers, forwardSearchQuery, user?._id]);
 
-  const filteredUsers = contacts.filter((u) =>
-    `${u.fullName || ""} ${u.username}`
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase())
-  );
+  const filteredUsers = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+
+    // When searching, include following users so user can find and message anyone they follow
+    const sourceList = q ? [...contacts, ...followingUsers] : contacts;
+
+    let list = sourceList;
+    if (chatFilter === "direct") {
+      list = list.filter((u) => !u.isGroup);
+    } else if (chatFilter === "groups") {
+      list = list.filter((u) => u.isGroup);
+    } else if (chatFilter === "unread") {
+      list = list.filter((u) => (u.unreadCount || 0) > 0);
+    }
+
+    if (!q) return list;
+    return list.filter((u) => {
+      const name = (u.groupName || u.fullName || "").toLowerCase();
+      const uname = (u.username || "").toLowerCase();
+      return name.includes(q) || uname.includes(q);
+    });
+  }, [contacts, followingUsers, chatFilter, searchQuery]);
 
   const getConversationForUser = (userId) =>
-    conversationRequest.conversations.find((c) => c.user?._id === userId);
+    conversationRequest.conversations.find(
+      (c) => (c.user?._id || c._id)?.toString() === userId?.toString()
+    );
+
+  const getLastMessageSnippet = (u) => {
+    if (!u.lastMessage) return null;
+    const msg = u.lastMessage;
+    if (msg.isDeletedForEveryone) return "Message was deleted";
+    let prefix = "";
+    if (u.isGroup && msg.senderId) {
+      const senderName = isSameUser(msg.senderId, user?._id)
+        ? "You"
+        : typeof msg.senderId === "object"
+        ? msg.senderId.fullName || msg.senderId.username
+        : "Member";
+      prefix = `${senderName}: `;
+    } else if (isSameUser(msg.senderId, user?._id)) {
+      prefix = "You: ";
+    }
+
+    if (msg.mediaType === "image") return `${prefix}📷 Photo`;
+    if (msg.mediaType === "video") return `${prefix}🎥 Video`;
+    if (msg.mediaType === "audio") return `${prefix}🎤 Voice note`;
+    return `${prefix}${msg.message || ""}`;
+  };
 
   return (
     <div className="nova-chat">
@@ -1148,73 +1412,177 @@ const ChatPage = () => {
           collapsed ? "is-collapsed" : ""
         }`}
       >
-        <button
-          type="button"
-          className="nova-chat__collapse"
-          onClick={() => setCollapsed((v) => !v)}
-          aria-label={collapsed ? "Expand contacts" : "Collapse contacts"}
-          title={collapsed ? "Expand" : "Collapse"}
-        >
-          {collapsed ? (
-            <ChevronRight className="size-4" strokeWidth={2.4} />
-          ) : (
-            <ChevronLeft className="size-4" strokeWidth={2.4} />
-          )}
-        </button>
+        {/* Collapsed top rail header */}
+        {collapsed ? (
+          <div className="flex flex-col items-center gap-3 py-3.5 border-b border-[var(--border)]/40 px-2">
+            <button
+              type="button"
+              onClick={() => {
+                expandIconRef.current?.startAnimation?.();
+                setCollapsed(false);
+              }}
+              className="shrink-0 size-9 aspect-square rounded-xl bg-[var(--surface-2)] hover:bg-[var(--primary)] text-[var(--foreground)] hover:text-white border border-[var(--border)] hover:border-[var(--primary)] transition-all flex items-center justify-center cursor-pointer shadow-xs active:scale-95 group"
+              aria-label="Expand sidebar"
+              title="Expand Sidebar"
+            >
+              <AnimatedIcon
+                ref={expandIconRef}
+                icon={PanelLeftOpenIcon}
+                size={20}
+                duration={1}
+              />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                railGroupIconRef.current?.startAnimation?.();
+                setCreateGroupOpen(true);
+              }}
+              className="shrink-0 size-9 aspect-square rounded-xl bg-[var(--primary)]/15 hover:bg-[var(--primary)] text-[var(--primary)] hover:text-white border border-[var(--primary)]/30 transition-all flex items-center justify-center cursor-pointer shadow-xs active:scale-95 group"
+              aria-label="Create New Group"
+              title="New Group"
+            >
+              <AnimatedIcon
+                ref={railGroupIconRef}
+                icon={UserGroupIcon}
+                size={18}
+                duration={1}
+              />
+            </button>
+          </div>
+        ) : (
+          /* Expanded header */
+          <div className="nova-chat__contacts-head">
+            <div className="nova-chat__contacts-title-row">
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/"
+                  className="md:hidden p-1.5 -ml-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)] active:scale-90 transition-all rounded-full flex items-center justify-center cursor-pointer"
+                  aria-label="Back to home feed"
+                  title="Back to home"
+                >
+                  <ChevronLeft className="size-5" strokeWidth={2.4} />
+                </Link>
+                <div className="flex items-center gap-2">
+                  <div className="size-7 rounded-lg bg-[var(--primary)]/15 flex items-center justify-center text-[var(--primary)] shadow-xs">
+                    <Sparkles className="size-4" strokeWidth={2.2} />
+                  </div>
+                  <h1 className="nova-chat__contacts-title">
+                    <span className="nova-chat__contacts-title-text">Messages</span>
+                  </h1>
+                </div>
+              </div>
 
-        <div className="nova-chat__contacts-head">
-          <div className="nova-chat__contacts-title-row">
-            <div className="flex items-center gap-1.5">
-              <Link
-                to="/"
-                className="md:hidden p-1.5 -ml-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)] active:scale-90 transition-all rounded-full flex items-center justify-center cursor-pointer"
-                aria-label="Back to home feed"
-                title="Back to home"
-              >
-                <ChevronLeft className="size-5" strokeWidth={2.4} />
-              </Link>
-              <h1 className="nova-chat__contacts-title">
-                <Sparkles className="size-4" strokeWidth={2.2} />
-                <span className="nova-chat__contacts-title-text">Messages</span>
-              </h1>
-            </div>
+              <div className="nova-chat__contacts-actions flex items-center gap-2">
+                {/* Online Pill (ONLY if othersOnlineCount > 0) */}
+                {othersOnlineCount > 0 && (
+                  <span className="nova-chat__online-pill" title={`${othersOnlineCount} user(s) online`}>
+                    <span className="nova-chat__online-dot" />
+                    <span>{othersOnlineCount}</span>
+                  </span>
+                )}
 
-            <div className="nova-chat__contacts-actions">
-              {othersOnlineCount > 0 ? (
-                <span className="nova-chat__online-pill">
-                  <span className="nova-chat__online-dot" />
-                  <span>{othersOnlineCount}</span>
-                </span>
-              ) : (
-                <span className="nova-chat__solo-pill">Solo</span>
-              )}
-
-              {selectedUser && (
+                {/* Create Group Button with theme styling */}
                 <button
                   type="button"
-                  onClick={closeContacts}
-                  className="nova-chat__contacts-close md:hidden"
-                  aria-label="Close contacts"
-                  title="Close"
+                  onClick={() => {
+                    newGroupIconRef.current?.startAnimation?.();
+                    setCreateGroupOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--primary)]/15 hover:bg-[var(--primary)] text-[var(--primary)] hover:text-white border border-[var(--primary)]/30 transition-all text-xs font-semibold cursor-pointer shadow-xs active:scale-95 group shrink-0"
+                  title="Create New Group"
+                  aria-label="Create New Group"
                 >
-                  <X className="size-4" strokeWidth={2.2} />
+                  <AnimatedIcon
+                    ref={newGroupIconRef}
+                    icon={UserGroupIcon}
+                    size={16}
+                    duration={1}
+                  />
+                  <span className="hidden sm:inline">New Group</span>
+                </button>
+
+                {/* Collapse button on desktop: perfect aspect-square, theme-aware */}
+                <button
+                  type="button"
+                  className="hidden md:inline-flex shrink-0 size-8 aspect-square rounded-xl bg-[var(--surface-2)] hover:bg-[var(--primary)]/15 text-[var(--muted-foreground)] hover:text-[var(--primary)] border border-[var(--border)] hover:border-[var(--primary)]/30 items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95 group"
+                  onClick={() => {
+                    collapseIconRef.current?.startAnimation?.();
+                    setCollapsed(true);
+                  }}
+                  aria-label="Collapse sidebar"
+                  title="Collapse Sidebar"
+                >
+                  <AnimatedIcon
+                    ref={collapseIconRef}
+                    icon={PanelRightOpenIcon}
+                    size={18}
+                    duration={1}
+                  />
+                </button>
+
+                {/* Mobile close contacts button */}
+                {selectedUser && (
+                  <button
+                    type="button"
+                    onClick={closeContacts}
+                    className="nova-chat__contacts-close md:hidden"
+                    aria-label="Close contacts"
+                    title="Close"
+                  >
+                    <X className="size-4" strokeWidth={2.2} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Modern Search Input */}
+            <div className="nova-chat__search focus-within:ring-2 focus-within:ring-[var(--primary)]/30">
+              <Search className="nova-chat__search-icon" strokeWidth={1.9} />
+              <input
+                type="text"
+                placeholder="Search chats or people…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="nova-chat__search-input"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="size-5 rounded-full hover:bg-white/10 text-white/50 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+                >
+                  <X className="size-3" />
                 </button>
               )}
             </div>
-          </div>
 
-          <div className="nova-chat__search">
-            <Search className="nova-chat__search-icon" strokeWidth={1.9} />
-            <input
-              type="text"
-              placeholder="Search people…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="nova-chat__search-input"
-            />
+            {/* Modern Filter Tabs: All / Direct / Groups / Unread */}
+            <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto no-scrollbar scrollbar-none py-0.5 select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              {[
+                { id: "all", label: "All" },
+                { id: "direct", label: "Direct" },
+                { id: "groups", label: "Groups" },
+                { id: "unread", label: "Unread" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setChatFilter(tab.id)}
+                  className={`px-3 py-1 rounded-full text-[11.5px] font-medium transition-all shrink-0 cursor-pointer ${
+                    chatFilter === tab.id
+                      ? "bg-[var(--primary)] text-white shadow-xs font-semibold"
+                      : "bg-[var(--surface-2)]/60 text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)]"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
+        {/* Contacts List */}
         <div className="nova-chat__contacts-list">
           {conversationRequest.loading &&
             suggestedUserRequest.loading &&
@@ -1242,74 +1610,182 @@ const ChatPage = () => {
                 <div className="nova-chat__empty-orb">
                   <Users className="size-4" strokeWidth={1.8} />
                 </div>
-                <p className="nova-chat__empty-title">No one matches</p>
-                <p className="nova-chat__empty-sub">Try a different search</p>
+                <p className="nova-chat__empty-title">
+                  {searchQuery ? "No matches found" : "No chats yet"}
+                </p>
+                <p className="nova-chat__empty-sub">
+                  {searchQuery ? "Try a different search" : "Select someone from your following or create a group"}
+                </p>
               </div>
             )}
 
-          {filteredUsers.map((u, idx) => {
-            const isOnline = onlineUsers.includes(u?._id);
-            const isSelected = selectedUser?._id === u._id;
-            const conversation = getConversationForUser(u._id);
-            const hasConversation = Boolean(conversation);
+          {/* Render in collapsed mode vs expanded mode */}
+          {collapsed ? (
+            filteredUsers.map((u) => {
+              const isOnline = !u.isGroup && onlineUsers.includes(u?._id);
+              const isSelected = selectedUser?._id === u._id;
+              const conversation = getConversationForUser(u._id);
+              const unreadCount = conversation?.unreadCount || u.unreadCount || 0;
 
-            return (
-              <button
-                key={u._id}
-                onClick={() => openConversation(u)}
-                className={`nova-chat__contact ${
-                  isSelected ? "is-selected" : ""
-                }`}
-                style={{ animationDelay: `${Math.min(idx * 25, 400)}ms` }}
-                title={getDisplayName(u)}
-              >
-                <span className="nova-chat__contact-avatar">
-                  <Avatar className="size-11">
-                    <AvatarImage src={u?.profilePicture} />
-                    <AvatarFallback>
-                      {getDisplayName(u, "U").charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  {isOnline && <span className="nova-chat__status-dot" />}
-                </span>
-
-                <span className="nova-chat__contact-meta">
-                  <span className="nova-chat__contact-name">
-                    {getDisplayName(u)}
-                  </span>
-                  <span
-                    className={`nova-chat__contact-sub ${
-                      isOnline ? "is-online" : ""
+              return (
+                <div
+                  key={u._id}
+                  className="relative flex items-center justify-center w-full py-1.5"
+                >
+                  <button
+                    type="button"
+                    onClick={() => openConversation(u)}
+                    className={`relative size-11 rounded-full transition-all cursor-pointer flex items-center justify-center active:scale-95 ${
+                      isSelected
+                        ? "ring-2 ring-[var(--primary)] ring-offset-2 ring-offset-[#0f172a] shadow-lg"
+                        : "hover:scale-105"
                     }`}
+                    title={u.isGroup ? u.groupName || u.fullName : getDisplayName(u)}
                   >
-                    {isOnline
-                      ? "Online"
-                      : (liveLastSeen[u?._id] || u?.lastSeen)
-                      ? formatLastSeen(liveLastSeen[u?._id] || u?.lastSeen)
-                      : hasConversation
-                      ? "Tap to chat"
-                      : "Suggested"}
-                  </span>
-                </span>
+                    <Avatar className="size-11">
+                      <AvatarImage src={u?.profilePicture} />
+                      <AvatarFallback className={u.isGroup ? "bg-[var(--primary)]/20 text-[var(--primary)] font-bold" : ""}>
+                        {u.isGroup ? (
+                          <Users className="size-5" />
+                        ) : (
+                          getDisplayName(u, "U").charAt(0).toUpperCase()
+                        )}
+                      </AvatarFallback>
+                    </Avatar>
+                    {isOnline && <span className="nova-chat__status-dot" />}
+                    {unreadCount > 0 && !isSelected && (
+                      <span className="absolute -top-1 -right-1 size-5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shadow-lg ring-2 ring-[var(--background)] animate-pulse">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              );
+            })
+          ) : (
+            filteredUsers.map((u, idx) => {
+              const isOnline = !u.isGroup && onlineUsers.includes(u?._id);
+              const isSelected = selectedUser?._id === u._id;
+              const conversation = getConversationForUser(u._id);
+              const unreadCount = conversation?.unreadCount || u.unreadCount || 0;
+              const snippet = getLastMessageSnippet(u);
+              const lastMsgTime = formatLastMessageTime(u.lastMessageAt || u.lastMessage?.createdAt);
+              const isFollowingUser = (user?.following || []).some(
+                (f) => (f?._id || f)?.toString() === u._id?.toString()
+              );
 
-                {conversation?.unreadCount > 0 && !isSelected && (
-                  <span className="nova-chat__unread">
-                    {conversation.unreadCount > 99
-                      ? "99+"
-                      : conversation.unreadCount}
-                  </span>
-                )}
-
-                {!conversation?.unreadCount &&
-                  !isSelected &&
-                  hasConversation && (
-                    <span className="nova-chat__contact-chevron" aria-hidden>
-                      ›
+              return (
+                <div
+                  key={u._id}
+                  className="relative group/item w-full"
+                >
+                  <button
+                    type="button"
+                    onClick={() => openConversation(u)}
+                    className={`nova-chat__contact ${
+                      isSelected ? "is-selected" : ""
+                    } pr-8`}
+                    style={{ animationDelay: `${Math.min(idx * 20, 350)}ms` }}
+                    title={u.isGroup ? u.groupName || u.fullName : getDisplayName(u)}
+                  >
+                    <span className="nova-chat__contact-avatar">
+                      <Avatar className="size-11">
+                        <AvatarImage src={u?.profilePicture} />
+                        <AvatarFallback className={u.isGroup ? "bg-[var(--primary)]/20 text-[var(--primary)] font-bold" : ""}>
+                          {u.isGroup ? (
+                            <Users className="size-5" />
+                          ) : (
+                            getDisplayName(u, "U").charAt(0).toUpperCase()
+                          )}
+                        </AvatarFallback>
+                      </Avatar>
+                      {isOnline && <span className="nova-chat__status-dot" />}
                     </span>
-                  )}
-              </button>
-            );
-          })}
+
+                    <span className="nova-chat__contact-meta">
+                      <span className="flex items-center justify-between gap-1 w-full">
+                        <span className="nova-chat__contact-name flex items-center gap-1.5 min-w-0">
+                          <span className="truncate font-semibold text-[13.5px]">
+                            {u.isGroup ? u.groupName || u.fullName : getDisplayName(u)}
+                          </span>
+                          {u.isGroup && (
+                            <span className="px-1.5 py-0.2 rounded-full text-[9px] font-semibold bg-[var(--primary)]/20 text-[var(--primary)] border border-[var(--primary)]/30 shrink-0">
+                              Group
+                            </span>
+                          )}
+                        </span>
+                        {lastMsgTime && (
+                          <span className="text-[10px] text-[var(--muted-foreground)] font-medium shrink-0 ml-1">
+                            {lastMsgTime}
+                          </span>
+                        )}
+                      </span>
+
+                      <span className="flex items-center justify-between gap-2 w-full mt-0.5">
+                        <span
+                          className={`nova-chat__contact-sub truncate text-[11.5px] ${
+                            unreadCount > 0
+                              ? "text-[var(--foreground)] font-semibold"
+                              : "text-[var(--muted-foreground)]"
+                          }`}
+                        >
+                          {snippet ||
+                            (u.isGroup
+                              ? `${u.participants?.length || 0} members`
+                              : isOnline
+                              ? "Online"
+                              : (liveLastSeen[u?._id] || u?.lastSeen)
+                              ? formatLastSeen(liveLastSeen[u?._id] || u?.lastSeen)
+                              : u.hasConversation
+                              ? "Tap to chat"
+                              : "Following")}
+                        </span>
+
+                        {unreadCount > 0 && !isSelected && (
+                          <span className="nova-chat__unread shrink-0">
+                            {unreadCount > 99 ? "99+" : unreadCount}
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                  </button>
+
+                  {/* 3-Dots Action Popover (Delete Chat / Leave Group) */}
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100 focus-within:opacity-100 transition-opacity z-10">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={(e) => e.stopPropagation()}
+                          className="size-7 rounded-full bg-[var(--surface-2)]/80 hover:bg-[var(--surface-3)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] flex items-center justify-center transition-colors cursor-pointer shadow-xs"
+                          title="Options"
+                        >
+                          <MoreVertical className="size-3.5" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent side="right" align="start" className="w-48 p-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-50">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteChatModal({
+                              open: true,
+                              contact: u,
+                              isFollowing: isFollowingUser,
+                            });
+                          }}
+                          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer text-left"
+                        >
+                          <Trash2 className="size-3.5 shrink-0" />
+                          <span>{u.isGroup ? "Leave Group" : "Delete Chat"}</span>
+                        </button>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </aside>
 
@@ -1412,46 +1888,85 @@ const ChatPage = () => {
                   <ChevronLeft className="size-5.5" strokeWidth={2.4} />
                 </button>
 
-                <ChatUserMenu user={selectedUser}>
-                  <span className="nova-chat__window-user">
+                {selectedUser?.isGroup ? (
+                  <button
+                    type="button"
+                    onClick={() => setGroupInfoOpen(true)}
+                    className="nova-chat__window-user text-left group hover:opacity-90 transition-opacity cursor-pointer"
+                  >
                     <span className="nova-chat__window-avatar">
-                      <Avatar className="size-10">
+                      <Avatar className="size-10 ring-1 ring-white/10">
                         <AvatarImage src={selectedUser?.profilePicture} />
-                        <AvatarFallback>
-                          {getDisplayName(selectedUser, "U")
-                            .charAt(0)
-                            .toUpperCase()}
+                        <AvatarFallback className="bg-[var(--primary)]/20 text-[var(--primary)] font-bold">
+                          <Users className="size-5" />
                         </AvatarFallback>
                       </Avatar>
-                      {onlineUsers.includes(selectedUser?._id) && (
-                        <span className="nova-chat__status-dot" />
-                      )}
                     </span>
                     <span className="nova-chat__window-meta">
-                      <span className="nova-chat__window-name">
-                        {getDisplayName(selectedUser)}
+                      <span className="nova-chat__window-name flex items-center gap-1.5">
+                        <span className="truncate">{selectedUser.groupName || selectedUser.fullName}</span>
+                        <span className="px-1.5 py-0.2 rounded-full text-[10px] font-semibold bg-[var(--primary)]/20 text-[var(--primary)] border border-[var(--primary)]/30">
+                          Group
+                        </span>
                       </span>
-                      <span
-                        className={`nova-chat__window-sub ${
-                          onlineUsers.includes(selectedUser?._id) ? "is-online" : ""
-                        }`}
-                      >
-                        {onlineUsers.includes(selectedUser?._id)
-                          ? "Online"
-                          : formatLastSeen(
-                              liveLastSeen[selectedUser?._id] ||
-                                selectedUser?.lastSeen ||
-                                conversationUsers.find(
-                                  (c) => c._id === selectedUser?._id
-                                )?.lastSeen
-                            )}
+                      <span className="nova-chat__window-sub text-white/50 text-[11px] group-hover:text-[var(--primary)] transition-colors">
+                        {selectedUser.participants?.length || 0} members • Tap for info
                       </span>
                     </span>
-                  </span>
-                </ChatUserMenu>
+                  </button>
+                ) : (
+                  <ChatUserMenu user={selectedUser}>
+                    <span className="nova-chat__window-user">
+                      <span className="nova-chat__window-avatar">
+                        <Avatar className="size-10">
+                          <AvatarImage src={selectedUser?.profilePicture} />
+                          <AvatarFallback>
+                            {getDisplayName(selectedUser, "U")
+                              .charAt(0)
+                              .toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        {onlineUsers.includes(selectedUser?._id) && (
+                          <span className="nova-chat__status-dot" />
+                        )}
+                      </span>
+                      <span className="nova-chat__window-meta">
+                        <span className="nova-chat__window-name">
+                          {getDisplayName(selectedUser)}
+                        </span>
+                        <span
+                          className={`nova-chat__window-sub ${
+                            onlineUsers.includes(selectedUser?._id) ? "is-online" : ""
+                          }`}
+                        >
+                          {onlineUsers.includes(selectedUser?._id)
+                            ? "Online"
+                            : formatLastSeen(
+                                liveLastSeen[selectedUser?._id] ||
+                                  selectedUser?.lastSeen ||
+                                  conversationUsers.find(
+                                    (c) => c._id === selectedUser?._id
+                                  )?.lastSeen
+                              )}
+                        </span>
+                      </span>
+                    </span>
+                  </ChatUserMenu>
+                )}
 
                 {/* Right Action Icons: Search & 3-Dots Settings */}
                 <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
+                  {selectedUser?.isGroup && (
+                    <button
+                      type="button"
+                      onClick={() => setGroupInfoOpen(true)}
+                      className="p-2 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                      title="Group Info"
+                      aria-label="Group Info"
+                    >
+                      <Info className="size-4" strokeWidth={2.2} />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
@@ -1800,14 +2315,39 @@ const ChatPage = () => {
                   )}
                 </button>
               </div>
+            ) : isMessageDisabled && selectedUser?.whoCanMessage === "no_one" ? (
+              <div className="flex items-center justify-center gap-2.5 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-200/90 text-xs sm:text-sm font-medium shadow-inner backdrop-blur-sm animate-in fade-in duration-200 text-center">
+                <Lock className="size-4 text-amber-400 shrink-0" />
+                <span>
+                  @{selectedUser.username || "This user"} has disabled direct messages. Chat history is read-only.
+                </span>
+              </div>
+            ) : isMessageDisabled && selectedUser?.whoCanMessage === "followers" ? (
+              <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-[var(--surface-2)] border border-[var(--border)] text-xs sm:text-sm shadow-inner backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="flex items-center gap-2.5 min-w-0 text-white/80">
+                  <Lock className="size-4 text-[var(--primary)] shrink-0" />
+                  <span className="truncate">
+                    Follow <span className="font-semibold text-white">@{selectedUser.username}</span> to reply to this conversation
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleFollowFromChat}
+                  disabled={isFollowingUser}
+                  className="shrink-0 px-3.5 py-1.5 rounded-xl font-semibold text-xs text-white bg-[var(--primary)] hover:opacity-90 active:scale-95 transition-all shadow-md shadow-[var(--primary)]/20 cursor-pointer disabled:opacity-50"
+                >
+                  {isFollowingUser ? "Following..." : "Follow"}
+                </button>
+              </div>
             ) : (
               <div className="nova-chat__composer-row">
                 {/* Media Attachment Button */}
                 <button
                   type="button"
+                  disabled={isMessageDisabled}
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer"
-                  title="Attach photo or video"
+                  className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={isMessageDisabled ? messageDisabledReason : "Attach photo or video"}
                   aria-label="Attach media"
                 >
                   <Paperclip className="size-4.5" strokeWidth={2.2} />
@@ -1823,15 +2363,22 @@ const ChatPage = () => {
                     spellCheck="true"
                     data-form-type="other"
                     value={textMessage}
+                    disabled={isMessageDisabled}
                     onChange={messageChangeHandler}
-                    placeholder="Write a message…"
+                    placeholder={isMessageDisabled ? messageDisabledReason : "Write a message…"}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
+                        if (isMessageDisabled) {
+                          toast.error(messageDisabledReason);
+                          return;
+                        }
                         sendMessageHandler(selectedUser?._id);
                       }
                     }}
-                    className="nova-chat__input"
+                    className={`nova-chat__input ${
+                      isMessageDisabled ? "opacity-60 cursor-not-allowed" : ""
+                    }`}
                   />
                 </div>
 
@@ -1839,9 +2386,9 @@ const ChatPage = () => {
                 {textMessage.trim() ? (
                   <button
                     onClick={() => sendMessageHandler(selectedUser?._id)}
-                    disabled={!textMessage.trim() || sending}
+                    disabled={!textMessage.trim() || sending || isMessageDisabled}
                     aria-label="Send message"
-                    className="nova-chat__send"
+                    className="nova-chat__send disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Send
                       className={`size-4 transition-transform duration-300 ${
@@ -1853,9 +2400,10 @@ const ChatPage = () => {
                 ) : (
                   <button
                     type="button"
+                    disabled={isMessageDisabled}
                     onClick={startRecording}
-                    className="nova-chat__send bg-white/10 hover:bg-[var(--primary)] text-white transition-all cursor-pointer"
-                    title="Record voice note"
+                    className="nova-chat__send bg-white/10 hover:bg-[var(--primary)] text-white transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    title={isMessageDisabled ? messageDisabledReason : "Record voice note"}
                     aria-label="Record voice note"
                   >
                     <Mic className="size-4" strokeWidth={2.2} />
@@ -1957,16 +2505,75 @@ const ChatPage = () => {
           )}
         </section>
       ) : (
-        <section className="nova-chat__empty-window">
-          <div className="nova-chat__empty-window-orb">
-            <MessageCircle className="size-6" strokeWidth={1.8} />
-            <span className="nova-chat__empty-window-glow" aria-hidden />
-          </div>
-          <h2 className="nova-chat__empty-window-title">Your messages</h2>
-          <p className="nova-chat__empty-window-sub">
-            Pick a conversation to start chatting. Fast, private, and alive.
+        <motion.section
+          initial={{ opacity: 0, scale: 0.96, y: 14 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          className="nova-chat__empty-window flex flex-col items-center justify-center p-8 text-center select-none"
+        >
+          <motion.div
+            className="relative mb-6"
+            animate={{ y: [0, -6, 0] }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+          >
+            {/* Glowing backdrop matching dynamic theme */}
+            <div className="absolute -inset-4 rounded-full bg-[var(--primary)]/20 blur-2xl pointer-events-none" />
+            <div className="relative size-20 rounded-3xl bg-gradient-to-tr from-[var(--primary)]/30 via-[var(--primary)]/10 to-pink-500/20 border border-white/10 flex items-center justify-center shadow-2xl backdrop-blur-xl ring-1 ring-white/15 group cursor-pointer">
+              <AnimatedIcon icon={MessageCircleIcon} size={36} className="text-[var(--primary)]" />
+            </div>
+            <motion.div
+              className="absolute -bottom-1 -right-1 size-8 rounded-2xl bg-[var(--surface-2)] border border-white/10 flex items-center justify-center shadow-md cursor-pointer group"
+              whileHover={{ scale: 1.15, rotate: 12 }}
+            >
+              <AnimatedIcon icon={SparklesIcon} size={16} className="text-amber-400" />
+            </motion.div>
+          </motion.div>
+
+          <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)] mb-2 font-[var(--font-display)]">
+            Nova Messenger
+          </h2>
+          <p className="max-w-md text-sm text-[var(--muted-foreground)] leading-relaxed mb-6">
+            Send and receive instant messages, share photos, and connect in real-time groups. Select a conversation to start chatting.
           </p>
-        </section>
+
+          <div className="flex flex-wrap items-center justify-center gap-2.5 max-w-md mb-8">
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 flex items-center gap-1.5 transition-colors cursor-pointer group"
+            >
+              <AnimatedIcon icon={UserGroupIcon} size={15} className="text-[var(--primary)]" />
+              <span>Real-time Group chats</span>
+            </motion.div>
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 flex items-center gap-1.5 transition-colors cursor-pointer group"
+            >
+              <AnimatedIcon icon={SparklesIcon} size={15} className="text-pink-400" />
+              <span>Media & Voice notes</span>
+            </motion.div>
+          </div>
+
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.96 }}
+            type="button"
+            onClick={() => {
+              welcomeGroupIconRef.current?.startAnimation?.();
+              setCreateGroupOpen(true);
+            }}
+            className="px-6 py-2.5 rounded-xl bg-[var(--primary)] hover:opacity-95 text-white text-xs font-semibold shadow-lg shadow-[var(--primary)]/25 transition-all flex items-center gap-2 cursor-pointer group"
+          >
+            <AnimatedIcon
+              ref={welcomeGroupIconRef}
+              icon={UserGroupIcon}
+              size={18}
+              duration={1}
+            />
+            <span>Create New Group</span>
+          </motion.button>
+        </motion.section>
       )}
 
       {/* ═══ Multi-Delete Messages Dialog ═══ */}
@@ -2351,6 +2958,106 @@ const ChatPage = () => {
                 <span>Send</span>
               </button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Create Group Modal ═══ */}
+      <CreateGroupModal
+        open={createGroupOpen}
+        onOpenChange={setCreateGroupOpen}
+        contacts={contacts}
+        onGroupCreated={(group) => {
+          conversationRequest.retry();
+          if (group?.user || group?._id) {
+            dispatch(setSelectedUser(group.user || group));
+          }
+        }}
+      />
+
+      {/* ═══ Group Info Drawer ═══ */}
+      {selectedUser?.isGroup && (
+        <GroupInfoDrawer
+          open={groupInfoOpen}
+          onOpenChange={setGroupInfoOpen}
+          group={selectedUser}
+          currentUser={user}
+          allContacts={contacts}
+          onGroupUpdated={(updatedGroup) => {
+            conversationRequest.retry();
+            if (updatedGroup) {
+              dispatch(setSelectedUser(updatedGroup.user || updatedGroup));
+            }
+          }}
+          onLeaveGroup={() => {
+            conversationRequest.retry();
+            dispatch(setSelectedUser(null));
+          }}
+        />
+      )}
+
+      {/* ═══ Delete Chat Confirmation Modal ═══ */}
+      <Dialog
+        open={deleteChatModal.open}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setDeleteChatModal({ open: false, contact: null, isFollowing: false });
+        }}
+      >
+        <DialogContent className="max-w-sm bg-[var(--surface)] border-[var(--border)] text-[var(--foreground)] p-5 rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-[var(--foreground)] flex items-center gap-2">
+              <Trash2 className="size-4 text-rose-400" />
+              <span>
+                {deleteChatModal.contact?.isGroup
+                  ? "Leave Group?"
+                  : "Delete Chat?"}
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="py-2 text-xs text-[var(--muted-foreground)] leading-relaxed">
+            {deleteChatModal.contact?.isGroup ? (
+              <p>
+                Are you sure you want to leave{" "}
+                <strong className="text-[var(--foreground)]">{deleteChatModal.contact?.groupName}</strong>?
+                You will no longer receive messages from this group.
+              </p>
+            ) : (
+              <p>
+                Do you want to delete this chat with{" "}
+                <strong className="text-[var(--foreground)]">@{deleteChatModal.contact?.username || deleteChatModal.contact?.fullName}</strong>?
+                <br />
+                <span className="block mt-2 text-[11px] text-[var(--muted-foreground)]/80">
+                  This will remove the chat from your list and delete message history for you. The other person will keep their copy. If either of you sends a message in the future, it will start fresh for you.
+                </span>
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--border)]/60">
+            <button
+              type="button"
+              disabled={deletingChat}
+              onClick={() => setDeleteChatModal({ open: false, contact: null, isFollowing: false })}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={deletingChat}
+              onClick={handleDeleteChatConfirm}
+              className="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white transition-all shadow-md shadow-rose-600/20 active:scale-95 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+            >
+              {deletingChat ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
+              <span>
+                {deleteChatModal.contact?.isGroup ? "Leave Group" : "Delete Chat"}
+              </span>
+            </button>
           </div>
         </DialogContent>
       </Dialog>

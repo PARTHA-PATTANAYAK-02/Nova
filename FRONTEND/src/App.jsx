@@ -5,7 +5,8 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { io } from "socket.io-client";
 import { useDispatch, useSelector } from "react-redux";
 import { setSocketConnected, setSocketInstance } from "./redux/socketSlice";
-import { setAuthUser, updateUserLastSeen } from "./redux/authSlice";
+import { setAuthUser, setSelectedUser, updateUserLastSeen } from "./redux/authSlice";
+import { toast } from "sonner";
 import { appendMessage, setOnlineUsers, deleteMessageForEveryone, deleteMessageForMe, clearAllMessages } from "./redux/chatSlice";
 import {
   removeNotification,
@@ -372,33 +373,40 @@ function App() {
         }
       });
 
-      socketio.on("newMessage", (message) => {
+      socketio.on("newMessage", (payload) => {
+        const message = payload?.newMessage || payload;
+        const convId = (payload?.conversationId || message?.conversationId)?.toString();
         const activeUserId = selectedUserRef.current?._id;
+        const activeId = activeUserId?.toString();
+        const sId = (typeof message?.senderId === "object" ? message?.senderId?._id : message?.senderId)?.toString();
+        const rId = (typeof message?.receiverId === "object" ? message?.receiverId?._id : message?.receiverId)?.toString();
+        const myId = user?._id?.toString();
+
         const belongsToActiveChat =
-          activeUserId &&
-          (message.senderId === activeUserId || message.receiverId === activeUserId);
+          Boolean(activeId) &&
+          (sId === activeId || rId === activeId || (Boolean(convId) && convId === activeId));
 
         if (belongsToActiveChat) {
           dispatch(appendMessage(message));
           if (
-            message.senderId === activeUserId &&
-            window.location.pathname === "/chat"
+            window.location.pathname === "/chat" &&
+            sId !== myId
           ) {
             axios
               .patch(
-                apiUrl(`/api/v1/message/read/${activeUserId}`),
+                apiUrl(`/api/v1/message/read/${activeId}`),
                 {},
                 { withCredentials: true },
               )
               .catch(() => {});
           }
         }
-        if (message.senderId !== user?._id) {
+        if (sId !== myId) {
           const isAllMessagesMuted = localStorage.getItem("nova_notif_messages") === "false";
           let isChatMuted = false;
           try {
             const list = JSON.parse(localStorage.getItem("nova_muted_chats") || "[]");
-            isChatMuted = list.includes(message.senderId);
+            isChatMuted = (sId && list.includes(sId)) || (convId && list.includes(convId));
           } catch {
             // Ignore parse errors from localStorage
           }
@@ -507,6 +515,25 @@ function App() {
 
       socketio.on("accountDeleted", ({ postIds = [] } = {}) => {
         postIds.forEach((postId) => dispatch(removePost(postId)));
+      });
+
+      socketio.on("userPrivacyChanged", ({ userId, whoCanMessage }) => {
+        if (selectedUserRef.current?._id?.toString() === userId?.toString()) {
+          dispatch(
+            setSelectedUser({
+              ...selectedUserRef.current,
+              whoCanMessage,
+            })
+          );
+          if (whoCanMessage === "no_one") {
+            toast.info(`@${selectedUserRef.current.username || "This user"} disabled direct messages.`);
+          } else {
+            toast.info(`@${selectedUserRef.current.username || "This user"} updated their message permissions.`);
+          }
+        }
+        if (user?._id?.toString() === userId?.toString()) {
+          dispatch(setAuthUser({ ...user, whoCanMessage }));
+        }
       });
 
       return () => {

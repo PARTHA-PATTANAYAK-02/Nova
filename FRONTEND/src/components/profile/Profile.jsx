@@ -450,6 +450,13 @@ const Profile = () => {
 
   const openChat = () => {
     if (!userProfile?._id) return;
+
+    if (userProfile.whoCanMessage === "no_one") {
+      toast.info("This user has disabled direct messages. Opening conversation in read-only mode.");
+    } else if (userProfile.whoCanMessage === "followers" && !isFollowing) {
+      toast.info(`Follow @${userProfile.username || "this user"} to reply to this conversation.`);
+    }
+
     navigate("/chat", { state: { user: userProfile } });
   };
 
