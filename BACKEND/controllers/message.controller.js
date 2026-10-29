@@ -96,15 +96,16 @@ export const sendMessage = async (req, res) => {
 
       let replyTo;
       if (replyToId && mongoose.isValidObjectId(replyToId)) {
-        const repliedMessage = await Message.findOne({
-          _id: replyToId,
-          _id: { $in: groupConversation.messages },
-        }).select("senderId message");
+        const repliedMessage = await Message.findById(replyToId)
+          .populate("senderId", "username fullName profilePicture")
+          .select("senderId message mediaType mediaUrl");
         if (repliedMessage) {
           replyTo = {
             messageId: repliedMessage._id,
             senderId: repliedMessage.senderId,
             message: repliedMessage.message,
+            mediaType: repliedMessage.mediaType,
+            mediaUrl: repliedMessage.mediaUrl,
           };
         }
       }
@@ -393,6 +394,7 @@ export const getMessage = async (req, res) => {
     // Fetch latest messages matching criteria
     const rawMessages = await Message.find(query)
       .populate("senderId", "username fullName profilePicture")
+      .populate("reactions.userId", "username fullName profilePicture")
       .sort({ createdAt: -1 })
       .limit(limit + 1);
 
@@ -625,7 +627,8 @@ export const markMessagesAsRead = async (req, res) => {
 
 export const reactToMessage = async (req, res) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.id) || !mongoose.isValidObjectId(req.params.userId)) {
+    const { id: messageId } = req.params;
+    if (!mongoose.isValidObjectId(messageId)) {
       return res.status(400).json({ success: false, message: "Invalid message" });
     }
     const { emoji } = req.body;
@@ -633,15 +636,30 @@ export const reactToMessage = async (req, res) => {
       return res.status(400).json({ success: false, message: "Unsupported message reaction" });
     }
 
-    const message = await Message.findOne({
-      _id: req.params.id,
-      $or: [
-        { senderId: req.id, receiverId: req.params.userId },
-        { senderId: req.params.userId, receiverId: req.id },
-      ],
-    });
+    const message = await Message.findById(messageId);
     if (!message) {
       return res.status(404).json({ success: false, message: "Message not found" });
+    }
+
+    // Verify participant / authorization
+    let conversation = null;
+    if (message.conversationId) {
+      conversation = await Conversation.findOne({
+        _id: message.conversationId,
+        participants: req.id,
+      });
+    } else {
+      conversation = await Conversation.findOne({
+        messages: message._id,
+        participants: req.id,
+      });
+    }
+
+    const isSender = message.senderId?.toString() === req.id.toString();
+    const isReceiver = message.receiverId && message.receiverId.toString() === req.id.toString();
+
+    if (!conversation && !isSender && !isReceiver) {
+      return res.status(403).json({ success: false, message: "Unauthorized to react to this message" });
     }
 
     const existing = message.reactions.find(
@@ -652,20 +670,33 @@ export const reactToMessage = async (req, res) => {
       message.reactions.push({ userId: req.id, emoji });
     }
     await message.save();
+    await message.populate("reactions.userId", "username fullName profilePicture");
+
+    const actorUser = await User.findById(req.id).select("username fullName profilePicture");
 
     const update = {
       messageId: message._id,
+      conversationId: conversation?._id || message.conversationId,
       actorId: req.id.toString(),
-      senderId: message.senderId.toString(),
-      receiverId: message.receiverId.toString(),
+      actorName: actorUser?.fullName || actorUser?.username || "Someone",
+      actor: actorUser,
+      senderId: message.senderId?.toString(),
+      receiverId: message.receiverId?.toString(),
       emoji: emoji && existing?.emoji !== emoji ? emoji : null,
       reactions: message.reactions.map((reaction) => ({
         userId: reaction.userId,
         emoji: reaction.emoji,
       })),
     };
-    emitToUser(message.senderId, "messageReactionUpdated", update);
-    emitToUser(message.receiverId, "messageReactionUpdated", update);
+
+    if (conversation && conversation.participants) {
+      emitToConversation(conversation.participants, "messageReactionUpdated", update);
+    } else {
+      emitToUser(message.senderId, "messageReactionUpdated", update);
+      if (message.receiverId) {
+        emitToUser(message.receiverId, "messageReactionUpdated", update);
+      }
+    }
 
     return res.status(200).json({
       success: true,
@@ -696,15 +727,30 @@ export const deleteMessage = async (req, res) => {
       return res.status(404).json({ success: false, message: "Message not found" });
     }
 
-    const isSender = message.senderId.toString() === userId.toString();
-    const isReceiver = message.receiverId.toString() === userId.toString();
+    let conversation = null;
+    if (message.conversationId) {
+      conversation = await Conversation.findOne({
+        _id: message.conversationId,
+        participants: userId,
+      });
+    } else {
+      conversation = await Conversation.findOne({
+        messages: message._id,
+        participants: userId,
+      });
+    }
 
-    if (!isSender && !isReceiver) {
+    const isSender = message.senderId?.toString() === userId.toString();
+    const isReceiver = message.receiverId && message.receiverId.toString() === userId.toString();
+    const isGroupAdmin = conversation?.admins?.some((adm) => adm.toString() === userId.toString()) ||
+                         conversation?.creator?.toString() === userId.toString();
+
+    if (!isSender && !isReceiver && !conversation) {
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
 
     if (deleteType === "everyone") {
-      if (!isSender) {
+      if (!isSender && !isGroupAdmin) {
         return res.status(403).json({
           success: false,
           message: "You can only delete your own messages for everyone",
@@ -720,25 +766,34 @@ export const deleteMessage = async (req, res) => {
       message.deletedAt = new Date();
       await message.save();
 
-      emitToUser(message.senderId, "messageDeletedForEveryone", {
+      const deletePayload = {
         messageId: message._id,
+        conversationId: conversation?._id || message.conversationId,
         deletedAt: message.deletedAt,
-      });
-      emitToUser(message.receiverId, "messageDeletedForEveryone", {
-        messageId: message._id,
-        deletedAt: message.deletedAt,
-      });
+      };
 
-      const conv = await Conversation.findOne({ messages: message._id });
+      if (conversation && conversation.participants) {
+        emitToConversation(conversation.participants, "messageDeletedForEveryone", deletePayload);
+      } else {
+        emitToUser(message.senderId, "messageDeletedForEveryone", deletePayload);
+        if (message.receiverId) {
+          emitToUser(message.receiverId, "messageDeletedForEveryone", deletePayload);
+        }
+      }
+
+      const conv = conversation || (await Conversation.findOne({ messages: message._id }));
       if (conv && conv.lastMessage?.toString() === message._id.toString()) {
-        emitToUser(message.senderId, "conversationUpdated", {
+        const updatePayload = {
           conversationId: conv._id,
           lastMessage: message,
-        });
-        emitToUser(message.receiverId, "conversationUpdated", {
-          conversationId: conv._id,
-          lastMessage: message,
-        });
+          isGroup: conv.isGroup,
+        };
+        if (conv.isGroup && conv.participants) {
+          emitToConversation(conv.participants, "conversationUpdated", updatePayload);
+        } else {
+          emitToUser(message.senderId, "conversationUpdated", updatePayload);
+          if (message.receiverId) emitToUser(message.receiverId, "conversationUpdated", updatePayload);
+        }
       }
 
       return res.status(200).json({
@@ -756,6 +811,7 @@ export const deleteMessage = async (req, res) => {
 
       emitToUser(userId, "messageDeletedForMe", {
         messageId: message._id,
+        conversationId: conversation?._id || message.conversationId,
       });
 
       return res.status(200).json({
@@ -816,11 +872,27 @@ export const deleteMultipleMessages = async (req, res) => {
 
     const processedIds = [];
     for (const message of messages) {
-      const isSender = message.senderId.toString() === userId.toString();
-      const isReceiver = message.receiverId.toString() === userId.toString();
-      if (!isSender && !isReceiver) continue;
+      let conversation = null;
+      if (message.conversationId) {
+        conversation = await Conversation.findOne({
+          _id: message.conversationId,
+          participants: userId,
+        });
+      } else {
+        conversation = await Conversation.findOne({
+          messages: message._id,
+          participants: userId,
+        });
+      }
 
-      if (deleteType === "everyone" && isSender) {
+      const isSender = message.senderId?.toString() === userId.toString();
+      const isReceiver = message.receiverId && message.receiverId.toString() === userId.toString();
+      const isGroupAdmin = conversation?.admins?.some((adm) => adm.toString() === userId.toString()) ||
+                           conversation?.creator?.toString() === userId.toString();
+
+      if (!isSender && !isReceiver && !conversation) continue;
+
+      if (deleteType === "everyone" && (isSender || isGroupAdmin)) {
         message.isDeletedForEveryone = true;
         message.message = "This message was deleted";
         message.mediaUrl = "";
@@ -830,14 +902,20 @@ export const deleteMultipleMessages = async (req, res) => {
         message.deletedAt = new Date();
         await message.save();
 
-        emitToUser(message.senderId, "messageDeletedForEveryone", {
+        const deletePayload = {
           messageId: message._id,
+          conversationId: conversation?._id || message.conversationId,
           deletedAt: message.deletedAt,
-        });
-        emitToUser(message.receiverId, "messageDeletedForEveryone", {
-          messageId: message._id,
-          deletedAt: message.deletedAt,
-        });
+        };
+
+        if (conversation && conversation.participants) {
+          emitToConversation(conversation.participants, "messageDeletedForEveryone", deletePayload);
+        } else {
+          emitToUser(message.senderId, "messageDeletedForEveryone", deletePayload);
+          if (message.receiverId) {
+            emitToUser(message.receiverId, "messageDeletedForEveryone", deletePayload);
+          }
+        }
         processedIds.push(message._id);
       } else {
         // Delete for me
@@ -847,6 +925,7 @@ export const deleteMultipleMessages = async (req, res) => {
         }
         emitToUser(userId, "messageDeletedForMe", {
           messageId: message._id,
+          conversationId: conversation?._id || message.conversationId,
         });
         processedIds.push(message._id);
       }
@@ -951,9 +1030,20 @@ export const togglePinMessage = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid IDs" });
     }
 
-    const conversation = await Conversation.findOne({
-      participants: { $all: [currentUserId, otherUserId] },
+    // Try finding by direct conversation ID (Group or direct)
+    let conversation = await Conversation.findOne({
+      _id: otherUserId,
+      participants: currentUserId,
     });
+
+    if (!conversation) {
+      // Fallback for 1-on-1 where otherUserId is the recipient's user ID
+      conversation = await Conversation.findOne({
+        isGroup: false,
+        participants: { $all: [currentUserId, otherUserId] },
+      });
+    }
+
     if (!conversation) {
       return res.status(404).json({ success: false, message: "Conversation not found" });
     }
@@ -969,14 +1059,24 @@ export const togglePinMessage = async (req, res) => {
       populatedPinned = await Message.findById(newPinnedId);
     }
 
-    emitToUser(currentUserId, "conversationPinnedUpdated", {
-      otherUserId,
-      pinnedMessage: populatedPinned,
-    });
-    emitToUser(otherUserId, "conversationPinnedUpdated", {
-      otherUserId: currentUserId,
-      pinnedMessage: populatedPinned,
-    });
+    if (conversation.isGroup && conversation.participants) {
+      emitToConversation(conversation.participants, "conversationPinnedUpdated", {
+        conversationId: conversation._id,
+        otherUserId: conversation._id,
+        pinnedMessage: populatedPinned,
+      });
+    } else {
+      emitToUser(currentUserId, "conversationPinnedUpdated", {
+        conversationId: conversation._id,
+        otherUserId,
+        pinnedMessage: populatedPinned,
+      });
+      emitToUser(otherUserId, "conversationPinnedUpdated", {
+        conversationId: conversation._id,
+        otherUserId: currentUserId,
+        pinnedMessage: populatedPinned,
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -1011,15 +1111,53 @@ export const forwardMessages = async (req, res) => {
 
     const results = [];
 
-    for (const targetUserId of targetUserIds) {
-      if (!mongoose.isValidObjectId(targetUserId)) continue;
+    for (const targetId of targetUserIds) {
+      if (!mongoose.isValidObjectId(targetId)) continue;
 
+      // Check if target is a group conversation
+      const groupConv = await Conversation.findOne({
+        _id: targetId,
+        isGroup: true,
+        participants: currentUserId,
+      });
+
+      if (groupConv) {
+        for (const src of sourceMessages) {
+          const newMsg = await Message.create({
+            conversationId: groupConv._id,
+            senderId: currentUserId,
+            message: src.message || "",
+            mediaType: src.mediaType || "text",
+            mediaUrl: src.mediaUrl || "",
+            audioDuration: src.audioDuration || 0,
+            isForwarded: true,
+            status: "delivered",
+          });
+
+          groupConv.messages.push(newMsg._id);
+          groupConv.lastMessage = newMsg._id;
+          groupConv.lastMessageAt = new Date();
+          await newMsg.populate("senderId", "username fullName profilePicture");
+
+          emitToConversation(groupConv.participants, "newMessage", {
+            newMessage: newMsg,
+            conversationId: groupConv._id,
+            isGroup: true,
+          });
+          results.push(newMsg);
+        }
+        await groupConv.save();
+        continue;
+      }
+
+      // 1-on-1 conversation
       let conversation = await Conversation.findOne({
-        participants: { $all: [currentUserId, targetUserId] },
+        isGroup: false,
+        participants: { $all: [currentUserId, targetId] },
       });
       if (!conversation) {
         conversation = await Conversation.create({
-          participants: [currentUserId, targetUserId],
+          participants: [currentUserId, targetId],
           messages: [],
         });
       }
@@ -1027,7 +1165,7 @@ export const forwardMessages = async (req, res) => {
       for (const src of sourceMessages) {
         const newMsg = await Message.create({
           senderId: currentUserId,
-          receiverId: targetUserId,
+          receiverId: targetId,
           message: src.message || "",
           mediaType: src.mediaType || "text",
           mediaUrl: src.mediaUrl || "",
@@ -1040,7 +1178,7 @@ export const forwardMessages = async (req, res) => {
         conversation.lastMessage = newMsg._id;
         conversation.lastMessageAt = new Date();
 
-        emitToUser(targetUserId, "newMessage", newMsg);
+        emitToUser(targetId, "newMessage", newMsg);
         emitToUser(currentUserId, "newMessage", newMsg);
         results.push(newMsg);
       }
@@ -1069,10 +1207,20 @@ export const getStarredMessages = async (req, res) => {
     };
 
     if (otherUserId && mongoose.isValidObjectId(otherUserId)) {
-      query.$or = [
-        { senderId: currentUserId, receiverId: otherUserId },
-        { senderId: otherUserId, receiverId: currentUserId },
-      ];
+      const groupConv = await Conversation.findOne({
+        _id: otherUserId,
+        isGroup: true,
+        participants: currentUserId,
+      });
+
+      if (groupConv) {
+        query.conversationId = groupConv._id;
+      } else {
+        query.$or = [
+          { senderId: currentUserId, receiverId: otherUserId },
+          { senderId: otherUserId, receiverId: currentUserId },
+        ];
+      }
     }
 
     const messages = await Message.find(query).sort({ createdAt: -1 });

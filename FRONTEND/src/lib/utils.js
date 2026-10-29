@@ -25,8 +25,41 @@ export const getErrorMessage = (error, fallback = "Something went wrong") => {
   return error?.response?.data?.message || error?.message || fallback;
 };
 
-export const getDisplayName = (person, fallback = "Nova user") =>
-  person?.fullName?.trim() || fallback;
+export const getDisplayName = (person, fallback = "User") => {
+  const name = person?.fullName?.trim();
+  if (name) return name;
+  const username = person?.username?.trim();
+  if (username) return username;
+  return fallback;
+};
+
+export const getFirstName = (person, fallback = "User") => {
+  const name = getDisplayName(person, fallback);
+  return name.split(" ")[0] || name;
+};
+
+export const formatTypingIndicator = (typingUsers = [], currentUserId = null) => {
+  const others = (typingUsers || []).filter(
+    (u) => (u?.userId || u?._id)?.toString() !== currentUserId?.toString()
+  );
+  if (!others.length) return "";
+
+  const names = others.map((u) => {
+    const raw = u.fullName?.trim() || u.username?.trim() || "Someone";
+    return raw.split(" ")[0] || raw;
+  });
+
+  if (names.length === 1) {
+    return `${names[0]} is typing…`;
+  }
+  if (names.length === 2) {
+    return `${names[0]} and ${names[1]} are typing…`;
+  }
+  if (names.length === 3) {
+    return `${names[0]}, ${names[1]} and ${names[2]} are typing…`;
+  }
+  return `${names[0]}, ${names[1]} and ${names.length - 2} others are typing…`;
+};
 
 export const formatLastSeen = (lastSeen) => {
   if (!lastSeen) return "Offline";

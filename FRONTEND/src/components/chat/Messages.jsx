@@ -376,10 +376,15 @@ const renderHighlightedText = (text, query) => {
 };
 
 /* ═══ Receiver popup — top of chat ═══ */
-const ReactionPopup = ({ emoji, name }) => {
+const ReactionPopup = ({ emoji, name, onClose }) => {
   const particles = Array.from({ length: 12 });
   return (
-    <div role="status" className="nova-reaction-popup animate-reaction-popup-in">
+    <div
+      role="status"
+      onClick={onClose}
+      className="nova-reaction-popup animate-reaction-popup-in cursor-pointer select-none"
+      title="Tap to dismiss"
+    >
       <div className="nova-reaction-popup__inner">
         <span className="nova-reaction-popup__rings">
           <span className="nova-reaction-popup__ring" />
@@ -410,8 +415,165 @@ const ReactionPopup = ({ emoji, name }) => {
           })}
         </span>
         <span className="nova-reaction-popup__text">{name} reacted</span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose?.();
+          }}
+          className="ml-1 p-0.5 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+          aria-label="Dismiss notification"
+        >
+          <X className="size-3.5" />
+        </button>
       </div>
     </div>
+  );
+};
+
+/* ═══ Ultra-Clean WhatsApp-Style Reaction Details Modal ═══ */
+const ReactionDetailsModal = ({
+  isOpen,
+  onClose,
+  message,
+  initialEmoji = "ALL",
+  currentUser,
+  selectedUser,
+  onToggleReaction,
+}) => {
+  const [selectedTab, setSelectedTab] = useState(initialEmoji || "ALL");
+
+  useEffect(() => {
+    setSelectedTab(initialEmoji || "ALL");
+  }, [initialEmoji, isOpen]);
+
+  if (!isOpen || !message) return null;
+
+  const reactions = message.reactions || [];
+  if (reactions.length === 0) return null;
+
+  // Group by emoji
+  const emojiCounts = reactions.reduce((acc, r) => {
+    acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+    return acc;
+  }, {});
+
+  const tabs = [
+    { key: "ALL", label: `All ${reactions.length}`, emoji: null },
+    ...Object.entries(emojiCounts).map(([emoji, count]) => ({
+      key: emoji,
+      label: count,
+      emoji,
+    })),
+  ];
+
+  const displayedReactions =
+    selectedTab === "ALL"
+      ? reactions
+      : reactions.filter((r) => r.emoji === selectedTab);
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9995] flex items-end sm:items-center justify-center p-0 sm:p-4 select-none">
+      <div
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity cursor-pointer"
+        onClick={onClose}
+      />
+      <div className="relative w-full sm:max-w-md bg-[#0d0e17] border border-white/15 rounded-t-3xl sm:rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.95)] z-10 overflow-hidden flex flex-col max-h-[80vh] sm:max-h-[520px] animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b border-white/10">
+          <h3 className="text-sm font-semibold text-white/90">Reactions</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="size-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        {/* Tab Pills */}
+        <div className="flex items-center gap-1.5 px-4 py-2.5 overflow-x-auto no-scrollbar border-b border-white/10 bg-white/[0.02]">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setSelectedTab(tab.key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all shrink-0 cursor-pointer ${
+                selectedTab === tab.key
+                  ? "bg-[var(--primary)] text-white shadow-md shadow-[var(--primary)]/30 font-semibold"
+                  : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              {tab.emoji && <span className="text-sm">{tab.emoji}</span>}
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Reactions List */}
+        <div className="flex-1 overflow-y-auto px-3 py-2 divide-y divide-white/[0.06]">
+          {displayedReactions.map((r, idx) => {
+            const uid = (r.userId?._id || r.userId)?.toString();
+            const isMe = isSameUser(uid, currentUser?._id);
+            let member = typeof r.userId === "object" ? r.userId : null;
+            if (!member && selectedUser?.participants) {
+              member = selectedUser.participants.find(
+                (p) => (p?._id || p)?.toString() === uid
+              );
+            }
+            const name = isMe ? "You" : getDisplayName(member, "Member");
+            const username = member?.username ? `@${member.username}` : "";
+            const avatar = member?.profilePicture;
+
+            return (
+              <div
+                key={idx}
+                className="flex items-center justify-between py-2.5 px-2 hover:bg-white/[0.04] rounded-xl transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="size-9 rounded-full overflow-hidden bg-white/10 ring-1 ring-white/15 shrink-0 flex items-center justify-center text-xs font-bold text-white">
+                    {avatar ? (
+                      <img
+                        src={avatar}
+                        alt={name}
+                        className="size-full object-cover"
+                      />
+                    ) : (
+                      <span>{name.charAt(0).toUpperCase()}</span>
+                    )}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs sm:text-sm font-semibold text-white/90 truncate">
+                      {name}
+                    </span>
+                    {isMe ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onToggleReaction?.(r.emoji);
+                          onClose();
+                        }}
+                        className="text-[11px] text-[var(--primary)] hover:underline text-left cursor-pointer"
+                      >
+                        Tap to remove reaction
+                      </button>
+                    ) : (
+                      username && (
+                        <span className="text-[11px] text-white/45 truncate">
+                          {username}
+                        </span>
+                      )
+                    )}
+                  </div>
+                </div>
+                <span className="text-xl shrink-0 ml-3">{r.emoji}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 };
 
@@ -429,6 +591,7 @@ const WhatsAppMessagePopover = ({
   onDelete,
   onViewMedia,
   onToggleSelect,
+  onOpenPicker,
   onClose,
 }) => {
   const isMine = isSameUser(message?.senderId, currentUser?._id);
@@ -443,20 +606,55 @@ const WhatsAppMessagePopover = ({
 
   const popoverRef = useRef(null);
 
-  // Initial coordinates calculated synchronously so it NEVER appears at top-left (0,0)
-  const [coords, setCoords] = useState(() => {
-    if (!anchorEl) return { top: 100, left: 100, ready: false };
+  // Synchronous accurate initial placement — avoids any layout jumps or dropping from top to bottom
+  const [pos, setPos] = useState(() => {
+    if (!anchorEl || typeof window === "undefined") {
+      return {
+        top: 120,
+        right: isMine ? 16 : undefined,
+        left: isMine ? undefined : 16,
+        placeAbove: false,
+        ready: false,
+      };
+    }
     const a = anchorEl.getBoundingClientRect();
-    const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
-    const margin = isMobile ? 10 : 16;
-    const isOwner = isSameUser(message?.senderId, currentUser?._id);
-    const placeAbove = a.top > 160;
-    const top = placeAbove
-      ? Math.max(margin, a.top - 130)
-      : Math.min(window.innerHeight - 180, a.bottom + 6);
-    let left = isOwner ? a.right - 210 : a.left;
-    left = Math.max(margin, Math.min(left, window.innerWidth - 220));
-    return { top, left, ready: true };
+    const screenW = window.innerWidth;
+    const screenH = window.innerHeight;
+    const isMobile = screenW < 640;
+    const margin = isMobile ? 12 : 20;
+    const estimatedHeight = 280;
+    const estimatedWidth = isMobile ? 260 : 280;
+
+    const spaceAbove = a.top - margin;
+    const spaceBelow = screenH - a.bottom - margin;
+
+    // Flip above if space below is too small, or if in lower half and fits above
+    const placeAbove =
+      spaceBelow < estimatedHeight + 8
+        ? true
+        : spaceAbove >= estimatedHeight + 8
+        ? a.top > screenH / 2
+        : spaceAbove > spaceBelow;
+
+    let top = placeAbove
+      ? a.top - estimatedHeight - 8
+      : a.bottom + 8;
+
+    top = Math.max(margin, Math.min(screenH - estimatedHeight - margin, top));
+
+    let right = undefined;
+    let left = undefined;
+
+    if (isMine) {
+      const distFromRight = screenW - a.right;
+      const maxRight = Math.max(margin, screenW - estimatedWidth - margin);
+      right = Math.max(margin, Math.min(maxRight, distFromRight));
+    } else {
+      const maxLeft = Math.max(margin, screenW - estimatedWidth - margin);
+      left = Math.max(margin, Math.min(maxLeft, a.left));
+    }
+
+    return { top, right, left, placeAbove, ready: true };
   });
 
   const POPULAR_EMOJIS = ["❤️", "👍", "😂", "🔥", "😮", "😢", "🙏"];
@@ -471,25 +669,46 @@ const WhatsAppMessagePopover = ({
   };
 
   const computeCoords = useCallback(() => {
-    if (!anchorEl || !popoverRef.current) return;
+    if (!anchorEl || !popoverRef.current || typeof window === "undefined") return;
     const a = anchorEl.getBoundingClientRect();
-    const p = popoverRef.current.getBoundingClientRect();
-    const isMobile = window.innerWidth < 640;
-    const margin = isMobile ? 10 : 16;
-    const gap = 8;
+    const screenW = window.innerWidth;
+    const screenH = window.innerHeight;
+    const isMobile = screenW < 640;
+    const margin = isMobile ? 12 : 20;
 
-    const placeAbove = a.top > p.height + gap + 20;
+    // Use unscaled layout height / width to avoid CSS transform scale distortion
+    const height = popoverRef.current.offsetHeight || 280;
+    const width = popoverRef.current.offsetWidth || (isMobile ? 260 : 280);
+
+    const spaceAbove = a.top - margin;
+    const spaceBelow = screenH - a.bottom - margin;
+
+    const placeAbove =
+      spaceBelow < height + 8
+        ? true
+        : spaceAbove >= height + 8
+        ? a.top > screenH / 2
+        : spaceAbove > spaceBelow;
+
     let top = placeAbove
-      ? a.top - p.height - gap
-      : a.bottom + gap;
+      ? a.top - height - 8
+      : a.bottom + 8;
 
-    // Constrain within viewport bounds
-    top = Math.max(margin, Math.min(window.innerHeight - p.height - margin - 10, top));
+    top = Math.max(margin, Math.min(screenH - height - margin, top));
 
-    let left = isMine ? a.right - p.width : a.left;
-    left = Math.max(margin, Math.min(window.innerWidth - p.width - margin, left));
+    let right = undefined;
+    let left = undefined;
 
-    setCoords({ top, left, ready: true });
+    if (isMine) {
+      const distFromRight = screenW - a.right;
+      const maxRight = Math.max(margin, screenW - width - margin);
+      right = Math.max(margin, Math.min(maxRight, distFromRight));
+    } else {
+      const maxLeft = Math.max(margin, screenW - width - margin);
+      left = Math.max(margin, Math.min(maxLeft, a.left));
+    }
+
+    setPos({ top, right, left, placeAbove, ready: true });
   }, [anchorEl, isMine]);
 
   useLayoutEffect(() => {
@@ -524,27 +743,38 @@ const WhatsAppMessagePopover = ({
     >
       {/* Click-outside backdrop with subtle blur */}
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-[2px] cursor-pointer"
+        className="fixed inset-0 bg-black/55 backdrop-blur-[4px] cursor-pointer nova-popover-backdrop"
         onClick={onClose}
       />
 
       {/* Floating Popover Container anchored directly at the bubble */}
       <div
         ref={popoverRef}
-        onClick={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
         style={{
           position: "fixed",
-          top: `${coords.top}px`,
-          left: `${coords.left}px`,
-          visibility: coords.ready ? "visible" : "hidden",
+          top: `${pos.top}px`,
+          ...(pos.right !== undefined ? { right: `${pos.right}px` } : {}),
+          ...(pos.left !== undefined ? { left: `${pos.left}px` } : {}),
+          maxHeight: "calc(100vh - 24px)",
+          maxWidth: "calc(100vw - 24px)",
+          visibility: pos.ready ? "visible" : "hidden",
+          "--popover-origin": isMine
+            ? pos.placeAbove
+              ? "bottom right"
+              : "top right"
+            : pos.placeAbove
+            ? "bottom left"
+            : "top left",
         }}
-        className={`z-[9991] flex flex-col gap-1.5 animate-in fade-in zoom-in-95 duration-100 max-w-[calc(100vw-20px)] ${
-          isMine ? "items-end" : "items-start"
-        }`}
+        className={`z-[9991] pointer-events-none flex flex-col gap-1.5 box-border ${
+          pos.placeAbove ? "nova-popover-content-above" : "nova-popover-content-below"
+        } ${isMine ? "items-end" : "items-start"}`}
       >
-        {/* Futuristic Glass Reaction Pill (Popular Emojis only) */}
-        <div className="flex items-center gap-1 sm:gap-1.5 bg-[#141624]/90 backdrop-blur-2xl border border-white/20 rounded-full px-2 sm:px-2.5 py-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.25),0_0_20px_rgba(139,92,246,0.2)] ring-1 ring-white/10 max-w-full">
+        {/* Futuristic Glass Reaction Pill (Popular Emojis + More) */}
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="pointer-events-auto flex items-center gap-1 sm:gap-1.5 bg-[#0e101a]/95 backdrop-blur-3xl border border-white/20 rounded-full px-2 sm:px-2.5 py-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.25),0_0_25px_rgba(139,92,246,0.25)] ring-1 ring-white/10 max-w-full box-border"
+        >
           {POPULAR_EMOJIS.map((emoji) => (
             <button
               key={emoji}
@@ -554,15 +784,30 @@ const WhatsAppMessagePopover = ({
                 onReact(emoji);
                 onClose();
               }}
-              className="size-8 sm:size-8.5 rounded-full flex items-center justify-center text-xl sm:text-2xl hover:scale-125 active:scale-90 hover:bg-white/15 transition-all cursor-pointer shrink-0"
+              className="size-7 sm:size-8 rounded-full flex items-center justify-center text-lg sm:text-2xl nova-popover-emoji-item cursor-pointer shrink-0"
             >
               {emoji}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+              onOpenPicker?.();
+            }}
+            className="size-7 sm:size-7.5 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/15 transition-all cursor-pointer shrink-0 ml-0.5"
+            title="More emojis"
+          >
+            <Plus className="size-3.5 sm:size-4" strokeWidth={2.4} />
+          </button>
         </div>
 
         {/* Futuristic Glass Context Menu Card */}
-        <div className="w-48 sm:w-52 bg-[#121422]/90 backdrop-blur-2xl border border-white/20 rounded-2xl p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.2),0_0_25px_rgba(59,130,246,0.15)] ring-1 ring-white/10 flex flex-col gap-0.5">
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="pointer-events-auto w-48 sm:w-52 bg-[#0e101a]/95 backdrop-blur-3xl border border-white/20 rounded-2xl p-1.5 shadow-[0_25px_60px_rgba(0,0,0,0.9),inset_0_1px_1px_rgba(255,255,255,0.2),0_0_30px_rgba(59,130,246,0.18)] ring-1 ring-white/10 flex flex-col gap-0.5"
+        >
           {/* Reply */}
           <button
             type="button"
@@ -571,9 +816,9 @@ const WhatsAppMessagePopover = ({
               onReply(message);
               onClose();
             }}
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
+            className="flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-xl text-xs sm:text-[13px] font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
           >
-            <div className="size-7 rounded-lg bg-[var(--primary)]/20 text-[var(--primary)] ring-1 ring-[var(--primary)]/30 flex items-center justify-center shrink-0 group-hover/btn:scale-110 transition-transform">
+            <div className="size-6 sm:size-6.5 rounded-lg bg-[var(--primary)]/20 text-[var(--primary)] ring-1 ring-[var(--primary)]/30 flex items-center justify-center shrink-0 group-hover/btn:scale-110 transition-transform">
               <MessageSquareReply className="size-3.5" />
             </div>
             <span>Reply</span>
@@ -587,10 +832,10 @@ const WhatsAppMessagePopover = ({
               onClose();
               onToggleStar?.(message);
             }}
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
+            className="flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-xl text-xs sm:text-[13px] font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
           >
             <div
-              className={`size-7 rounded-lg ${
+              className={`size-6 sm:size-6.5 rounded-lg ${
                 isStarred
                   ? "bg-amber-400/20 text-amber-400 ring-1 ring-amber-400/40"
                   : "bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/30"
@@ -609,10 +854,10 @@ const WhatsAppMessagePopover = ({
               onClose();
               onTogglePin?.(message);
             }}
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
+            className="flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-xl text-xs sm:text-[13px] font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
           >
             <div
-              className={`size-7 rounded-lg ${
+              className={`size-6 sm:size-6.5 rounded-lg ${
                 isPinned
                   ? "bg-violet-500/25 text-violet-300 ring-1 ring-violet-500/40"
                   : "bg-violet-500/20 text-violet-400 ring-1 ring-violet-500/30"
@@ -631,9 +876,9 @@ const WhatsAppMessagePopover = ({
               onClose();
               onForward?.(message);
             }}
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
+            className="flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-xl text-xs sm:text-[13px] font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
           >
-            <div className="size-7 rounded-lg bg-sky-500/20 text-sky-400 ring-1 ring-sky-500/30 flex items-center justify-center shrink-0 group-hover/btn:scale-110 transition-transform">
+            <div className="size-6 sm:size-6.5 rounded-lg bg-sky-500/20 text-sky-400 ring-1 ring-sky-500/30 flex items-center justify-center shrink-0 group-hover/btn:scale-110 transition-transform">
               <Forward className="size-3.5" />
             </div>
             <span>Forward</span>
@@ -644,9 +889,9 @@ const WhatsAppMessagePopover = ({
             <button
               type="button"
               onClick={handleCopy}
-              className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
+              className="flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-xl text-xs sm:text-[13px] font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
             >
-              <div className="size-7 rounded-lg bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30 flex items-center justify-center shrink-0 group-hover/btn:scale-110 transition-transform">
+              <div className="size-6 sm:size-6.5 rounded-lg bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30 flex items-center justify-center shrink-0 group-hover/btn:scale-110 transition-transform">
                 <Copy className="size-3.5" />
               </div>
               <span>Copy Text</span>
@@ -662,9 +907,9 @@ const WhatsAppMessagePopover = ({
                 onViewMedia();
                 onClose();
               }}
-              className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
+              className="flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-xl text-xs sm:text-[13px] font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
             >
-              <div className="size-7 rounded-lg bg-cyan-500/20 text-cyan-400 ring-1 ring-cyan-500/30 flex items-center justify-center shrink-0 group-hover/btn:scale-110 transition-transform">
+              <div className="size-6 sm:size-6.5 rounded-lg bg-cyan-500/20 text-cyan-400 ring-1 ring-cyan-500/30 flex items-center justify-center shrink-0 group-hover/btn:scale-110 transition-transform">
                 <Maximize2 className="size-3.5" />
               </div>
               <span>View Media</span>
@@ -679,9 +924,9 @@ const WhatsAppMessagePopover = ({
               onClose();
               onToggleSelect?.(message._id);
             }}
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
+            className="flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-xl text-xs sm:text-[13px] font-semibold text-white/90 hover:bg-white/10 hover:text-white active:bg-white/20 transition-all text-left cursor-pointer group/btn"
           >
-            <div className="size-7 rounded-lg bg-indigo-500/20 text-indigo-400 ring-1 ring-indigo-500/30 flex items-center justify-center shrink-0 group-hover/btn:scale-110 transition-transform">
+            <div className="size-6 sm:size-6.5 rounded-lg bg-indigo-500/20 text-indigo-400 ring-1 ring-indigo-500/30 flex items-center justify-center shrink-0 group-hover/btn:scale-110 transition-transform">
               <CheckSquare className="size-3.5" />
             </div>
             <span>Select</span>
@@ -697,9 +942,9 @@ const WhatsAppMessagePopover = ({
               onClose();
               onDelete(message);
             }}
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-red-400 hover:bg-red-500/20 hover:text-red-300 active:bg-red-500/30 transition-all text-left cursor-pointer group/btn"
+            className="flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-xl text-xs sm:text-[13px] font-semibold text-red-400 hover:bg-red-500/20 hover:text-red-300 active:bg-red-500/30 transition-all text-left cursor-pointer group/btn"
           >
-            <div className="size-7 rounded-lg bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/30 flex items-center justify-center shrink-0 group-hover/btn:scale-110 transition-transform">
+            <div className="size-6 sm:size-6.5 rounded-lg bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/30 flex items-center justify-center shrink-0 group-hover/btn:scale-110 transition-transform">
               <Trash2 className="size-3.5" />
             </div>
             <span>Delete</span>
@@ -721,7 +966,7 @@ const Messages = ({
   currentWallpaper = "default",
   onForwardSingleMessage,
 }) => {
-  const { isTyping } = useGetRTM();
+  const { isTyping, typingText } = useGetRTM();
   const messageRequest = useGetAllMessage();
 
   const { messages, reactionNotice, pinnedMessage } = useSelector((s) => s.chat);
@@ -783,6 +1028,7 @@ const Messages = ({
   const [anchorEl, setAnchorEl] = useState(null);
   const [reactingMessageId, setReactingMessageId] = useState(null);
   const [reactionPopup, setReactionPopup] = useState(null);
+  const reactionPopupTimerRef = useRef(null);
   const [justReacted, setJustReacted] = useState(null);
   const [isTouch, setIsTouch] = useState(false);
   const [actionsFor, setActionsFor] = useState(null);
@@ -790,6 +1036,7 @@ const Messages = ({
   const [activeStoryViewer, setActiveStoryViewer] = useState(null);
   const [openingStory, setOpeningStory] = useState(false);
   const [deleteTargetMessage, setDeleteTargetMessage] = useState(null);
+  const [reactionDetailsFor, setReactionDetailsFor] = useState(null);
   
   const [deletingMessage, setDeletingMessage] = useState(false);
   const [lightboxMedia, setLightboxMedia] = useState(null);
@@ -885,20 +1132,7 @@ const Messages = ({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  /* Close action sheet when tapping/clicking anywhere outside */
-  useEffect(() => {
-    if (!actionsFor) return;
-
-    const handleOutsideClick = (e) => {
-      if (e.target.closest(".nova-msg-action-sheet")) return;
-      setActionsFor(null);
-    };
-
-    document.addEventListener("pointerdown", handleOutsideClick, true);
-    return () => {
-      document.removeEventListener("pointerdown", handleOutsideClick, true);
-    };
-  }, [actionsFor]);
+  /* Close action sheet when pressing Escape */
 
   /* ---------- Realtime story deletion / expiry listener ---------- */
   useEffect(() => {
@@ -956,22 +1190,53 @@ const Messages = ({
       reactionNotice.actorId === user?._id ||
       reactionNotice.conversationUserId !== selectedUser?._id
     )
-      return undefined;
+      return;
 
-    setReactionPopup(reactionNotice.emoji);
-    dispatch(clearReactionNotice());
+    let actorName = reactionNotice.actorName;
+    if (!actorName && selectedUser?.isGroup && selectedUser.participants) {
+      const p = selectedUser.participants.find(
+        (m) => (m?._id || m)?.toString() === reactionNotice.actorId?.toString()
+      );
+      if (p) actorName = getDisplayName(p);
+    }
+    if (!actorName) {
+      actorName = getDisplayName(selectedUser, "Someone");
+    }
+
+    setReactionPopup({
+      emoji: reactionNotice.emoji,
+      actorName,
+    });
     playReactionSound();
-    const timer = setTimeout(() => setReactionPopup(null), 2600);
+    dispatch(clearReactionNotice());
 
-    return () => clearTimeout(timer);
+    if (reactionPopupTimerRef.current) {
+      clearTimeout(reactionPopupTimerRef.current);
+    }
+    reactionPopupTimerRef.current = setTimeout(() => {
+      setReactionPopup(null);
+      reactionPopupTimerRef.current = null;
+    }, 2000); // Stays on screen for exactly 2 seconds then auto-dismisses
   }, [
     reactionNotice?.timestamp,
     reactionNotice?.emoji,
     reactionNotice?.actorId,
+    reactionNotice?.actorName,
     reactionNotice?.conversationUserId,
     selectedUser?._id,
+    selectedUser?.isGroup,
+    selectedUser?.participants,
     user?._id,
+    dispatch,
   ]);
+
+  useEffect(() => {
+    return () => {
+      if (reactionPopupTimerRef.current) {
+        clearTimeout(reactionPopupTimerRef.current);
+      }
+    };
+  }, []);
 
   const formatMessageTime = (createdAt) => {
     if (!createdAt) return "";
@@ -1055,13 +1320,16 @@ const Messages = ({
   const triggerReply = (msg) => {
     if (!msg || msg.__optimistic || msg.status === "sending") return;
     setActionsFor(null);
+    setActionsAnchorEl(null);
     onReplyMessage?.(msg);
   };
 
-  const startLongPress = (msg) => {
+  const startLongPress = (msg, e) => {
     if (msg.__optimistic || msg.status === "sending") return;
     isLongPressTriggeredRef.current = false;
     clearTimeout(longPressTimerRef.current);
+    const targetEl = e?.currentTarget || (typeof document !== "undefined" ? document.getElementById(`message-${msg._id}`) : null);
+
     longPressTimerRef.current = setTimeout(() => {
       isLongPressTriggeredRef.current = true;
       suppressTapRef.current = true;
@@ -1072,11 +1340,16 @@ const Messages = ({
           // Ignore vibration API errors on unsupported devices
         }
       }
-      onToggleSelectMessage?.(msg._id);
+      if (selectedMessageIds?.length > 0) {
+        onToggleSelectMessage?.(msg._id);
+      } else {
+        setActionsAnchorEl(targetEl);
+        setActionsFor(msg);
+      }
       setTimeout(() => {
         suppressTapRef.current = false;
       }, 350);
-    }, 450);
+    }, 380);
   };
 
   const cancelLongPress = () => {
@@ -1096,12 +1369,19 @@ const Messages = ({
   };
 
   const handleBubbleTouchMove = (e) => {
-    cancelLongPress();
     const ref = swipeRef.current;
-    if (!ref || ref.cancelled) return;
+    if (!ref || ref.cancelled) {
+      cancelLongPress();
+      return;
+    }
     const touch = e.touches[0];
     const dx = touch.clientX - ref.startX;
     const dy = touch.clientY - ref.startY;
+
+    // Movement cancels long press so scrolling does not accidentally trigger the action menu
+    if (Math.abs(dy) > 6 || Math.abs(dx) > 6) {
+      cancelLongPress();
+    }
 
     if (!ref.swiping && Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) {
       ref.cancelled = true;
@@ -1110,6 +1390,7 @@ const Messages = ({
     }
 
     if (dx > 8 && Math.abs(dx) > Math.abs(dy)) {
+      cancelLongPress();
       ref.swiping = true;
       const offset = Math.min(dx, SWIPE_MAX);
       setSwipeFor({ msgId: ref.msgId, offset });
@@ -1153,6 +1434,16 @@ const Messages = ({
       return;
     }
 
+    // On touch devices / mobile, single tap does nothing (prevents mistouches during scrolling/tapping)
+    const isTouchDevice =
+      typeof window !== "undefined" &&
+      ("ontouchstart" in window || navigator.maxTouchPoints > 0 || window.innerWidth < 768);
+
+    if (isTouchDevice) {
+      return;
+    }
+
+    // On desktop, single click toggles the WhatsApp popover
     const currentTarget = e.currentTarget;
     setActionsFor((cur) => {
       if (cur?._id === msg._id) {
@@ -1322,8 +1613,15 @@ const Messages = ({
     <div className="nova-messages" style={activeWallpaperConfig?.style}>
       {reactionPopup && (
         <ReactionPopup
-          emoji={reactionPopup}
-          name={getDisplayName(selectedUser, "Someone")}
+          emoji={reactionPopup.emoji}
+          name={reactionPopup.actorName}
+          onClose={() => {
+            if (reactionPopupTimerRef.current) {
+              clearTimeout(reactionPopupTimerRef.current);
+              reactionPopupTimerRef.current = null;
+            }
+            setReactionPopup(null);
+          }}
         />
       )}
 
@@ -1497,15 +1795,11 @@ const Messages = ({
                           ? "linear"
                           : "cubic-bezier(0.22, 1, 0.36, 1)",
                       }}
-                      onMouseDown={() => startLongPress(msg)}
-                      onMouseUp={cancelLongPress}
-                      onMouseLeave={cancelLongPress}
                       onTouchStart={(e) => {
-                        startLongPress(msg);
+                        startLongPress(msg, e);
                         handleBubbleTouchStart(msg._id, e);
                       }}
                       onTouchMove={(e) => {
-                        cancelLongPress();
                         handleBubbleTouchMove(e);
                       }}
                       onTouchEnd={() => {
@@ -1594,7 +1888,7 @@ const Messages = ({
                             </div>
                           )}
 
-                          {msg.replyTo?.message && (
+                          {msg.replyTo && (msg.replyTo.message || msg.replyTo.messageId) && (
                             <button
                               type="button"
                               onClick={(event) => {
@@ -1610,13 +1904,19 @@ const Messages = ({
                                   ? "You"
                                   : selectedUser?.isGroup
                                     ? (() => {
-                                        const repliedMember = selectedUser?.participants?.find(p => (p._id || p)?.toString() === (msg.replyTo.senderId?._id || msg.replyTo.senderId)?.toString());
-                                        return repliedMember?.fullName || repliedMember?.username || "Member";
+                                        const repId = (msg.replyTo.senderId?._id || msg.replyTo.senderId)?.toString();
+                                        const repliedMember = selectedUser?.participants?.find(
+                                          (p) => (p._id || p)?.toString() === repId
+                                        );
+                                        return getDisplayName(repliedMember || msg.replyTo.senderId, "Member");
                                       })()
                                     : getDisplayName(selectedUser, "User")}
                               </span>
                               <span className="nova-msg__reply-text">
-                                {msg.replyTo.message}
+                                {msg.replyTo.message ||
+                                  (msg.replyTo.mediaType === "audio"
+                                    ? "Voice Note"
+                                    : "Attachment")}
                               </span>
                             </button>
                           )}
@@ -1833,16 +2133,38 @@ const Messages = ({
                                 r.emoji === emoji &&
                                 isSameUser(r.userId, user?._id)
                             );
+                            const reactors = (msg.reactions || [])
+                              .filter((r) => r.emoji === emoji)
+                              .map((r) => {
+                                const uid = (r.userId?._id || r.userId)?.toString();
+                                if (uid === user?._id?.toString()) return "You";
+                                if (typeof r.userId === "object" && r.userId?.fullName) {
+                                  return getDisplayName(r.userId);
+                                }
+                                if (selectedUser?.participants) {
+                                  const p = selectedUser.participants.find(
+                                    (m) => (m?._id || m)?.toString() === uid
+                                  );
+                                  if (p) return getDisplayName(p);
+                                }
+                                return "Member";
+                              });
+                            const tooltipText = reactors.join(", ");
+
                             return (
                               <button
                                 key={emoji}
                                 type="button"
+                                title={`${tooltipText} (${emoji})`}
                                 disabled={Boolean(reactingMessageId)}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleReaction(msg, emoji);
+                                  setReactionDetailsFor({
+                                    message: msg,
+                                    selectedEmoji: emoji,
+                                  });
                                 }}
-                                className={`nova-reaction-pill ${
+                                className={`nova-reaction-pill group/pill cursor-pointer ${
                                   isMineReaction ? "is-mine" : ""
                                 }`}
                               >
@@ -1883,7 +2205,7 @@ const Messages = ({
                 />
               </span>
               <span className="nova-typing__text">
-                {getFirstName(selectedUser)} is typing
+                {typingText || (selectedUser?.isGroup ? "Someone is typing…" : `${getFirstName(selectedUser)} is typing…`)}
               </span>
             </div>
           </div>
@@ -1948,6 +2270,23 @@ const Messages = ({
           onClose={() => {
             setActionsFor(null);
             setActionsAnchorEl(null);
+          }}
+        />
+      )}
+
+      {/* WHATSAPP-STYLE REACTION DETAILS MODAL (WHO REACTED IN GROUP / CHAT) */}
+      {reactionDetailsFor && (
+        <ReactionDetailsModal
+          isOpen={Boolean(reactionDetailsFor)}
+          onClose={() => setReactionDetailsFor(null)}
+          message={reactionDetailsFor.message}
+          initialEmoji={reactionDetailsFor.selectedEmoji}
+          currentUser={user}
+          selectedUser={selectedUser}
+          onToggleReaction={(emoji) => {
+            if (reactionDetailsFor?.message) {
+              handleReaction(reactionDetailsFor.message, emoji);
+            }
           }}
         />
       )}

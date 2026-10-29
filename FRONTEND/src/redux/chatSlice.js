@@ -7,6 +7,7 @@ const chatSlice = createSlice({
     messages: [],
     pinnedMessage: null,
     reactionNotice: null,
+    typingUsers: {}, // { [chatId]: [ { userId, fullName, username } ] }
   },
   reducers: {
     setPinnedMessage: (state, action) => {
@@ -34,21 +35,25 @@ const chatSlice = createSlice({
       }
     },
     updateMessageStatus: (state, action) => {
+      const targetId = (action.payload?.messageId || action.payload?._id)?.toString();
       const message = state.messages.find(
-        (item) => item._id === action.payload.messageId,
+        (item) => (item._id || item.id)?.toString() === targetId,
       );
       if (message) message.status = action.payload.status;
     },
     updateMessageReactions: (state, action) => {
+      const targetId = (action.payload?.messageId || action.payload?._id)?.toString();
       const message = state.messages.find(
-        (item) => item._id === action.payload.messageId,
+        (item) => (item._id || item.id)?.toString() === targetId,
       );
-      if (message) message.reactions = action.payload.reactions;
-      if (action.payload.actorId) {
+      if (message) message.reactions = action.payload.reactions || [];
+      if (action.payload?.actorId) {
         state.reactionNotice = {
-          messageId: action.payload.messageId,
-          actorId: action.payload.actorId,
-          conversationUserId: action.payload.conversationUserId,
+          messageId: targetId,
+          actorId: action.payload.actorId?.toString(),
+          actorName: action.payload.actorName,
+          actor: action.payload.actor,
+          conversationUserId: action.payload.conversationUserId?.toString(),
           emoji: action.payload.emoji,
           timestamp: action.payload.timestamp || Date.now(),
         };
@@ -134,6 +139,46 @@ const chatSlice = createSlice({
         }
       }
     },
+    setUserTyping: (state, action) => {
+      const { chatId, user } = action.payload || {};
+      const uidStr = (user?.userId || user?._id)?.toString();
+      if (!chatId || !uidStr) return;
+      const cidStr = chatId.toString();
+      const current = state.typingUsers[cidStr] || [];
+      const index = current.findIndex((u) => (u?.userId || u?._id)?.toString() === uidStr);
+      const cleanUser = {
+        userId: uidStr,
+        fullName: user.fullName || "",
+        username: user.username || "",
+        profilePicture: user.profilePicture || "",
+      };
+      if (index === -1) {
+        state.typingUsers[cidStr] = [...current, cleanUser];
+      } else {
+        const updated = [...current];
+        updated[index] = { ...updated[index], ...cleanUser };
+        state.typingUsers[cidStr] = updated;
+      }
+    },
+    setUserStoppedTyping: (state, action) => {
+      const { chatId, userId } = action.payload || {};
+      const uidStr = (userId || action.payload)?.toString();
+      if (!chatId || !uidStr) return;
+      const cidStr = chatId.toString();
+      const current = state.typingUsers[cidStr] || [];
+      const filtered = current.filter((u) => (u?.userId || u?._id)?.toString() !== uidStr);
+      if (filtered.length === 0) {
+        delete state.typingUsers[cidStr];
+      } else {
+        state.typingUsers[cidStr] = filtered;
+      }
+    },
+    clearTypingForChat: (state, action) => {
+      const chatId = action.payload?.toString();
+      if (chatId && state.typingUsers[chatId]) {
+        delete state.typingUsers[chatId];
+      }
+    },
   },
 });
 export const {
@@ -152,5 +197,8 @@ export const {
   deleteMessageForEveryone,
   toggleStarMessageLocal,
   setPinnedMessage,
+  setUserTyping,
+  setUserStoppedTyping,
+  clearTypingForChat,
 } = chatSlice.actions;
 export default chatSlice.reducer;

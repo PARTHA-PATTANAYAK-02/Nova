@@ -97,7 +97,7 @@ import axios from "axios";
 import { toast } from "sonner";
 import { ErrorState } from "@/components/common/RequestState";
 import { isSoundEnabled, setSoundEnabled } from "@/lib/sound";
-import { getErrorMessage } from "@/lib/utils";
+import { getErrorMessage, getDisplayName } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
 import StoryViewer from "@/components/feed/StoryViewer";
 import {
@@ -448,17 +448,32 @@ const Profile = () => {
     }
   };
 
-  const openChat = () => {
+  const [messagePopupOpen, setMessagePopupOpen] = useState(false);
+
+  const openChat = (e) => {
     if (!userProfile?._id) return;
 
     if (userProfile.whoCanMessage === "no_one") {
-      toast.info("This user has disabled direct messages. Opening conversation in read-only mode.");
-    } else if (userProfile.whoCanMessage === "followers" && !isFollowing) {
-      toast.info(`Follow @${userProfile.username || "this user"} to reply to this conversation.`);
+      e?.preventDefault?.();
+      setMessagePopupOpen(true);
+      return;
     }
 
+    if (userProfile.whoCanMessage === "followers" && !isFollowing) {
+      e?.preventDefault?.();
+      setMessagePopupOpen(true);
+      return;
+    }
+
+    setMessagePopupOpen(false);
     navigate("/chat", { state: { user: userProfile } });
   };
+
+  useEffect(() => {
+    if (userProfile?.whoCanMessage === "everyone" || (userProfile?.whoCanMessage === "followers" && isFollowing)) {
+      setMessagePopupOpen(false);
+    }
+  }, [userProfile?.whoCanMessage, isFollowing]);
 
 
 
@@ -611,14 +626,109 @@ const Profile = () => {
                   <AnimatedIcon icon={UserPlusIcon} size={16} />
                 )}
               </button>
-              <button
-                type="button"
-                onClick={openChat}
-                aria-label="Message"
-                className="nova-profile__hero-btn group"
-              >
-                <AnimatedIcon icon={MessageCircleIcon} size={16} />
-              </button>
+              <Popover open={messagePopupOpen} onOpenChange={setMessagePopupOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={openChat}
+                    aria-label="Message"
+                    className="nova-profile__hero-btn group"
+                  >
+                    <AnimatedIcon icon={MessageCircleIcon} size={16} />
+                  </button>
+                </PopoverTrigger>
+
+                <PopoverContent
+                  align="end"
+                  side="bottom"
+                  sideOffset={8}
+                  className="w-[300px] sm:w-[320px] p-4 rounded-3xl bg-[var(--surface)] border border-[var(--border)] shadow-2xl backdrop-blur-2xl space-y-3 z-[100]"
+                >
+                  {userProfile?.whoCanMessage === "no_one" ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="size-8 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-xs">
+                          <Lock className="size-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-[var(--foreground)] tracking-tight truncate">
+                            Direct Messages Disabled
+                          </h4>
+                          <p className="text-[10px] text-[var(--muted-foreground)] truncate">
+                            Privacy settings restricted
+                          </p>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold text-xs tracking-wide shadow-xs mr-1">
+                          {getDisplayName(userProfile)}
+                        </span>
+                        has turned off direct messages for everyone right now.
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => setMessagePopupOpen(false)}
+                        className="w-full py-2 px-3 rounded-xl bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-xs font-semibold text-[var(--foreground)] border border-[var(--border)] transition-colors cursor-pointer active:scale-95"
+                      >
+                        Got it
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="size-8 rounded-xl bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30 flex items-center justify-center shrink-0 shadow-xs">
+                          <UserPlus className="size-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-[var(--foreground)] tracking-tight truncate">
+                            Follow Required to Chat
+                          </h4>
+                          <p className="text-[10px] text-[var(--muted-foreground)] truncate">
+                            Direct message permission
+                          </p>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">
+                        You need to follow{" "}
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-[var(--primary)]/15 border border-[var(--primary)]/30 text-[var(--primary)] font-bold text-xs tracking-wide shadow-xs mx-0.5">
+                          {getDisplayName(userProfile)}
+                        </span>{" "}
+                        first to send them a message.
+                      </p>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await handleFollowToggle();
+                            setMessagePopupOpen(false);
+                            navigate("/chat", { state: { user: userProfile } });
+                          }}
+                          disabled={followLoading}
+                          className="flex-1 py-2 px-3 rounded-xl bg-[var(--primary)] hover:opacity-95 text-white text-xs font-semibold shadow-md shadow-[var(--primary)]/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+                        >
+                          {followLoading ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <UserPlus className="size-3.5" />
+                          )}
+                          <span className="truncate">Follow & Message</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMessagePopupOpen(false)}
+                          className="py-2 px-3 rounded-xl bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] border border-[var(--border)] text-xs font-medium transition-colors cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
             </>
           )}
         </div>
@@ -898,7 +1008,7 @@ const Profile = () => {
           </div>
           <h3 className="text-lg font-bold text-[var(--foreground)]">This Account is Private</h3>
           <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">
-            Follow @{userProfile?.username || "this creator"} to view their photos, videos, and saved collections.
+            Follow {getDisplayName(userProfile)} to view their photos, videos, and saved collections.
           </p>
         </div>
       ) : (

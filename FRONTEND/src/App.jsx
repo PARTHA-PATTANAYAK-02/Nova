@@ -5,7 +5,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { io } from "socket.io-client";
 import { useDispatch, useSelector } from "react-redux";
 import { setSocketConnected, setSocketInstance } from "./redux/socketSlice";
-import { setAuthUser, setSelectedUser, updateUserLastSeen } from "./redux/authSlice";
+import { setAuthUser, setSelectedUser, updateUserLastSeen, updateUserPrivacy } from "./redux/authSlice";
 import { toast } from "sonner";
 import { appendMessage, setOnlineUsers, deleteMessageForEveryone, deleteMessageForMe, clearAllMessages } from "./redux/chatSlice";
 import {
@@ -19,6 +19,7 @@ import { appendPost, removePost, setSelectedPost, updatePost } from "./redux/pos
 import ProtectedRoutes from "@/components/common/ProtectedRoutes";
 import { API_BASE_URL, apiUrl } from "./lib/api";
 import { playMessageSound, playReactionSound } from "./lib/sound";
+import { getDisplayName } from "./lib/utils";
 import NetworkStatusBanner from "@/components/common/NetworkStatusBanner";
 
 // Code-split route components for optimized bundle size & fast initial paint
@@ -491,13 +492,11 @@ function App() {
       });
 
       socketio.on("messageReactionUpdated", (update) => {
-        const otherId =
-          update?.senderId === user?._id
-            ? update?.receiverId
-            : update?.senderId;
         const isCurrentChatOpen =
           window.location.pathname === "/chat" &&
-          selectedUserRef.current?._id === otherId;
+          (selectedUserRef.current?._id === update?.conversationId ||
+            selectedUserRef.current?._id === update?.senderId ||
+            selectedUserRef.current?._id === update?.receiverId);
 
         if (
           !isCurrentChatOpen &&
@@ -518,22 +517,7 @@ function App() {
       });
 
       socketio.on("userPrivacyChanged", ({ userId, whoCanMessage }) => {
-        if (selectedUserRef.current?._id?.toString() === userId?.toString()) {
-          dispatch(
-            setSelectedUser({
-              ...selectedUserRef.current,
-              whoCanMessage,
-            })
-          );
-          if (whoCanMessage === "no_one") {
-            toast.info(`@${selectedUserRef.current.username || "This user"} disabled direct messages.`);
-          } else {
-            toast.info(`@${selectedUserRef.current.username || "This user"} updated their message permissions.`);
-          }
-        }
-        if (user?._id?.toString() === userId?.toString()) {
-          dispatch(setAuthUser({ ...user, whoCanMessage }));
-        }
+        dispatch(updateUserPrivacy({ userId, whoCanMessage }));
       });
 
       return () => {

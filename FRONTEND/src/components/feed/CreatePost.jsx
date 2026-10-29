@@ -163,7 +163,7 @@ const CreatePost = ({ open, setOpen }) => {
     if (!userToCollab) return;
     const userId = userToCollab._id || userToCollab.id;
     if (collaborators.some((c) => (c._id || c) === userId)) {
-      toast.info(`@${userToCollab.username} is already invited as collaborator.`);
+      toast.info(`${getDisplayName(userToCollab)} is already invited as collaborator.`);
       setCollabModalOpen(false);
       return;
     }
@@ -176,7 +176,7 @@ const CreatePost = ({ open, setOpen }) => {
         profilePicture: userToCollab.profilePicture,
       },
     ]);
-    toast.success(`Added @${userToCollab.username} as co-author 🤝`);
+    toast.success(`Added ${getDisplayName(userToCollab)} as co-author 🤝`);
     setCollabModalOpen(false);
     setCollabSearchQuery("");
   };
@@ -194,7 +194,7 @@ const CreatePost = ({ open, setOpen }) => {
       (t) => (t.user._id || t.user) === userId && t.mediaIndex === activeIdx
     );
     if (alreadyTagged) {
-      toast.info(`@${userToTag.username} is already tagged on this item.`);
+      toast.info(`${getDisplayName(userToTag)} is already tagged on this item.`);
       setTagModalOpen(false);
       setPendingTagCoords(null);
       return;
@@ -215,7 +215,7 @@ const CreatePost = ({ open, setOpen }) => {
         mediaIndex: activeIdx,
       },
     ]);
-    toast.success(`Tagged @${userToTag.username} ✨`);
+    toast.success(`Tagged ${getDisplayName(userToTag)} ✨`);
     setTagModalOpen(false);
     setPendingTagCoords(null);
     setTagSearchQuery("");

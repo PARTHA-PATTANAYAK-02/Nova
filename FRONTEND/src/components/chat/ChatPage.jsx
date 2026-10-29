@@ -42,7 +42,7 @@ import {
 } from "lucide-react";
 import {
   UserGroupIcon,
-  PanelRightOpenIcon,
+  PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   SparklesIcon,
   MessageCircleIcon,
@@ -59,7 +59,7 @@ import {
   setPinnedMessage,
   toggleStarMessageLocal,
 } from "@/redux/chatSlice";
-import { getDisplayName, getErrorMessage, formatLastSeen, isSameUser } from "@/lib/utils";
+import { getDisplayName, getErrorMessage, formatLastSeen, isSameUser, formatTypingIndicator } from "@/lib/utils";
 import { toast } from "sonner";
 import { getSocketInstance } from "@/redux/socketSlice";
 import useGetConversations from "@/hooks/useGetConversations";
@@ -180,7 +180,7 @@ const formatLastMessageTime = (dateStr) => {
 
 const ChatPage = () => {
   const { user, suggestedUsers, selectedUser } = useSelector((s) => s.auth);
-  const { onlineUsers, messages, pinnedMessage } = useSelector((s) => s.chat);
+  const { onlineUsers, messages, pinnedMessage, typingUsers } = useSelector((s) => s.chat);
   const dispatch = useDispatch();
 
   const [textMessage, setTextMessage] = useState("");
@@ -421,6 +421,26 @@ const ChatPage = () => {
     selectedUserRef.current = selectedUser;
   }, [selectedUser]);
 
+  const currentChatTypingUsers = useMemo(() => {
+    if (!selectedUser) return [];
+    const directList = typingUsers?.[selectedUser._id?.toString()] || [];
+    const convList = selectedUser.conversationId
+      ? typingUsers?.[selectedUser.conversationId?.toString()] || []
+      : [];
+    const map = new Map();
+    [...directList, ...convList].forEach((u) => {
+      const uid = (u?.userId || u?._id)?.toString();
+      if (uid && uid !== user?._id?.toString()) {
+        map.set(uid, u);
+      }
+    });
+    return Array.from(map.values());
+  }, [typingUsers, selectedUser, user?._id]);
+
+  const currentChatTypingText = useMemo(() => {
+    return formatTypingIndicator(currentChatTypingUsers, user?._id);
+  }, [currentChatTypingUsers, user?._id]);
+
   const { isMessageDisabled, messageDisabledReason } = useMemo(() => {
     if (!selectedUser || selectedUser.isGroup) {
       return { isMessageDisabled: false, messageDisabledReason: "" };
@@ -428,7 +448,7 @@ const ChatPage = () => {
     if (selectedUser.whoCanMessage === "no_one") {
       return {
         isMessageDisabled: true,
-        messageDisabledReason: "This user has disabled direct messages.",
+        messageDisabledReason: `${getDisplayName(selectedUser)} has disabled direct messages.`,
       };
     }
     if (selectedUser.whoCanMessage === "followers") {
@@ -438,7 +458,7 @@ const ChatPage = () => {
       if (!isFollowedByMe) {
         return {
           isMessageDisabled: true,
-          messageDisabledReason: `You need to follow @${selectedUser.username || "this user"} to send messages.`,
+          messageDisabledReason: `You need to follow ${getDisplayName(selectedUser)} to send messages.`,
         };
       }
     }
@@ -457,7 +477,7 @@ const ChatPage = () => {
       );
       if (res.data?.success) {
         dispatch(updateFollowing(selectedUser._id));
-        toast.success(`You are now following @${selectedUser.username || "user"}`);
+        toast.success(`You are now following ${getDisplayName(selectedUser)}`);
       }
     } catch (err) {
       toast.error(getErrorMessage(err, "Failed to follow user"));
@@ -642,7 +662,11 @@ const ChatPage = () => {
       }
     };
     const handleConversationPinnedUpdated = (data) => {
-      dispatch(setPinnedMessage(data?.pinnedMessage || null));
+      const currentSelectedId = selectedUserRef.current?._id?.toString();
+      const targetChatId = (data?.conversationId || data?.otherUserId)?.toString();
+      if (!currentSelectedId || currentSelectedId === targetChatId) {
+        dispatch(setPinnedMessage(data?.pinnedMessage || null));
+      }
     };
     const handleNewGroupCreated = () => {
       conversationRequest.retry();
@@ -692,9 +716,6 @@ const ChatPage = () => {
     };
   }, [dispatch]);
 
-  const othersOnline = (onlineUsers || []).filter((id) => id !== user?._id);
-  const othersOnlineCount = othersOnline.length;
-
   /* ---------- RESIZE LISTENER ---------- */
   useEffect(() => {
     const handleResize = () => {
@@ -729,21 +750,6 @@ const ChatPage = () => {
     (targetUser) => {
       if (!targetUser) return;
 
-      if (!targetUser.isGroup) {
-        if (targetUser.whoCanMessage === "no_one") {
-          toast.info(`@${targetUser.username || "This user"} has disabled direct messages.`);
-        } else if (targetUser.whoCanMessage === "followers") {
-          const isFollowedByMe = (user?.following || []).some(
-            (f) => (f?._id || f)?.toString() === targetUser._id?.toString()
-          );
-          if (!isFollowedByMe) {
-            toast.info(
-              `Follow @${targetUser.username || "this user"} to reply to this conversation.`
-            );
-          }
-        }
-      }
-
       dispatch(setSelectedUser(targetUser));
       const isMobile = window.innerWidth < 768;
       if (isMobile) {
@@ -754,7 +760,7 @@ const ChatPage = () => {
         setShowContacts(false);
       }
     },
-    [dispatch, user?.following]
+    [dispatch]
   );
 
   /* ---------- ROUTE CHANGE: ON MOBILE SHOW CONTACTS FIRST ---------- */
@@ -784,22 +790,7 @@ const ChatPage = () => {
   /* ---------- LOCATION USER ---------- */
   useEffect(() => {
     if (location.state?.user?._id) {
-      const targetUser = location.state.user;
-      if (!targetUser.isGroup) {
-        if (targetUser.whoCanMessage === "no_one") {
-          toast.info(`@${targetUser.username || "This user"} has disabled direct messages.`);
-        } else if (targetUser.whoCanMessage === "followers") {
-          const isFollowedByMe = (user?.following || []).some(
-            (f) => (f?._id || f)?.toString() === targetUser._id?.toString()
-          );
-          if (!isFollowedByMe) {
-            toast.info(
-              `Follow @${targetUser.username || "this user"} to reply to this conversation.`
-            );
-          }
-        }
-      }
-      dispatch(setSelectedUser(targetUser));
+      dispatch(setSelectedUser(location.state.user));
       const isMobile = window.innerWidth < 768;
       if (isMobile) {
         if (!isConversationPushedRef.current) {
@@ -1202,7 +1193,16 @@ const ChatPage = () => {
       : undefined;
 
     const socket = getSocketInstance();
-    socket?.emit("stopTyping", { receiverId });
+    const stopPayload = selectedUser?.isGroup
+      ? {
+          conversationId: selectedUser._id,
+          participantIds: (selectedUser.participants || []).map((p) => p?._id || p),
+        }
+      : {
+          receiverId,
+          conversationId: selectedUser?.conversationId || undefined,
+        };
+    socket?.emit("stopTyping", stopPayload);
     clearTimeout(typingTimeoutRef.current);
 
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -1273,8 +1273,14 @@ const ChatPage = () => {
     if (!selectedUser || !socket) return;
 
     const payload = selectedUser.isGroup
-      ? { conversationId: selectedUser._id }
-      : { receiverId: selectedUser._id };
+      ? {
+          conversationId: selectedUser._id,
+          participantIds: (selectedUser.participants || []).map((p) => p?._id || p),
+        }
+      : {
+          receiverId: selectedUser._id,
+          conversationId: selectedUser.conversationId || undefined,
+        };
 
     clearTimeout(typingTimeoutRef.current);
     if (!next.trim()) {
@@ -1284,10 +1290,28 @@ const ChatPage = () => {
     socket.emit("typing", payload);
     typingTimeoutRef.current = setTimeout(() => {
       socket.emit("stopTyping", payload);
-    }, 1200);
+    }, 1500);
   };
 
-  useEffect(() => () => clearTimeout(typingTimeoutRef.current), [selectedUser]);
+  useEffect(() => {
+    return () => {
+      clearTimeout(typingTimeoutRef.current);
+      if (selectedUserRef.current) {
+        const u = selectedUserRef.current;
+        const stopPayload = u.isGroup
+          ? {
+              conversationId: u._id,
+              participantIds: (u.participants || []).map((p) => p?._id || p),
+            }
+          : {
+              receiverId: u._id,
+              conversationId: u.conversationId || undefined,
+            };
+        const socket = getSocketInstance();
+        socket?.emit("stopTyping", stopPayload);
+      }
+    };
+  }, [selectedUser?._id]);
 
   useEffect(() => {
     setReplyingTo(null);
@@ -1474,14 +1498,6 @@ const ChatPage = () => {
               </div>
 
               <div className="nova-chat__contacts-actions flex items-center gap-2">
-                {/* Online Pill (ONLY if othersOnlineCount > 0) */}
-                {othersOnlineCount > 0 && (
-                  <span className="nova-chat__online-pill" title={`${othersOnlineCount} user(s) online`}>
-                    <span className="nova-chat__online-dot" />
-                    <span>{othersOnlineCount}</span>
-                  </span>
-                )}
-
                 {/* Create Group Button with theme styling */}
                 <button
                   type="button"
@@ -1515,7 +1531,7 @@ const ChatPage = () => {
                 >
                   <AnimatedIcon
                     ref={collapseIconRef}
-                    icon={PanelRightOpenIcon}
+                    icon={PanelLeftCloseIcon}
                     size={18}
                     duration={1}
                   />
@@ -1673,6 +1689,12 @@ const ChatPage = () => {
               const isFollowingUser = (user?.following || []).some(
                 (f) => (f?._id || f)?.toString() === u._id?.toString()
               );
+              const contactTypingUsers = (
+                (typingUsers?.[u._id?.toString()] || []).concat(
+                  u.conversationId ? (typingUsers?.[u.conversationId?.toString()] || []) : []
+                )
+              ).filter((item) => (item?.userId || item?._id)?.toString() !== user?._id?.toString());
+              const contactTypingText = formatTypingIndicator(contactTypingUsers, user?._id);
 
               return (
                 <div
@@ -1724,12 +1746,15 @@ const ChatPage = () => {
                       <span className="flex items-center justify-between gap-2 w-full mt-0.5">
                         <span
                           className={`nova-chat__contact-sub truncate text-[11.5px] ${
-                            unreadCount > 0
+                            contactTypingText
+                              ? "text-[var(--primary)] font-semibold italic animate-pulse"
+                              : unreadCount > 0
                               ? "text-[var(--foreground)] font-semibold"
                               : "text-[var(--muted-foreground)]"
                           }`}
                         >
-                          {snippet ||
+                          {contactTypingText ||
+                            snippet ||
                             (u.isGroup
                               ? `${u.participants?.length || 0} members`
                               : isOnline
@@ -1909,9 +1934,16 @@ const ChatPage = () => {
                           Group
                         </span>
                       </span>
-                      <span className="nova-chat__window-sub text-white/50 text-[11px] group-hover:text-[var(--primary)] transition-colors">
-                        {selectedUser.participants?.length || 0} members • Tap for info
-                      </span>
+                      {currentChatTypingText ? (
+                        <span className="nova-chat__window-sub text-[var(--primary)] text-[11px] font-semibold flex items-center gap-1.5 animate-pulse">
+                          <span className="inline-block size-1.5 rounded-full bg-[var(--primary)] animate-ping" />
+                          <span className="truncate">{currentChatTypingText}</span>
+                        </span>
+                      ) : (
+                        <span className="nova-chat__window-sub text-white/50 text-[11px] group-hover:text-[var(--primary)] transition-colors">
+                          {selectedUser.participants?.length || 0} members • Tap for info
+                        </span>
+                      )}
                     </span>
                   </button>
                 ) : (
@@ -1936,10 +1968,16 @@ const ChatPage = () => {
                         </span>
                         <span
                           className={`nova-chat__window-sub ${
-                            onlineUsers.includes(selectedUser?._id) ? "is-online" : ""
+                            currentChatTypingText
+                              ? "text-[var(--primary)] font-semibold animate-pulse"
+                              : onlineUsers.includes(selectedUser?._id)
+                              ? "is-online"
+                              : ""
                           }`}
                         >
-                          {onlineUsers.includes(selectedUser?._id)
+                          {currentChatTypingText
+                            ? "typing…"
+                            : onlineUsers.includes(selectedUser?._id)
                             ? "Online"
                             : formatLastSeen(
                                 liveLastSeen[selectedUser?._id] ||
@@ -2211,7 +2249,12 @@ const ChatPage = () => {
           <div className="nova-chat__messages">
             <Messages
               selectedUser={selectedUser}
-              onReplyMessage={setReplyingTo}
+              onReplyMessage={(msg) => {
+                setReplyingTo(msg);
+                setTimeout(() => {
+                  inputRef.current?.focus();
+                }, 50);
+              }}
               searchQuery={inChatSearchQuery}
               activeSearchId={activeSearchMessageId}
               selectedMessageIds={selectedMessageIds}
@@ -2234,11 +2277,26 @@ const ChatPage = () => {
                 <div className="nova-chat__reply-body">
                   <p className="nova-chat__reply-label">
                     Replying to{" "}
-                    {replyingTo.senderId?.toString() === user?._id?.toString()
-                      ? "yourself"
-                      : getDisplayName(selectedUser, "User")}
+                    {(() => {
+                      const repSenderId = (replyingTo.senderId?._id || replyingTo.senderId)?.toString();
+                      if (repSenderId === user?._id?.toString()) return "yourself";
+                      if (selectedUser?.isGroup) {
+                        const member = selectedUser?.participants?.find(
+                          (p) => (p?._id || p)?.toString() === repSenderId
+                        );
+                        return getDisplayName(member || replyingTo.senderId, "Member");
+                      }
+                      return getDisplayName(selectedUser, "User");
+                    })()}
                   </p>
-                  <p className="nova-chat__reply-text">{replyingTo.message}</p>
+                  <p className="nova-chat__reply-text">
+                    {replyingTo.message ||
+                      (replyingTo.mediaType === "audio"
+                        ? "Voice Note"
+                        : replyingTo.mediaUrl
+                        ? "Media Attachment"
+                        : "Message")}
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -2319,7 +2377,7 @@ const ChatPage = () => {
               <div className="flex items-center justify-center gap-2.5 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-200/90 text-xs sm:text-sm font-medium shadow-inner backdrop-blur-sm animate-in fade-in duration-200 text-center">
                 <Lock className="size-4 text-amber-400 shrink-0" />
                 <span>
-                  @{selectedUser.username || "This user"} has disabled direct messages. Chat history is read-only.
+                  {getDisplayName(selectedUser)} has disabled direct messages. Chat history is read-only.
                 </span>
               </div>
             ) : isMessageDisabled && selectedUser?.whoCanMessage === "followers" ? (
@@ -2327,7 +2385,7 @@ const ChatPage = () => {
                 <div className="flex items-center gap-2.5 min-w-0 text-white/80">
                   <Lock className="size-4 text-[var(--primary)] shrink-0" />
                   <span className="truncate">
-                    Follow <span className="font-semibold text-white">@{selectedUser.username}</span> to reply to this conversation
+                    Follow <span className="font-semibold text-white">{getDisplayName(selectedUser)}</span> to reply to this conversation
                   </span>
                 </div>
                 <button
@@ -3025,7 +3083,7 @@ const ChatPage = () => {
             ) : (
               <p>
                 Do you want to delete this chat with{" "}
-                <strong className="text-[var(--foreground)]">@{deleteChatModal.contact?.username || deleteChatModal.contact?.fullName}</strong>?
+                <strong className="text-[var(--foreground)]">{getDisplayName(deleteChatModal.contact)}</strong>?
                 <br />
                 <span className="block mt-2 text-[11px] text-[var(--muted-foreground)]/80">
                   This will remove the chat from your list and delete message history for you. The other person will keep their copy. If either of you sends a message in the future, it will start fresh for you.

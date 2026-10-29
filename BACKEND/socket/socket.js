@@ -4,6 +4,7 @@ import http from "http";
 import jwt from "jsonwebtoken";
 import { environment } from "../config/environment.js";
 import { User } from "../models/user.model.js";
+import { Conversation } from "../models/conversation.model.js";
 
 const app = express();
 
@@ -71,26 +72,69 @@ io.on("connection", (socket) => {
   if (userId) {
     if (!userSocketMap[userId]) userSocketMap[userId] = [];
     userSocketMap[userId].push(socket.id);
+
+    // Cache user summary on socket for instant typing broadcasts without DB lookups
+    User.findById(userId)
+      .select("username fullName profilePicture")
+      .lean()
+      .then((u) => {
+        if (u) {
+          socket.user = {
+            _id: u._id,
+            username: u.username,
+            fullName: u.fullName,
+            profilePicture: u.profilePicture,
+          };
+        }
+      })
+      .catch((err) => console.error("Error fetching socket user info:", err));
   }
 
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
-  socket.on("typing", ({ receiverId, conversationId, participantIds } = {}) => {
-    if (participantIds && Array.isArray(participantIds)) {
-      emitToConversation(participantIds, "userTyping", { userId, conversationId }, userId);
+  socket.on("typing", async ({ receiverId, conversationId, participantIds } = {}) => {
+    const typingUser = socket.user || { _id: userId };
+    const payload = {
+      userId,
+      conversationId,
+      user: typingUser,
+    };
+
+    if (participantIds && Array.isArray(participantIds) && participantIds.length > 0) {
+      emitToConversation(participantIds, "userTyping", payload, userId);
+    } else if (conversationId) {
+      // Fallback: look up conversation participants if participantIds wasn't passed
+      try {
+        const conv = await Conversation.findById(conversationId).select("participants").lean();
+        if (conv?.participants) {
+          emitToConversation(conv.participants, "userTyping", payload, userId);
+        }
+      } catch (err) {
+        console.error("Error looking up conversation for typing:", err);
+      }
     } else if (receiverId) {
       for (const socketId of getReceiverSocketIds(receiverId)) {
-        io.to(socketId).emit("userTyping", { userId, conversationId });
+        io.to(socketId).emit("userTyping", payload);
       }
     }
   });
 
-  socket.on("stopTyping", ({ receiverId, conversationId, participantIds } = {}) => {
-    if (participantIds && Array.isArray(participantIds)) {
-      emitToConversation(participantIds, "userStoppedTyping", { userId, conversationId }, userId);
+  socket.on("stopTyping", async ({ receiverId, conversationId, participantIds } = {}) => {
+    const payload = { userId, conversationId };
+    if (participantIds && Array.isArray(participantIds) && participantIds.length > 0) {
+      emitToConversation(participantIds, "userStoppedTyping", payload, userId);
+    } else if (conversationId) {
+      try {
+        const conv = await Conversation.findById(conversationId).select("participants").lean();
+        if (conv?.participants) {
+          emitToConversation(conv.participants, "userStoppedTyping", payload, userId);
+        }
+      } catch (err) {
+        console.error("Error looking up conversation for stopTyping:", err);
+      }
     } else if (receiverId) {
       for (const socketId of getReceiverSocketIds(receiverId)) {
-        io.to(socketId).emit("userStoppedTyping", { userId, conversationId });
+        io.to(socketId).emit("userStoppedTyping", payload);
       }
     }
   });

@@ -80,6 +80,29 @@ const authSlice = createSlice({
     setSelectedUser: (state, action) => {
       state.selectedUser = action.payload;
     },
+    updateUserPrivacy: (state, action) => {
+      const { userId, whoCanMessage } = action.payload || {};
+      if (!userId) return;
+      const targetId = userId.toString();
+      if (state.userProfile && state.userProfile._id?.toString() === targetId) {
+        state.userProfile = {
+          ...state.userProfile,
+          whoCanMessage,
+        };
+      }
+      if (state.selectedUser && state.selectedUser._id?.toString() === targetId) {
+        state.selectedUser = {
+          ...state.selectedUser,
+          whoCanMessage,
+        };
+      }
+      if (state.user && state.user._id?.toString() === targetId) {
+        state.user = {
+          ...state.user,
+          whoCanMessage,
+        };
+      }
+    },
     updateUserLastSeen: (state, action) => {
       const { userId, lastSeen } = action.payload || {};
       if (!userId) return;
@@ -121,6 +144,7 @@ export const {
   setSuggestedUsers,
   setUserProfile,
   setSelectedUser,
+  updateUserPrivacy,
   updateBookmarks,
   updatePinnedPosts,
   markStoryItemViewed,
