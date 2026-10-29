@@ -238,11 +238,13 @@ const StoriesBar = () => {
         </div>
       </div>
 
-      <CreateStoryDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        onCreated={loadStories}
-      />
+      {createOpen && (
+        <CreateStoryDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          onCreated={loadStories}
+        />
+      )}
 
       {viewerOpen && navigationStories.length > 0 && (
         <StoryViewer

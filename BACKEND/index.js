@@ -1,6 +1,7 @@
 import express, { urlencoded } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import compression from "compression";
 import { environment } from "./config/environment.js";
 import connectDB from "./utils/db.js";
 import userRoute from "./routes/user.route.js";
@@ -14,6 +15,7 @@ import { app, server } from "./socket/socket.js";
 const { server: serverConfig, client: clientConfig, runtime } = environment;
 
 //middlewares
+app.use(compression());
 app.use(express.json());
 app.use(cookieParser());
 app.use(urlencoded({ extended: true }));

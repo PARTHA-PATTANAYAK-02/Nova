@@ -28,11 +28,9 @@ const getDateLine = () =>
 
 const PULL_THRESHOLD = 65;
 
-const Feed = ({ requestState }) => {
-  const { user } = useSelector((s) => s.auth);
+/* Memoized greeting header to avoid re-rendering entire Feed on every character typed */
+const FeedGreeting = React.memo(({ user }) => {
   const firstName = getDisplayName(user, "there").split(" ")[0];
-
-  /* Typewriter write-in animation for greeting header */
   const greetingPrefix = `${getGreeting()}, `;
   const greetingTarget = `${greetingPrefix}${firstName}`;
   const [typedCount, setTypedCount] = useState(0);
@@ -57,6 +55,29 @@ const Feed = ({ requestState }) => {
       ? greetingTarget.slice(greetingPrefix.length, typedCount)
       : "";
   const isTyping = typedCount < greetingTarget.length;
+
+  return (
+    <header className="mb-3.5 mt-2 px-1 select-none">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]/70 animate-in fade-in duration-500">
+        {getDateLine()}
+      </p>
+      <h1 className="mt-0.5 font-display text-[19px] sm:text-[22px] font-bold tracking-tight text-[var(--foreground)] leading-snug flex items-center flex-wrap">
+        <span>{prefixVisible}</span>
+        {nameVisible && <span className="text-grad ml-1">{nameVisible}</span>}
+        {isTyping && (
+          <span
+            className="inline-block w-[2px] h-4 sm:h-5 bg-[var(--primary)] ml-0.5 rounded-full animate-pulse"
+            aria-hidden="true"
+          />
+        )}
+      </h1>
+    </header>
+  );
+});
+FeedGreeting.displayName = "FeedGreeting";
+
+const Feed = ({ requestState }) => {
+  const { user } = useSelector((s) => s.auth);
 
   const [pullY, setPullY] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -179,21 +200,7 @@ const Feed = ({ requestState }) => {
       <StoriesBar />
 
       {/* ── Compact Animated Typewriter Greeting ── */}
-      <header className="mb-3.5 mt-2 px-1 select-none">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]/70 animate-in fade-in duration-500">
-          {getDateLine()}
-        </p>
-        <h1 className="mt-0.5 font-display text-[19px] sm:text-[22px] font-bold tracking-tight text-[var(--foreground)] leading-snug flex items-center flex-wrap">
-          <span>{prefixVisible}</span>
-          {nameVisible && <span className="text-grad ml-1">{nameVisible}</span>}
-          {isTyping && (
-            <span
-              className="inline-block w-[2px] h-4 sm:h-5 bg-[var(--primary)] ml-0.5 rounded-full animate-pulse"
-              aria-hidden="true"
-            />
-          )}
-        </h1>
-      </header>
+      <FeedGreeting user={user} />
 
       <Posts requestState={requestState} />
 
@@ -206,4 +213,3 @@ const Feed = ({ requestState }) => {
 };
 
 export default Feed;
-

@@ -1020,14 +1020,16 @@ export const getSuggestedUsers = async (req, res) => {
 
     // Priority 1: Users the current user doesn't follow yet
     let suggestedUsers = await User.find({ _id: { $nin: excludedIds } })
-      .select("-password")
-      .limit(10);
+      .select("username fullName profilePicture bio")
+      .limit(10)
+      .lean();
 
     // Fallback: If no unfollowed users exist, show other community users so the section is never blank
     if (!suggestedUsers || suggestedUsers.length === 0) {
       suggestedUsers = await User.find({ _id: { $ne: req.id } })
-        .select("-password")
-        .limit(10);
+        .select("username fullName profilePicture bio")
+        .limit(10)
+        .lean();
     }
 
     return res.status(200).json({

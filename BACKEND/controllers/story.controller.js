@@ -861,7 +861,8 @@ export const getStoriesForFeed = async (req, res) => {
         path: "sharedPost",
         populate: { path: "author", select: "username fullName profilePicture" },
       })
-      .populate({ path: "questionSticker.responses.userId", select: "username fullName profilePicture" });
+      .populate({ path: "questionSticker.responses.userId", select: "username fullName profilePicture" })
+      .lean();
 
     return res.status(200).json({
       success: true,

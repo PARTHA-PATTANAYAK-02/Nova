@@ -396,7 +396,8 @@ export const getMessage = async (req, res) => {
       .populate("senderId", "username fullName profilePicture")
       .populate("reactions.userId", "username fullName profilePicture")
       .sort({ createdAt: -1 })
-      .limit(limit + 1);
+      .limit(limit + 1)
+      .lean();
 
     const hasMore = rawMessages.length > limit;
     const messages = hasMore ? rawMessages.slice(0, limit) : rawMessages;
@@ -489,7 +490,8 @@ export const getConversations = async (req, res) => {
         path: "lastMessage",
         populate: { path: "senderId", select: "username fullName" },
       })
-      .sort({ lastMessageAt: -1, updatedAt: -1 });
+      .sort({ lastMessageAt: -1, updatedAt: -1 })
+      .lean();
 
     const results = conversations.map((conversation) => {
       const unreadEntry = conversation.unreadCounts.find(

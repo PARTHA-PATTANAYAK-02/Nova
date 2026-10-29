@@ -1436,6 +1436,8 @@ const Post = ({ post }) => {
               } ${mediaReady ? "opacity-100" : "opacity-0"}`}
               src={currentUrl}
               alt={post.caption || `Post media ${activeSlide + 1}`}
+              loading="lazy"
+              decoding="async"
               draggable={false}
               onLoad={handleImageLoad}
             />
@@ -1891,106 +1893,120 @@ const Post = ({ post }) => {
         </form>
       </section>
 
-      <CommentDialog
-        open={open}
-        setOpen={(next) => {
-          setOpen(next);
-          if (!next) dispatch(setSelectedPost(null));
-        }}
-      />
+      {open && (
+        <CommentDialog
+          open={open}
+          setOpen={(next) => {
+            setOpen(next);
+            if (!next) dispatch(setSelectedPost(null));
+          }}
+        />
+      )}
 
-      <ShareDialog
-        open={shareOpen}
-        onOpenChange={setShareOpen}
-        post={post}
-      />
+      {shareOpen && (
+        <ShareDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          post={post}
+        />
+      )}
 
-      <SaveToCollectionModal
-        isOpen={collectionModalOpen}
-        onClose={() => setCollectionModalOpen(false)}
-        post={post}
-        onSaved={() => setBookmarked(true)}
-        onUnsaved={() => setBookmarked(false)}
-      />
+      {collectionModalOpen && (
+        <SaveToCollectionModal
+          isOpen={collectionModalOpen}
+          onClose={() => setCollectionModalOpen(false)}
+          post={post}
+          onSaved={() => setBookmarked(true)}
+          onUnsaved={() => setBookmarked(false)}
+        />
+      )}
 
-      <NovaQRCodeModal
-        isOpen={qrModalOpen}
-        onClose={() => setQrModalOpen(false)}
-        url={`${window.location.origin}/post/${post?._id}`}
-        title={post?.author?.username || "Nova Post"}
-        subtitle="Scan to view post"
-        avatar={post?.author?.profilePicture}
-        type="post"
-      />
+      {qrModalOpen && (
+        <NovaQRCodeModal
+          isOpen={qrModalOpen}
+          onClose={() => setQrModalOpen(false)}
+          url={`${window.location.origin}/post/${post?._id}`}
+          title={post?.author?.username || "Nova Post"}
+          subtitle="Scan to view post"
+          avatar={post?.author?.profilePicture}
+          type="post"
+        />
+      )}
 
-      <QuotePostModal
-        isOpen={quoteModalOpen}
-        onClose={() => setQuoteModalOpen(false)}
-        post={post}
-      />
+      {quoteModalOpen && (
+        <QuotePostModal
+          isOpen={quoteModalOpen}
+          onClose={() => setQuoteModalOpen(false)}
+          post={post}
+        />
+      )}
 
-      <PostLightboxModal
-        open={lightboxOpen}
-        onClose={() => setLightboxOpen(false)}
-        post={post}
-        mediaItems={mediaItems}
-        initialSlide={activeSlide}
-        liked={liked}
-        postLike={postLike}
-        onLike={likeOrDislikeHandler}
-        bookmarked={bookmarked}
-        onBookmark={bookmarkHandler}
-        onCommentClick={() => {
-          dispatch(setSelectedPost(post));
-          setOpen(true);
-        }}
-        onShareClick={() => setShareOpen(true)}
-      />
+      {lightboxOpen && (
+        <PostLightboxModal
+          open={lightboxOpen}
+          onClose={() => setLightboxOpen(false)}
+          post={post}
+          mediaItems={mediaItems}
+          initialSlide={activeSlide}
+          liked={liked}
+          postLike={postLike}
+          onLike={likeOrDislikeHandler}
+          bookmarked={bookmarked}
+          onBookmark={bookmarkHandler}
+          onCommentClick={() => {
+            dispatch(setSelectedPost(post));
+            setOpen(true);
+          }}
+          onShareClick={() => setShareOpen(true)}
+        />
+      )}
 
       {/* ── DELETE / LEAVE CONFIRMATION MODAL ── */}
-      <Dialog
-        open={deleteConfirmModal.open}
-        onOpenChange={(v) =>
-          setDeleteConfirmModal((prev) => ({ ...prev, open: v }))
-        }
-      >
-        <DialogContent className="max-w-[400px] p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] shadow-2xl">
-          <DialogTitle className="text-lg font-bold tracking-tight text-[var(--foreground)] flex items-center gap-2.5">
-            <div className="size-9 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center shrink-0">
-              <AnimatedIcon icon={Trash2Icon} size={18} />
+      {deleteConfirmModal.open && (
+        <Dialog
+          open={deleteConfirmModal.open}
+          onOpenChange={(v) =>
+            setDeleteConfirmModal((prev) => ({ ...prev, open: v }))
+          }
+        >
+          <DialogContent className="max-w-[400px] p-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] shadow-2xl">
+            <DialogTitle className="text-lg font-bold tracking-tight text-[var(--foreground)] flex items-center gap-2.5">
+              <div className="size-9 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center shrink-0">
+                <AnimatedIcon icon={Trash2Icon} size={18} />
+              </div>
+              <span>{deleteConfirmModal.title || "Confirm Deletion"}</span>
+            </DialogTitle>
+            <p className="text-xs sm:text-sm text-[var(--muted-foreground)] leading-relaxed mt-2">
+              {deleteConfirmModal.message}
+            </p>
+            <div className="flex items-center justify-end gap-2.5 mt-5">
+              <button
+                type="button"
+                onClick={() =>
+                  setDeleteConfirmModal((prev) => ({ ...prev, open: false }))
+                }
+                className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold border border-[var(--border)] bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--foreground)] transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(actionLoading === "delete")}
+                onClick={() => deletePostHandler(deleteConfirmModal.mode)}
+                className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-red-600 hover:bg-red-700 active:scale-95 text-white shadow-md transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {actionLoading === "delete" ? (
+                  <span>Processing…</span>
+                ) : (
+                  deleteConfirmModal.confirmText || "Delete"
+                )}
+              </button>
             </div>
-            <span>{deleteConfirmModal.title || "Confirm Deletion"}</span>
-          </DialogTitle>
-          <p className="text-xs sm:text-sm text-[var(--muted-foreground)] leading-relaxed mt-2">
-            {deleteConfirmModal.message}
-          </p>
-          <div className="flex items-center justify-end gap-2.5 mt-5">
-            <button
-              type="button"
-              onClick={() =>
-                setDeleteConfirmModal((prev) => ({ ...prev, open: false }))
-              }
-              className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold border border-[var(--border)] bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--foreground)] transition-all cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={Boolean(actionLoading === "delete")}
-              onClick={() => deletePostHandler(deleteConfirmModal.mode)}
-              className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-red-600 hover:bg-red-700 active:scale-95 text-white shadow-md transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-            >
-              {actionLoading === "delete" ? (
-                <span>Processing…</span>
-              ) : (
-                deleteConfirmModal.confirmText || "Delete"
-              )}
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}
     </article>
   );
 };
 
-export default Post;
+export default React.memo(Post);

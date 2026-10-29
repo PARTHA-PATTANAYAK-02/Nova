@@ -1577,16 +1577,20 @@ const Messages = ({
     }
   }, [messages, messageRequest.loading, scrollToBottom, user?._id]);
 
+  const scrollRafRef = useRef(null);
   const handleScroll = () => {
-    const el = scrollContainerRef.current;
-    if (!el) return;
+    if (scrollRafRef.current) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      const el = scrollContainerRef.current;
+      if (!el) return;
 
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    const isFar = distanceFromBottom > 220;
-    setShowScrollBottom(isFar);
-    if (!isFar) {
-      setUnreadWhileScrolled(0);
-    }
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      const isFar = distanceFromBottom > 220;
+      setShowScrollBottom((prev) => (prev !== isFar ? isFar : prev));
+      if (!isFar) {
+        setUnreadWhileScrolled((prev) => (prev !== 0 ? 0 : prev));
+      }
 
     // Auto-load older messages when user scrolls near top
     if (
@@ -1607,6 +1611,7 @@ const Messages = ({
         }
       });
     }
+    });
   };
 
   return (

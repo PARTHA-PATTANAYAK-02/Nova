@@ -40,5 +40,7 @@ const userSchema = new mongoose.Schema(
 userSchema.index({ username: 1 }, { unique: true, sparse: true });
 userSchema.index({ previousUsernames: 1 });
 userSchema.index({ fullName: 1 });
+userSchema.index({ following: 1 });
+userSchema.index({ followers: 1 });
 
 export const User = mongoose.model("User", userSchema);

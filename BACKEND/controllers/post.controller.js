@@ -255,10 +255,10 @@ export const getAllPost = async (req, res) => {
       Math.max(Number.parseInt(req.query.limit, 10) || 10, 1),
       20,
     );
-    const posts = await Post.find()
+    const rawPosts = await Post.find()
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
-      .limit(limit)
+      .limit(limit + 1)
       .populate({ path: "author", select: "username fullName profilePicture" })
       .populate({ path: "collaborators", select: "username fullName profilePicture" })
       .populate({ path: "taggedUsers.user", select: "username fullName profilePicture" })
@@ -276,14 +276,17 @@ export const getAllPost = async (req, res) => {
             populate: { path: "author", select: "username fullName profilePicture" },
           },
         ],
-      });
-    const total = await Post.countDocuments();
+      })
+      .lean();
+
+    const hasMore = rawPosts.length > limit;
+    const posts = hasMore ? rawPosts.slice(0, limit) : rawPosts;
+
     return res.status(200).json({
       posts,
       page,
       limit,
-      total,
-      hasMore: page * limit < total,
+      hasMore,
       success: true,
     });
   } catch (error) {

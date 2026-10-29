@@ -55,7 +55,7 @@ const Posts = ({ requestState }) => {
       {posts.map((post, index) => (
         <div
           key={post._id}
-          className="animate-slide-up opacity-0"
+          className="feed-post-card animate-slide-up opacity-0"
           style={{
             animationDelay: `${Math.min(index * 50, 500)}ms`,
             animationFillMode: "forwards",
